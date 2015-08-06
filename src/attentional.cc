@@ -14,7 +14,7 @@ using namespace cnn::expr;
 AttentionalModel::AttentionalModel(Model& model, unsigned src_vocab_size, unsigned tgt_vocab_size) {
   forward_builder = LSTMBuilder(lstm_layer_count, embedding_dim, half_annotation_dim, &model);
   reverse_builder = LSTMBuilder(lstm_layer_count, embedding_dim, half_annotation_dim, &model);
-  output_builder = LSTMBuilder(lstm_layer_count, 2 * half_annotation_dim, output_state_dim, &model);
+  output_builder = LSTMBuilder(lstm_layer_count, embedding_dim + 2 * half_annotation_dim, output_state_dim, &model);
   p_Es = model.add_lookup_parameters(src_vocab_size, {embedding_dim});
   p_Et = model.add_lookup_parameters(tgt_vocab_size, {embedding_dim});
   p_aIH = model.add_parameters({alignment_hidden_dim, output_state_dim + 2 * half_annotation_dim});
@@ -67,11 +67,12 @@ vector<Expression> AttentionalModel::BuildAnnotationVectors(const vector<Express
   return annotations;
 }
 
-OutputState AttentionalModel::GetNextOutputState(const Expression& prev_context, const vector<Expression>& annotations,
-    const MLP& aligner, ComputationGraph& cg, vector<float>* out_alignment) {
+OutputState AttentionalModel::GetNextOutputState(const Expression& prev_context, const Expression& prev_target_word_embedding,
+    const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& cg, vector<float>* out_alignment) {
   const unsigned source_size = annotations.size();
 
-  Expression new_state = output_builder.add_input(prev_context);
+  Expression state_rnn_input = concatenate({prev_context, prev_target_word_embedding});
+  Expression new_state = output_builder.add_input(state_rnn_input); // new_state = RNN(prev_state, prev_context, prev_target_word)
   vector<Expression> unnormalized_alignments(source_size); // e_ij
 
   for (unsigned s = 0; s < source_size; ++s) {
@@ -84,12 +85,12 @@ OutputState AttentionalModel::GetNextOutputState(const Expression& prev_context,
   }
 
   Expression unnormalized_alignment_vector = concatenate(unnormalized_alignments);
-  Expression normalized_alignment_vector = softmax(unnormalized_alignment_vector);
+  Expression normalized_alignment_vector = softmax(unnormalized_alignment_vector); // \alpha_ij
   if (out_alignment != NULL) {
     *out_alignment = as_vector(cg.forward());
   }
-  Expression annotation_matrix = concatenate_cols(annotations);
-  Expression context = annotation_matrix * normalized_alignment_vector;
+  Expression annotation_matrix = concatenate_cols(annotations); // \alpha
+  Expression context = annotation_matrix * normalized_alignment_vector; // c = \alpha * h
 
   OutputState os;
   os.state = new_state;
@@ -140,7 +141,8 @@ vector<vector<float> > AttentionalModel::Align(const vector<WordId>& source, con
   vector<vector<float> > alignment;
   for (unsigned t = 1; t < target.size() + 1; ++t) {
     vector<float> a;
-    OutputState os = GetNextOutputState(prev_context, annotations, aligner, cg, &a);
+    Expression prev_target_word_embedding = lookup(cg, p_Et, target[t - 1]);
+    OutputState os = GetNextOutputState(prev_context, prev_target_word_embedding, annotations, aligner, cg, &a);
     prev_context = os.context;
     alignment.push_back(a);
   }
@@ -193,10 +195,12 @@ KBestList<vector<WordId> > AttentionalModel::TranslateKBest(const vector<WordId>
 
       // XXX: Rebuild the whole output state sequence
       output_builder.start_new_sequence(); 
-      OutputState os = GetNextOutputState(zeroth_context, annotations, aligner, cg);
+      Expression previous_target_word_embedding = lookup(cg, p_Et, kSOS);
+      OutputState os = GetNextOutputState(zeroth_context, previous_target_word_embedding, annotations, aligner, cg);
       for (WordId word : hyp) {
         assert (word != kEOS);
-        os = GetNextOutputState(os.context, annotations, aligner, cg);
+        Expression previous_target_word_embedding = lookup(cg, p_Et, word);
+        os = GetNextOutputState(os.context, previous_target_word_embedding, annotations, aligner, cg);
       } 
 
       // Compute, normalize, and log the output distribution
@@ -219,7 +223,7 @@ KBestList<vector<WordId> > AttentionalModel::TranslateKBest(const vector<WordId>
       for (pair<double, WordId> p : best_words.hypothesis_list()) {
         double word_score = p.first;
         WordId word = p.second;
-        OutputState new_state = GetNextOutputState(os.context, annotations, aligner, cg);
+        OutputState new_state = GetNextOutputState(os.context, previous_target_word_embedding, annotations, aligner, cg);
         output_builder.rewind_one_step();
 
         double new_score = score + word_score;
@@ -269,7 +273,8 @@ vector<WordId> AttentionalModel::SampleTranslation(const vector<WordId>& source,
   vector<WordId> output;
   unsigned prev_word = kSOS;
   while (prev_word != kEOS && output.size() < max_length) {
-    OutputState os = GetNextOutputState(prev_context, annotations, aligner, cg);
+    Expression prev_target_word_embedding = lookup(cg, p_Et, prev_word);
+    OutputState os = GetNextOutputState(prev_context, prev_target_word_embedding, annotations, aligner, cg);
     Expression log_output_distribution = ComputeOutputDistribution(prev_word, os.state, os.context, final, cg);
     Expression output_distribution = softmax(log_output_distribution);
     vector<float> dist = as_vector(cg.incremental_forward());
@@ -322,7 +327,8 @@ Expression AttentionalModel::BuildGraph(const vector<WordId>& source, const vect
   contexts[0] = tanh(zeroth_context_untransformed);
 
   for (unsigned t = 1; t < target.size(); ++t) {
-    OutputState os = GetNextOutputState(contexts[t - 1], annotations, aligner, cg);
+    Expression prev_target_word_embedding = lookup(cg, p_Et, target[t - 1]);
+    OutputState os = GetNextOutputState(contexts[t - 1], prev_target_word_embedding, annotations, aligner, cg);
     output_states[t] = os.state;
     contexts[t] = os.context;
   }
