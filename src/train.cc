@@ -43,6 +43,18 @@ void shuffle(Bitext& bitext, RNG& g) {
   bitext.target_sentences = target;
 }
 
+void Serialize(Bitext& bitext, AttentionalModel& attentional_model, Model& model) {
+  ftruncate(fileno(stdout), 0);
+  fseek(stdout, 0, SEEK_SET); 
+
+  boost::archive::text_oarchive oa(cout);
+  oa & bitext.source_vocab;
+  oa & bitext.target_vocab;
+  oa << attentional_model;
+  oa << model;
+
+}
+
 int main(int argc, char** argv) {
   if (argc < 2) {
     cerr << "Usage: " << argv[0] << " corpus.txt" << endl;
@@ -107,13 +119,9 @@ int main(int argc, char** argv) {
     }
     cerr << "Iteration " << iteration << " loss: " << loss << " (perp=" << exp(loss/word_count) << ")" << endl;
     sgd.update_epoch();
+    Serialize(bitext, attentional_model, model);
   }
 
-  boost::archive::text_oarchive oa(cout);
-  oa & bitext.source_vocab;
-  oa & bitext.target_vocab;
-  oa << attentional_model;
-  oa << model;
-
+  Serialize(bitext, attentional_model, model);
   return 0;
 }
