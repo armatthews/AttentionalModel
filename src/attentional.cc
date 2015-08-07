@@ -208,7 +208,7 @@ KBestList<vector<WordId> > AttentionalModel::TranslateKBest(const vector<WordId>
       Expression unnormalized_output_distribution = ComputeOutputDistribution(prev_word, os.state, os.context, final, cg);
       Expression output_distribution = softmax(unnormalized_output_distribution);
       Expression log_output_distribution = log(output_distribution);
-      cerr << "HG has " << cg.nodes.size() << " nodes" << endl;
+      //cerr << "HG has " << cg.nodes.size() << " nodes" << endl;
       vector<float> dist = as_vector(cg.incremental_forward());
 
       // Take the K best-looking words
