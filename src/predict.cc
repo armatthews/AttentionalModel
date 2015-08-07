@@ -66,6 +66,8 @@ int main(int argc, char** argv) {
   ia & attentional_model;
   ia & model;
 
+  WordId ksSOS = source_vocab.Convert("<s>");
+  WordId ksEOS = source_vocab.Convert("</s>");
   WordId ktSOS = target_vocab.Convert("<s>");
   WordId ktEOS = target_vocab.Convert("</s>");
 
@@ -81,6 +83,8 @@ int main(int argc, char** argv) {
     for (unsigned i = 0; i < tokens.size(); ++i) {
       source[i] = source_vocab.Convert(tokens[i]);
     }
+    source.insert(source.begin(), ksSOS);
+    source.insert(source.end(), ksEOS);
 
     cerr << "Read source sentence: " << boost::algorithm::join(tokens, " ") << endl;
     if (parts.size() > 1) {
