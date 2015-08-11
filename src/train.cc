@@ -101,8 +101,9 @@ int main(int argc, char** argv) {
       loss += l;
       tloss += l;
       hg.backward();
-      if (i % 50 == 0) {
-        cerr << "--" << iteration << '.' << ((float)i / bitext.size()) << " loss: " << tloss << " (perp=" << exp(tloss/tword_count) << ")" << endl;
+      if (i % 50 == 0 && i > 0) {
+        float fractional_iteration = (float)iteration + ((float)i / bitext.size());
+        cerr << "--" << fractional_iteration << " loss: " << tloss << " (perp=" << exp(tloss/tword_count) << ")" << endl;
         tloss = 0;
         tword_count = 0;
       }
@@ -117,7 +118,7 @@ int main(int argc, char** argv) {
     if (ctrlc_pressed) {
       break;
     }
-    cerr << "Iteration " << iteration << " loss: " << loss << " (perp=" << exp(loss/word_count) << ")" << endl;
+    cerr << "Iteration " << iteration + 1 << " loss: " << loss << " (perp=" << exp(loss/word_count) << ")" << endl;
     sgd.update_epoch();
     Serialize(bitext, attentional_model, model);
   }
