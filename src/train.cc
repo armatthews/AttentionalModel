@@ -44,7 +44,7 @@ void shuffle(Bitext& bitext, RNG& g) {
 }
 
 void Serialize(Bitext& bitext, AttentionalModel& attentional_model, Model& model) {
-  ftruncate(fileno(stdout), 0);
+  int r = ftruncate(fileno(stdout), 0);
   fseek(stdout, 0, SEEK_SET); 
 
   boost::archive::text_oarchive oa(cout);

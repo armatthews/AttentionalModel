@@ -129,7 +129,7 @@ int main(int argc, char** argv) {
       translations2.push_back(make_pair(it->second, it->first));
     }
 
-    auto comp = [](auto& a, auto& b) { return a.first > b.first || (a.first == b.first && a.second < b.second);};
+    auto comp = [](const pair<int, string>& a, const pair<int, string>& b) { return a.first > b.first || (a.first == b.first && a.second < b.second);};
     sort(translations2.begin(), translations2.end(), comp);
 
     for (auto it = translations2.begin(); it != translations2.end(); ++it) {
