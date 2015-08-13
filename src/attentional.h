@@ -25,8 +25,9 @@ struct MLP {
 };
 
 struct PartialHypothesis {
-  vector<WordId> hyp;
-  OutputState os;
+  vector<WordId> words;
+  RNNPointer rnn_pointer;
+  OutputState state;
 };
 
 class AttentionalModel {
