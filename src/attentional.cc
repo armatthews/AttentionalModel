@@ -69,10 +69,15 @@ vector<Expression> AttentionalModel::BuildAnnotationVectors(const vector<Express
 
 OutputState AttentionalModel::GetNextOutputState(const Expression& prev_context, const Expression& prev_target_word_embedding,
     const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& cg, vector<float>* out_alignment) {
+  return GetNextOutputState(output_builder.state(), prev_context, prev_target_word_embedding, annotations, aligner, cg, out_alignment);
+}
+
+OutputState AttentionalModel::GetNextOutputState(const RNNPointer& rnn_pointer, const Expression& prev_context, const Expression& prev_target_word_embedding,
+    const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& cg, vector<float>* out_alignment) {
   const unsigned source_size = annotations.size();
 
   Expression state_rnn_input = concatenate({prev_context, prev_target_word_embedding});
-  Expression new_state = output_builder.add_input(state_rnn_input); // new_state = RNN(prev_state, prev_context, prev_target_word)
+  Expression new_state = output_builder.add_input(rnn_pointer, state_rnn_input); // new_state = RNN(prev_state, prev_context, prev_target_word)
   vector<Expression> unnormalized_alignments(source_size); // e_ij
 
   for (unsigned s = 0; s < source_size; ++s) {

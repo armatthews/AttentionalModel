@@ -37,6 +37,7 @@ public:
   vector<Expression> BuildReverseAnnotations(const vector<WordId>& sentence, ComputationGraph& hg);
   vector<Expression> BuildAnnotationVectors(const vector<Expression>& forward_contexts, const vector<Expression>& reverse_contexts, ComputationGraph& hg);
   OutputState GetNextOutputState(const Expression& context, const Expression& prev_target_word_embedding, const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& hg, vector<float>* out_alignment = NULL);
+  OutputState GetNextOutputState(const RNNPointer& rnn_pointer, const Expression& context, const Expression& prev_target_word_embedding, const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& hg, vector<float>* out_alignment = NULL);
   Expression ComputeOutputDistribution(const WordId prev_word, const Expression state, const Expression context, const MLP& final, ComputationGraph& hg);
   Expression BuildGraph(const vector<WordId>& source, const vector<WordId>& target, ComputationGraph& hg);
   vector<unsigned&> GetParams();
