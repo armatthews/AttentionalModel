@@ -100,6 +100,7 @@ OutputState AttentionalModel::GetNextOutputState(const RNNPointer& rnn_pointer, 
   OutputState os;
   os.state = new_state;
   os.context = context;
+  os.rnn_pointer = output_builder.state();
   return os;
 }
 
@@ -188,7 +189,12 @@ KBestList<vector<WordId> > AttentionalModel::TranslateKBest(const vector<WordId>
 
   KBestList<vector<WordId> > completed_hyps(beam_size);
   KBestList<PartialHypothesis> top_hyps(beam_size);
-  top_hyps.add(0.0, {});
+
+  output_builder.start_new_sequence();
+  RNNPointer crapo = output_builder.state();
+  Expression previous_target_word_embedding = lookup(cg, p_Et, kSOS);
+  OutputState os0 = GetNextOutputState(zeroth_context, previous_target_word_embedding, annotations, aligner, cg);
+  top_hyps.add(0.0, {{}, os0});
 
   // Invariant: each element in top_hyps should have a length of "length"
   for (unsigned length = 0; length < max_length; ++length) {
@@ -198,15 +204,7 @@ KBestList<vector<WordId> > AttentionalModel::TranslateKBest(const vector<WordId>
       PartialHypothesis& hyp = scored_hyp.second;
       assert (hyp.words.size() == length);
 
-      // XXX: Rebuild the whole output state sequence
-      output_builder.start_new_sequence(); 
-      Expression previous_target_word_embedding = lookup(cg, p_Et, kSOS);
-      OutputState os = GetNextOutputState(zeroth_context, previous_target_word_embedding, annotations, aligner, cg);
-      for (WordId word : hyp.words) {
-        assert (word != kEOS);
-        Expression previous_target_word_embedding = lookup(cg, p_Et, word);
-        os = GetNextOutputState(os.context, previous_target_word_embedding, annotations, aligner, cg);
-      } 
+      OutputState os = hyp.state;
 
       // Compute, normalize, and log the output distribution
       WordId prev_word = (hyp.words.size() > 0) ? hyp.words[hyp.words.size() - 1] : kSOS;
@@ -228,12 +226,12 @@ KBestList<vector<WordId> > AttentionalModel::TranslateKBest(const vector<WordId>
       for (pair<double, WordId> p : best_words.hypothesis_list()) {
         double word_score = p.first;
         WordId word = p.second;
-        OutputState new_state = GetNextOutputState(os.context, previous_target_word_embedding, annotations, aligner, cg);
-
+        Expression previous_target_word_embedding2 = lookup(cg, p_Et, word);
+        OutputState new_state = GetNextOutputState(os.rnn_pointer, os.context, previous_target_word_embedding2, annotations, aligner, cg);
+        
         double new_score = score + word_score;
-        PartialHypothesis new_hyp = {hyp.words, output_builder.state(), new_state};
+        PartialHypothesis new_hyp = {hyp.words, new_state};
         new_hyp.words.push_back(word);
-        output_builder.rewind_one_step();
 
         if (new_hyp.words.size() == max_length || word == kEOS) {
           completed_hyps.add(new_score, new_hyp.words);

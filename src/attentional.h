@@ -14,6 +14,9 @@ struct OutputState {
   Expression state;
   // Context is a weighted sum of annotation vectors
   Expression context;
+
+  // rnn_pointer allows us to restore the state of output_builder
+  RNNPointer rnn_pointer;
 };
 
 // A simple 2 layer MLP
@@ -25,8 +28,7 @@ struct MLP {
 };
 
 struct PartialHypothesis {
-  vector<WordId> words;
-  RNNPointer rnn_pointer;
+  vector<WordId> words; 
   OutputState state;
 };
 
