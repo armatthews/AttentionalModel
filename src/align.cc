@@ -11,6 +11,7 @@
 
 #include "bitext.h"
 #include "attentional.h"
+#include "decoder.h"
 #include "utils.h"
 
 using namespace cnn;
@@ -103,7 +104,10 @@ int main(int argc, char** argv) {
     assert (source[source.size() - 1] == ksEOS);
     assert (target[0] == ktBOS);
     assert (target[target.size() - 1] == ktEOS);
-    vector<vector<float> > alignment = attentional_model.Align(source, target);
+
+    AttentionalDecoder decoder(&attentional_model);
+    decoder.SetParams(100, ktBOS, ktEOS);
+    vector<vector<float> > alignment = decoder.Align(source, target);
     unsigned j = 0;
     for (vector<float> v : alignment) {
       for (unsigned i = 0; i < v.size(); ++i) {

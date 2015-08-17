@@ -5,10 +5,12 @@
 #include "cnn/lstm.h"
 #include "utils.h"
 #include "kbestlist.h"
+#include "syntax_tree.h"
 
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/serialization/map.hpp>
+#include <boost/algorithm/string.hpp>
 
 #include <iostream>
 #include <fstream>
@@ -46,6 +48,14 @@ int test() {
 }
 
 int main(int argc, char** argv) {
+  string line;
+  while (getline(cin, line)) {
+    boost::algorithm::trim(line);
+    SyntaxTree tree(line);
+    //cout << tree << endl;
+    cout << tree.MaxBranchCount() << endl;
+  }
+  return 0;
   cerr << SIZE_MAX << endl;
   return test();
   signal (SIGINT, ctrlc_handler);

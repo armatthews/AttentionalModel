@@ -1,8 +1,10 @@
+#pragma once
 #include <vector>
 #include <boost/archive/text_oarchive.hpp>
 #include "cnn/cnn.h"
 #include "cnn/expr.h"
 #include "cnn/lstm.h"
+#include "bitext.h"
 #include "kbestlist.h"
 
 using namespace std;
@@ -33,21 +35,23 @@ struct PartialHypothesis {
 };
 
 class AttentionalModel {
+  friend class AttentionalDecoder;
 public:
   AttentionalModel(Model& model, unsigned src_vocab_size, unsigned tgt_vocab_size);
+  Expression BuildGraph(const vector<WordId>& source, const vector<WordId>& target, ComputationGraph& hg); 
+
+protected:
   vector<Expression> BuildForwardAnnotations(const vector<WordId>& sentence, ComputationGraph& hg);
   vector<Expression> BuildReverseAnnotations(const vector<WordId>& sentence, ComputationGraph& hg);
   vector<Expression> BuildAnnotationVectors(const vector<Expression>& forward_contexts, const vector<Expression>& reverse_contexts, ComputationGraph& hg);
   OutputState GetNextOutputState(const Expression& context, const Expression& prev_target_word_embedding, const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& hg, vector<float>* out_alignment = NULL);
   OutputState GetNextOutputState(const RNNPointer& rnn_pointer, const Expression& context, const Expression& prev_target_word_embedding, const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& hg, vector<float>* out_alignment = NULL);
   Expression ComputeOutputDistribution(const WordId prev_word, const Expression state, const Expression context, const MLP& final, ComputationGraph& hg);
-  Expression BuildGraph(const vector<WordId>& source, const vector<WordId>& target, ComputationGraph& hg);
   vector<unsigned&> GetParams();
-
-  vector<vector<float> > Align(const vector<WordId>& source, const vector<WordId>& target);
-  vector<WordId> SampleTranslation(const vector<WordId>& source, WordId kSOS, WordId kEOS, unsigned max_length);
-  vector<WordId> Translate(const vector<WordId>& source, WordId kSOS, WordId kEOS, unsigned beam_size, unsigned max_length);
-  KBestList<vector<WordId> > TranslateKBest(const vector<WordId>& source, WordId kSOS, WordId kEOS, unsigned k, unsigned beam_size, unsigned max_length);
+  MLP GetAligner(ComputationGraph& cg) const;
+  MLP GetFinalMLP(ComputationGraph& cg) const; 
+  Expression GetZerothContext(Expression zeroth_reverse_annotation, ComputationGraph& cg) const;
+  OutputState GetInitialOutputState(Expression zeroth_context, const vector<Expression>& annotations, const MLP& aligner, const WordId kSOS, ComputationGraph& cg, vector<float>* alignment = NULL);
 
 private:
   LSTMBuilder forward_builder, reverse_builder, output_builder;
@@ -65,11 +69,11 @@ private:
   Parameters* p_fOb; // Same, output bias
 
   unsigned lstm_layer_count = 2;
-  unsigned embedding_dim = 101; // Dimensionality of both source and target word embeddings. For now these are the same.
-  unsigned half_annotation_dim = 501; // Dimensionality of h_forward and h_backward. The full h has twice this dimension.
-  unsigned output_state_dim = 103; // Dimensionality of s_j, the state just before outputing target word y_j
-  unsigned alignment_hidden_dim = 97; // Dimensionality of the hidden layer in the alignment FFNN
-  unsigned final_hidden_dim = 107; // Dimensionality of the hidden layer in the "final" FFNN
+  unsigned embedding_dim = 32; // Dimensionality of both source and target word embeddings. For now these are the same.
+  unsigned half_annotation_dim = 32; // Dimensionality of h_forward and h_backward. The full h has twice this dimension.
+  unsigned output_state_dim = 32; // Dimensionality of s_j, the state just before outputing target word y_j
+  unsigned alignment_hidden_dim = 32; // Dimensionality of the hidden layer in the alignment FFNN
+  unsigned final_hidden_dim = 32; // Dimensionality of the hidden layer in the "final" FFNN
 
   friend class boost::serialization::access;
   template<class Archive> void serialize(Archive& ar, const unsigned int) {

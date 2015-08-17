@@ -11,6 +11,7 @@
 
 #include "bitext.h"
 #include "attentional.h"
+#include "decoder.h"
 #include "utils.h"
 
 using namespace cnn;
@@ -43,36 +44,49 @@ int main(int argc, char** argv) {
     exit(1);
   }
   signal (SIGINT, ctrlc_handler);
-
-  const string model_filename = argv[1];
-  ifstream model_file(model_filename);
-  if (!model_file.is_open()) {
-    cerr << "ERROR: Unable to open " << model_filename << endl;
-    exit(1);
-  }
-  boost::archive::text_iarchive ia(model_file);
-
   cnn::Initialize(argc, argv);
+
+  vector<Model*> cnn_models(argc - 1);
+  vector<AttentionalModel*> attentional_models(argc - 1);
+  // XXX: We just use the last set of dictionaries, assuming they're all the same
   Dict source_vocab;
   Dict target_vocab;
-  ia & source_vocab;
-  ia & target_vocab;
-  source_vocab.Freeze();
-  target_vocab.Freeze();
+  for (unsigned i = 0; i < argc - 1; ++i) {
+    const string model_filename = argv[i + 1];
+    ifstream model_file(model_filename);
+    if (!model_file.is_open()) {
+      cerr << "ERROR: Unable to open " << model_filename << endl;
+      exit(1);
+    }
+    boost::archive::text_iarchive ia(model_file);
 
-  Model model;
-  AttentionalModel attentional_model(model, source_vocab.size(), target_vocab.size());
+    ia & source_vocab;
+    ia & target_vocab;
+    source_vocab.Freeze();
+    target_vocab.Freeze();
 
-  ia & attentional_model;
-  ia & model;
+    Model* model = new Model();
+    cnn_models[i] = model;
+    attentional_models[i] = new AttentionalModel(*model, source_vocab.size(), target_vocab.size());
+
+    ia & *attentional_models[i];
+    ia & *model;
+  }
+
+  AttentionalDecoder decoder(attentional_models);
 
   WordId ksSOS = source_vocab.Convert("<s>");
   WordId ksEOS = source_vocab.Convert("</s>");
   WordId ktSOS = target_vocab.Convert("<s>");
   WordId ktEOS = target_vocab.Convert("</s>");
 
+  unsigned beam_size = 10;
+  unsigned max_length = 100;
+  unsigned kbest_size = 10; 
+  decoder.SetParams(max_length, ktSOS, ktEOS);
+
   string line;
-  for (; getline(cin, line);) {
+  while(getline(cin, line)) {
     vector<string> parts = tokenize(line, "|||");
     trim(parts, false);
 
@@ -93,10 +107,7 @@ int main(int argc, char** argv) {
       cerr << "  Read reference: " << boost::algorithm::join(reference, " ") << endl;
     }
 
-    unsigned beam_size = 10;
-    unsigned max_length = 20;
-    unsigned kbest_size = 10; 
-    KBestList<vector<WordId> > kbest = attentional_model.TranslateKBest(source, ktSOS, ktEOS, kbest_size, beam_size, max_length);
+    KBestList<vector<WordId> > kbest = decoder.TranslateKBest(source, kbest_size, beam_size);
     for (auto& scored_hyp : kbest.hypothesis_list()) {
       double score = scored_hyp.first;
       vector<WordId> hyp = scored_hyp.second;
@@ -107,33 +118,9 @@ int main(int argc, char** argv) {
       string translation = boost::algorithm::join(words, " ");
       cout << score << "\t" << translation << endl;
     }
-    continue;
 
-    map<string, int> translations;
-    for (unsigned j = 0; j < 1000; ++j) {
-      vector<WordId> target = attentional_model.SampleTranslation(source, ktSOS, ktEOS, 10);
-      vector<string> words(target.size());
-      for  (unsigned i = 0; i < target.size(); ++i) {
-        words[i] = target_vocab.Convert(target[i]);
-      }
-      string translation = boost::algorithm::join(words, " ");
-      translations[translation]++;
-
-      if (ctrlc_pressed) {
-        break;
-      }
-    }
-
-    vector<pair<int, string> > translations2;
-    for (auto it = translations.begin(); it != translations.end(); ++it) {
-      translations2.push_back(make_pair(it->second, it->first));
-    }
-
-    auto comp = [](const pair<int, string>& a, const pair<int, string>& b) { return a.first > b.first || (a.first == b.first && a.second < b.second);};
-    sort(translations2.begin(), translations2.end(), comp);
-
-    for (auto it = translations2.begin(); it != translations2.end(); ++it) {
-      cout << it->first << "\t" << it->second << endl;
+    if (ctrlc_pressed) {
+      break;
     }
   }
 

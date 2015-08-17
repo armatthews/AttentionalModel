@@ -113,189 +113,36 @@ Expression AttentionalModel::ComputeOutputDistribution(const WordId prev_word, c
   return final_output;
 }
 
-vector<vector<float> > AttentionalModel::Align(const vector<WordId>& source, const vector<WordId>& target) {
-  ComputationGraph cg;
-  output_builder.new_graph(cg);
-  output_builder.start_new_sequence();
-
-  vector<Expression> forward_annotations = BuildForwardAnnotations(source, cg);
-  vector<Expression> reverse_annotations = BuildReverseAnnotations(source, cg);
-  vector<Expression> annotations = BuildAnnotationVectors(forward_annotations, reverse_annotations, cg);
-
+MLP AttentionalModel::GetAligner(ComputationGraph& cg) const {
   Expression i_aIH = parameter(cg, p_aIH);
   Expression i_aHb = parameter(cg, p_aHb);
   Expression i_aHO = parameter(cg, p_aHO);
   Expression i_aOb = parameter(cg, p_aOb);
   MLP aligner = {i_aIH, i_aHb, i_aHO, i_aOb};
+  return aligner;
+}
 
+MLP AttentionalModel::GetFinalMLP(ComputationGraph& cg) const {
   Expression i_fIH = parameter(cg, p_fIH);
   Expression i_fHb = parameter(cg, p_fHb);
   Expression i_fHO = parameter(cg, p_fHO);
   Expression i_fOb = parameter(cg, p_fOb);
-  MLP final = {i_fIH, i_fHb, i_fHO, i_fOb};
-
+  MLP final_mlp = {i_fIH, i_fHb, i_fHO, i_fOb};
+  return final_mlp;
+}
+Expression AttentionalModel::GetZerothContext(Expression zeroth_reverse_annotation, ComputationGraph& cg) const {
   Expression i_bs = parameter(cg, p_bs);
   Expression i_Ws = parameter(cg, p_Ws);
-
-  vector<Expression> output_states(target.size());
-  vector<Expression> contexts(target.size());
-
-  Expression zeroth_context_untransformed = affine_transform({i_bs, i_Ws, reverse_annotations[0]});
+  Expression zeroth_context_untransformed = affine_transform({i_bs, i_Ws, zeroth_reverse_annotation});
   Expression zeroth_context = tanh(zeroth_context_untransformed);
-  Expression prev_context = zeroth_context;
-
-  vector<vector<float> > alignment;
-  for (unsigned t = 1; t < target.size() + 1; ++t) {
-    vector<float> a;
-    Expression prev_target_word_embedding = lookup(cg, p_Et, target[t - 1]);
-    OutputState os = GetNextOutputState(prev_context, prev_target_word_embedding, annotations, aligner, cg, &a);
-    prev_context = os.context;
-    alignment.push_back(a);
-  }
-  return alignment;
+  return zeroth_context;
 }
 
-vector<WordId> AttentionalModel::Translate(const vector<WordId>& source, WordId kSOS, WordId kEOS, unsigned beam_size, unsigned max_length) {
-  KBestList<vector<WordId> > kbest = TranslateKBest(source, kSOS, kEOS, 1, beam_size, max_length);
-  return kbest.hypothesis_list().begin()->second;
-}
-
-KBestList<vector<WordId> > AttentionalModel::TranslateKBest(const vector<WordId>& source, WordId kSOS, WordId kEOS, unsigned k, unsigned beam_size, unsigned max_length) {
-  ComputationGraph cg;
-  output_builder.new_graph(cg);
-
-  vector<Expression> forward_annotations = BuildForwardAnnotations(source, cg);
-  vector<Expression> reverse_annotations = BuildReverseAnnotations(source, cg);
-  vector<Expression> annotations = BuildAnnotationVectors(forward_annotations, reverse_annotations, cg);
-
-  Expression i_aIH = parameter(cg, p_aIH);
-  Expression i_aHb = parameter(cg, p_aHb);
-  Expression i_aHO = parameter(cg, p_aHO);
-  Expression i_aOb = parameter(cg, p_aOb);
-  MLP aligner = {i_aIH, i_aHb, i_aHO, i_aOb};
-
-  Expression i_fIH = parameter(cg, p_fIH);
-  Expression i_fHb = parameter(cg, p_fHb);
-  Expression i_fHO = parameter(cg, p_fHO);
-  Expression i_fOb = parameter(cg, p_fOb);
-  MLP final = {i_fIH, i_fHb, i_fHO, i_fOb};
-
-  Expression i_bs = parameter(cg, p_bs);
-  Expression i_Ws = parameter(cg, p_Ws);
-
-  Expression zeroth_context_untransformed = affine_transform({i_bs, i_Ws, reverse_annotations[0]});
-  Expression zeroth_context = tanh(zeroth_context_untransformed);
-  /* Up until here this is all boiler plate */
-
-  KBestList<vector<WordId> > completed_hyps(beam_size);
-  KBestList<PartialHypothesis> top_hyps(beam_size);
-
+OutputState AttentionalModel::GetInitialOutputState(Expression zeroth_context, const vector<Expression>& annotations, const MLP& aligner, const WordId kSOS, ComputationGraph& cg, vector<float>* alignment) {
   output_builder.start_new_sequence();
-  RNNPointer crapo = output_builder.state();
   Expression previous_target_word_embedding = lookup(cg, p_Et, kSOS);
-  OutputState os0 = GetNextOutputState(zeroth_context, previous_target_word_embedding, annotations, aligner, cg);
-  top_hyps.add(0.0, {{}, os0});
-
-  // Invariant: each element in top_hyps should have a length of "length"
-  for (unsigned length = 0; length < max_length; ++length) {
-    KBestList<PartialHypothesis> new_hyps(beam_size);
-    for (auto scored_hyp : top_hyps.hypothesis_list()) {
-      double score = scored_hyp.first;
-      PartialHypothesis& hyp = scored_hyp.second;
-      assert (hyp.words.size() == length);
-
-      OutputState os = hyp.state;
-
-      // Compute, normalize, and log the output distribution
-      WordId prev_word = (hyp.words.size() > 0) ? hyp.words[hyp.words.size() - 1] : kSOS;
-      Expression unnormalized_output_distribution = ComputeOutputDistribution(prev_word, os.state, os.context, final, cg);
-      Expression output_distribution = softmax(unnormalized_output_distribution);
-      Expression log_output_distribution = log(output_distribution);
-      //cerr << "HG has " << cg.nodes.size() << " nodes" << endl;
-      vector<float> dist = as_vector(cg.incremental_forward());
-
-      // Take the K best-looking words
-      KBestList<WordId> best_words(beam_size);
-      for (unsigned i = 0; i < dist.size(); ++i) {
-        best_words.add(dist[i], i);
-      }
-
-      // For each of those K words, add it to the current hypothesis, and add the
-      // resulting hyp to our kbest list, unless the new word is </s>,
-      // in which case we add the new hyp to the list of completed hyps.
-      for (pair<double, WordId> p : best_words.hypothesis_list()) {
-        double word_score = p.first;
-        WordId word = p.second;
-        Expression previous_target_word_embedding2 = lookup(cg, p_Et, word);
-        OutputState new_state = GetNextOutputState(os.rnn_pointer, os.context, previous_target_word_embedding2, annotations, aligner, cg);
-        
-        double new_score = score + word_score;
-        PartialHypothesis new_hyp = {hyp.words, new_state};
-        new_hyp.words.push_back(word);
-
-        if (new_hyp.words.size() == max_length || word == kEOS) {
-          completed_hyps.add(new_score, new_hyp.words);
-        }
-        else {
-          new_hyps.add(new_score, new_hyp);
-        }
-      }
-    }
-    top_hyps = new_hyps;
-  }
-  return completed_hyps;
-}
-
-vector<WordId> AttentionalModel::SampleTranslation(const vector<WordId>& source, WordId kSOS, WordId kEOS, unsigned max_length) {
-  ComputationGraph cg;
-  output_builder.new_graph(cg);
-  output_builder.start_new_sequence();
-
-  vector<Expression> forward_annotations = BuildForwardAnnotations(source, cg);
-  vector<Expression> reverse_annotations = BuildReverseAnnotations(source, cg);
-  vector<Expression> annotations = BuildAnnotationVectors(forward_annotations, reverse_annotations, cg);
-
-  Expression i_aIH = parameter(cg, p_aIH);
-  Expression i_aHb = parameter(cg, p_aHb);
-  Expression i_aHO = parameter(cg, p_aHO);
-  Expression i_aOb = parameter(cg, p_aOb);
-  MLP aligner = {i_aIH, i_aHb, i_aHO, i_aOb};
-
-  Expression i_fIH = parameter(cg, p_fIH);
-  Expression i_fHb = parameter(cg, p_fHb);
-  Expression i_fHO = parameter(cg, p_fHO);
-  Expression i_fOb = parameter(cg, p_fOb);
-  MLP final = {i_fIH, i_fHb, i_fHO, i_fOb};
-
-  Expression i_bs = parameter(cg, p_bs);
-  Expression i_Ws = parameter(cg, p_Ws);
-
-  Expression zeroth_context_untransformed = affine_transform({i_bs, i_Ws, reverse_annotations[0]});
-  Expression zeroth_context = tanh(zeroth_context_untransformed);
-
-  Expression prev_context = zeroth_context;
-  vector<WordId> output;
-  unsigned prev_word = kSOS;
-  while (prev_word != kEOS && output.size() < max_length) {
-    Expression prev_target_word_embedding = lookup(cg, p_Et, prev_word);
-    OutputState os = GetNextOutputState(prev_context, prev_target_word_embedding, annotations, aligner, cg);
-    Expression log_output_distribution = ComputeOutputDistribution(prev_word, os.state, os.context, final, cg);
-    Expression output_distribution = softmax(log_output_distribution);
-    vector<float> dist = as_vector(cg.incremental_forward());
-    double r = rand01();
-    unsigned w = 0;
-    while (true) {
-      r -= dist[w];
-      if (r < 0.0) {
-        break;
-      }
-      ++w;
-    }
-    output.push_back(w);
-    prev_word = w;
-    prev_context = os.context;
-  }
-  return output;
+  OutputState os = GetNextOutputState(zeroth_context, previous_target_word_embedding, annotations, aligner, cg, alignment);
+  return os;
 }
 
 Expression AttentionalModel::BuildGraph(const vector<WordId>& source, const vector<WordId>& target, ComputationGraph& cg) {
@@ -307,28 +154,14 @@ Expression AttentionalModel::BuildGraph(const vector<WordId>& source, const vect
   vector<Expression> forward_annotations = BuildForwardAnnotations(source, cg);
   vector<Expression> reverse_annotations = BuildReverseAnnotations(source, cg);
   vector<Expression> annotations = BuildAnnotationVectors(forward_annotations, reverse_annotations, cg);
+  Expression zeroth_context = GetZerothContext(reverse_annotations[0], cg);
 
-  Expression i_aIH = parameter(cg, p_aIH);
-  Expression i_aHb = parameter(cg, p_aHb);
-  Expression i_aHO = parameter(cg, p_aHO);
-  Expression i_aOb = parameter(cg, p_aOb);
-  MLP aligner = {i_aIH, i_aHb, i_aHO, i_aOb};
-
-  Expression i_fIH = parameter(cg, p_fIH);
-  Expression i_fHb = parameter(cg, p_fHb);
-  Expression i_fHO = parameter(cg, p_fHO);
-  Expression i_fOb = parameter(cg, p_fOb);
-  MLP final = {i_fIH, i_fHb, i_fHO, i_fOb};
-
-  Expression i_bs = parameter(cg, p_bs);
-  Expression i_Ws = parameter(cg, p_Ws);
+  MLP aligner = GetAligner(cg);
+  MLP final = GetFinalMLP(cg);
 
   vector<Expression> output_states(target.size());
   vector<Expression> contexts(target.size());
-
-  // TODO: Verify that this crap corresponds to the comment below and is sane
-  Expression zeroth_context_untransformed = affine_transform({i_bs, i_Ws, reverse_annotations[0]});
-  contexts[0] = tanh(zeroth_context_untransformed);
+  contexts[0] = zeroth_context;
 
   for (unsigned t = 1; t < target.size(); ++t) {
     Expression prev_target_word_embedding = lookup(cg, p_Et, target[t - 1]);
@@ -337,13 +170,6 @@ Expression AttentionalModel::BuildGraph(const vector<WordId>& source, const vect
     contexts[t] = os.context;
   }
 
-  /*
-  first input: W_s * h1_backwards
-  afterwards, input: c_i
-  c_i = sum_j(alpha_ij * h_j)
-  alpha_ij = exp(e_ij) / sum_k(exp(e_ik))
-  e_ij = a(s_i-1, h_j) where a is a FFNN
-  */
   vector<Expression> output_distributions(target.size() - 1);
   for (unsigned t = 1; t < target.size(); ++t) {
     WordId prev_word = target[t - 1];
