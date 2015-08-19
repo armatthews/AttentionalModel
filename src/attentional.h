@@ -4,6 +4,7 @@
 #include "cnn/cnn.h"
 #include "cnn/expr.h"
 #include "cnn/lstm.h"
+#include "cnn/treelstm.h"
 #include "bitext.h"
 #include "kbestlist.h"
 
@@ -39,11 +40,13 @@ class AttentionalModel {
 public:
   AttentionalModel(Model& model, unsigned src_vocab_size, unsigned tgt_vocab_size);
   Expression BuildGraph(const vector<WordId>& source, const vector<WordId>& target, ComputationGraph& hg); 
+  Expression BuildGraph(const SyntaxTree& source, const vector<WordId>& target, ComputationGraph& hg); 
 
 protected:
   vector<Expression> BuildForwardAnnotations(const vector<WordId>& sentence, ComputationGraph& hg);
   vector<Expression> BuildReverseAnnotations(const vector<WordId>& sentence, ComputationGraph& hg);
   vector<Expression> BuildAnnotationVectors(const vector<Expression>& forward_contexts, const vector<Expression>& reverse_contexts, ComputationGraph& hg);
+  vector<Expression> BuildTreeAnnotationVectors(const SyntaxTree& source_tree, const vector<Expression>& linear_annotations, ComputationGraph& cg);
   OutputState GetNextOutputState(const Expression& context, const Expression& prev_target_word_embedding, const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& hg, vector<float>* out_alignment = NULL);
   OutputState GetNextOutputState(const RNNPointer& rnn_pointer, const Expression& context, const Expression& prev_target_word_embedding, const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& hg, vector<float>* out_alignment = NULL);
   Expression ComputeOutputDistribution(const WordId prev_word, const Expression state, const Expression context, const MLP& final, ComputationGraph& hg);
@@ -55,6 +58,7 @@ protected:
 
 private:
   LSTMBuilder forward_builder, reverse_builder, output_builder;
+  TreeLSTMBuilder tree_builder;
   LookupParameters* p_Es; // source language word embedding matrix
   LookupParameters* p_Et; // target language word embedding matrix
   Parameters* p_aIH; // Alignment NN weight matrix between the input and hidden layers
@@ -67,13 +71,14 @@ private:
   Parameters* p_fHb; // Same, hidden bias
   Parameters* p_fHO; // Same, hidden->output weights
   Parameters* p_fOb; // Same, output bias
+  vector<cnn::real> zero_annotation;
 
   unsigned lstm_layer_count = 2;
-  unsigned embedding_dim = 32; // Dimensionality of both source and target word embeddings. For now these are the same.
-  unsigned half_annotation_dim = 32; // Dimensionality of h_forward and h_backward. The full h has twice this dimension.
-  unsigned output_state_dim = 32; // Dimensionality of s_j, the state just before outputing target word y_j
-  unsigned alignment_hidden_dim = 32; // Dimensionality of the hidden layer in the alignment FFNN
-  unsigned final_hidden_dim = 32; // Dimensionality of the hidden layer in the "final" FFNN
+  unsigned embedding_dim = 64; // Dimensionality of both source and target word embeddings. For now these are the same.
+  unsigned half_annotation_dim = 64; // Dimensionality of h_forward and h_backward. The full h has twice this dimension.
+  unsigned output_state_dim = 64; // Dimensionality of s_j, the state just before outputing target word y_j
+  unsigned alignment_hidden_dim = 64; // Dimensionality of the hidden layer in the alignment FFNN
+  unsigned final_hidden_dim = 64; // Dimensionality of the hidden layer in the "final" FFNN
 
   friend class boost::serialization::access;
   template<class Archive> void serialize(Archive& ar, const unsigned int) {

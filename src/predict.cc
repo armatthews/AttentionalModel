@@ -75,8 +75,8 @@ int main(int argc, char** argv) {
 
   AttentionalDecoder decoder(attentional_models);
 
-  WordId ksSOS = source_vocab.Convert("<s>");
-  WordId ksEOS = source_vocab.Convert("</s>");
+  //WordId ksSOS = source_vocab.Convert("<s>");
+  //WordId ksEOS = source_vocab.Convert("</s>");
   WordId ktSOS = target_vocab.Convert("<s>");
   WordId ktEOS = target_vocab.Convert("</s>");
 
@@ -86,20 +86,18 @@ int main(int argc, char** argv) {
   decoder.SetParams(max_length, ktSOS, ktEOS);
 
   string line;
+  unsigned sentence_number = 0;
   while(getline(cin, line)) {
     vector<string> parts = tokenize(line, "|||");
     trim(parts, false);
 
-    vector<string> tokens = tokenize(parts[0], " ");
-    trim(tokens, true);
+    SyntaxTree source_tree(parts[0], &source_vocab);
+    source_tree.AssignNodeIds();
 
-    vector<WordId> source(tokens.size());
-    for (unsigned i = 0; i < tokens.size(); ++i) {
-      source[i] = source_vocab.Convert(tokens[i]);
+    vector<string> tokens;
+    for (WordId w : source_tree.GetTerminals()) {
+      tokens.push_back(source_vocab.Convert(w));
     }
-    source.insert(source.begin(), ksSOS);
-    source.insert(source.end(), ksEOS);
-
     cerr << "Read source sentence: " << boost::algorithm::join(tokens, " ") << endl;
     if (parts.size() > 1) {
       vector<string> reference = tokenize(parts[1], " ");
@@ -107,7 +105,7 @@ int main(int argc, char** argv) {
       cerr << "  Read reference: " << boost::algorithm::join(reference, " ") << endl;
     }
 
-    KBestList<vector<WordId> > kbest = decoder.TranslateKBest(source, kbest_size, beam_size);
+    KBestList<vector<WordId> > kbest = decoder.TranslateKBest(source_tree, kbest_size, beam_size);
     for (auto& scored_hyp : kbest.hypothesis_list()) {
       double score = scored_hyp.first;
       vector<WordId> hyp = scored_hyp.second;
@@ -116,8 +114,10 @@ int main(int argc, char** argv) {
         words[i] = target_vocab.Convert(hyp[i]);
       }
       string translation = boost::algorithm::join(words, " ");
-      cout << score << "\t" << translation << endl;
+      cout << sentence_number << " ||| " << translation << " ||| " << score << endl;
     }
+
+    sentence_number++;
 
     if (ctrlc_pressed) {
       break;

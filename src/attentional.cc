@@ -15,6 +15,7 @@ AttentionalModel::AttentionalModel(Model& model, unsigned src_vocab_size, unsign
   forward_builder = LSTMBuilder(lstm_layer_count, embedding_dim, half_annotation_dim, &model);
   reverse_builder = LSTMBuilder(lstm_layer_count, embedding_dim, half_annotation_dim, &model);
   output_builder = LSTMBuilder(lstm_layer_count, embedding_dim + 2 * half_annotation_dim, output_state_dim, &model);
+  tree_builder = TreeLSTMBuilder(5, lstm_layer_count, 2 * half_annotation_dim, 2 * half_annotation_dim, &model);
   p_Es = model.add_lookup_parameters(src_vocab_size, {embedding_dim});
   p_Et = model.add_lookup_parameters(tgt_vocab_size, {embedding_dim});
   p_aIH = model.add_parameters({alignment_hidden_dim, output_state_dim + 2 * half_annotation_dim});
@@ -29,6 +30,8 @@ AttentionalModel::AttentionalModel(Model& model, unsigned src_vocab_size, unsign
   p_fHb = model.add_parameters({final_hidden_dim});
   p_fHO = model.add_parameters({tgt_vocab_size, final_hidden_dim});
   p_fOb = model.add_parameters({tgt_vocab_size});
+
+  zero_annotation.resize(2 * half_annotation_dim);
 }
 
 vector<Expression> AttentionalModel::BuildForwardAnnotations(const vector<WordId>& sentence, ComputationGraph& cg) {
@@ -72,6 +75,9 @@ OutputState AttentionalModel::GetNextOutputState(const Expression& prev_context,
   return GetNextOutputState(output_builder.state(), prev_context, prev_target_word_embedding, annotations, aligner, cg, out_alignment);
 }
 
+// TODO: If you ever want to optimize something, look no further. These concatenates can be removed by introducing new parameters
+// or refactoring MLP into a proper class, leading to nice gains. Also there's gotta be a way to batch compute these alignment things
+// rather than doing it one scalar at a time...
 OutputState AttentionalModel::GetNextOutputState(const RNNPointer& rnn_pointer, const Expression& prev_context, const Expression& prev_target_word_embedding,
     const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& cg, vector<float>* out_alignment) {
   const unsigned source_size = annotations.size();
@@ -184,4 +190,95 @@ Expression AttentionalModel::BuildGraph(const vector<WordId>& source, const vect
   }
   Expression total_error = sum(errors);
   return total_error;
+}
+
+Expression AttentionalModel::BuildGraph(const SyntaxTree& source_tree, const vector<WordId>& target, ComputationGraph& cg) {
+  // Target should always contain at least <s> and </s>
+  assert (target.size() > 2);
+  output_builder.new_graph(cg);
+  output_builder.start_new_sequence();
+
+  vector<Expression> forward_annotations = BuildForwardAnnotations(source_tree.GetTerminals(), cg);
+  vector<Expression> reverse_annotations = BuildReverseAnnotations(source_tree.GetTerminals(), cg);
+  vector<Expression> linear_annotations = BuildAnnotationVectors(forward_annotations, reverse_annotations, cg);
+  vector<Expression> annotations = BuildTreeAnnotationVectors(source_tree, linear_annotations, cg);
+  Expression zeroth_context = GetZerothContext(reverse_annotations[0], cg);
+
+  MLP aligner = GetAligner(cg);
+  MLP final = GetFinalMLP(cg);
+
+  vector<Expression> output_states(target.size());
+  vector<Expression> contexts(target.size());
+  contexts[0] = zeroth_context;
+
+  for (unsigned t = 1; t < target.size(); ++t) {
+    Expression prev_target_word_embedding = lookup(cg, p_Et, target[t - 1]);
+    OutputState os = GetNextOutputState(contexts[t - 1], prev_target_word_embedding, annotations, aligner, cg);
+    output_states[t] = os.state;
+    contexts[t] = os.context;
+  }
+
+  vector<Expression> output_distributions(target.size() - 1);
+  for (unsigned t = 1; t < target.size(); ++t) {
+    WordId prev_word = target[t - 1];
+    output_distributions[t - 1] = ComputeOutputDistribution(prev_word, output_states[t], contexts[t], final, cg);
+  }
+
+  vector<Expression> errors(target.size() - 1);
+  for (unsigned t = 1; t < target.size(); ++t) {
+    Expression output_distribution = output_distributions[t - 1];
+    Expression error = pickneglogsoftmax(output_distribution, target[t]);
+    errors[t - 1] = error;
+  }
+  Expression total_error = sum(errors);
+  return total_error;
+}
+
+vector<Expression> AttentionalModel::BuildTreeAnnotationVectors(const SyntaxTree& source_tree, const vector<Expression>& linear_annotations, ComputationGraph& cg) {
+  tree_builder.new_graph(cg);
+  tree_builder.start_new_sequence();
+  vector<Expression> annotations;
+  vector<Expression> tree_annotations;
+  vector<const SyntaxTree*> node_stack = {&source_tree};
+  vector<unsigned> index_stack = {0};
+  unsigned terminal_index = 0;
+
+  while (node_stack.size() > 0) {
+    assert (node_stack.size() == index_stack.size());
+    const SyntaxTree* node = node_stack.back();
+    unsigned i = index_stack.back();
+    if (i >= node->NumChildren()) {
+      assert (tree_annotations.size() == node->id());
+      vector<int> children(node->NumChildren());
+      for (unsigned j = 0; j < node->NumChildren(); ++j) {
+        int child_id = (int)node->GetChild(j).id();
+        assert (child_id < tree_annotations.size());
+        children[j] = child_id;
+      }
+
+      Expression input_expr;
+      if (node->NumChildren() == 0) {
+        assert (terminal_index < linear_annotations.size());
+        input_expr = linear_annotations[terminal_index];
+        terminal_index++;
+      }
+      else {
+        input_expr = input(cg, {(long)zero_annotation.size()}, &zero_annotation);
+      }
+      Expression node_annotation = tree_builder.add_input(children, input_expr);
+      tree_annotations.push_back(node_annotation);
+      //tree_annotations.push_back(lookup(cg, p_Es, node->label()));
+      index_stack.pop_back();
+      node_stack.pop_back();
+    }
+    else {
+      index_stack[index_stack.size() - 1] += 1;
+      node_stack.push_back(&node->GetChild(i));
+      index_stack.push_back(0);
+      ++i;
+    }
+  }
+  assert (node_stack.size() == index_stack.size());
+
+  return linear_annotations;
 }

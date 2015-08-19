@@ -49,11 +49,12 @@ int test() {
 
 int main(int argc, char** argv) {
   string line;
+  Dict dict;
   while (getline(cin, line)) {
     boost::algorithm::trim(line);
-    SyntaxTree tree(line);
-    //cout << tree << endl;
-    cout << tree.MaxBranchCount() << endl;
+    SyntaxTree tree(line, &dict);
+    cout << tree << endl;
+    //cout << tree.MaxBranchCount() << endl;
   }
   return 0;
   cerr << SIZE_MAX << endl;

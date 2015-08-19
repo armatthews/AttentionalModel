@@ -10,6 +10,7 @@ public:
   vector<WordId> SampleTranslation(const vector<WordId>& source);
   vector<WordId> Translate(const vector<WordId>& source, unsigned beam_size);
   KBestList<vector<WordId>> TranslateKBest(const vector<WordId>& source, unsigned K, unsigned beam_size);
+  KBestList<vector<WordId>> TranslateKBest(const SyntaxTree& source, unsigned K, unsigned beam_size);
   vector<vector<float>> Align(const vector<WordId>& source, const vector<WordId>& target);
 
 private:

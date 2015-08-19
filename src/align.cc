@@ -45,32 +45,41 @@ int main(int argc, char** argv) {
   }
   signal (SIGINT, ctrlc_handler);
 
-  const string model_filename = argv[1];
-  ifstream model_file(model_filename);
-  if (!model_file.is_open()) {
-    cerr << "ERROR: Unable to open " << model_filename << endl;
-    exit(1);
-  }
-  boost::archive::text_iarchive ia(model_file);
 
   cnn::Initialize(argc, argv);
   Dict source_vocab;
   Dict target_vocab;
-  ia & source_vocab;
-  ia & target_vocab;
-  source_vocab.Freeze();
-  target_vocab.Freeze();
+  vector<Model*> cnn_models(argc - 1);
+  vector<AttentionalModel*> attentional_models(argc - 1);
+  for (unsigned i = 0; i < argc - 1; ++i) {
+    const string model_filename = argv[i + 1];
+    ifstream model_file(model_filename);
+    if (!model_file.is_open()) {
+      cerr << "ERROR: Unable to open " << model_filename << endl;
+      exit(1);
+    }
+    boost::archive::text_iarchive ia(model_file);
 
-  Model model;
-  AttentionalModel attentional_model(model, source_vocab.size(), target_vocab.size());
+    ia & source_vocab;
+    ia & target_vocab;
+    source_vocab.Freeze();
+    target_vocab.Freeze();
 
-  ia & attentional_model;
-  ia & model;
+    Model* model = new Model();
+    cnn_models[i] = model;
+    attentional_models[i] = new AttentionalModel(*model, source_vocab.size(), target_vocab.size());
+
+    ia & *attentional_models[i];
+    ia & *model;
+  }
 
   WordId ksBOS = source_vocab.Convert("<s>");
   WordId ksEOS = source_vocab.Convert("</s>");
   WordId ktBOS = target_vocab.Convert("<s>");
   WordId ktEOS = target_vocab.Convert("</s>");
+
+  AttentionalDecoder decoder(attentional_models);
+  decoder.SetParams(100, ktBOS, ktEOS);
 
   string line;
   for (; getline(cin, line);) {
@@ -105,8 +114,6 @@ int main(int argc, char** argv) {
     assert (target[0] == ktBOS);
     assert (target[target.size() - 1] == ktEOS);
 
-    AttentionalDecoder decoder(&attentional_model);
-    decoder.SetParams(100, ktBOS, ktEOS);
     vector<vector<float> > alignment = decoder.Align(source, target);
     unsigned j = 0;
     for (vector<float> v : alignment) {

@@ -5,6 +5,8 @@
 
 using namespace std;
 
+typedef int WordId;
+
 inline unsigned int UTF8Len(unsigned char x);
 inline unsigned int UTF8StringLen(const string& x);
 

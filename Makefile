@@ -5,8 +5,8 @@ CNN_BUILD_DIR=$(CNN_DIR)/build
 INCS=-I$(CNN_DIR) -I$(CNN_BUILD_DIR) -I$(EIGEN)
 LIBS=-L$(CNN_BUILD_DIR)/cnn/
 FINAL=-lcnn -lboost_regex -lboost_serialization -lboost_program_options
-#CFLAGS=-std=c++11 -Ofast -g -march=native -pipe
-CFLAGS=-std=c++11 -O0 -g -march=native -pipe
+CFLAGS=-std=c++11 -Ofast -g -march=native -pipe
+#CFLAGS=-std=c++11 -O0 -g -march=native -pipe
 BINDIR=bin
 OBJDIR=obj
 SRCDIR=src
@@ -27,13 +27,13 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.cc
 $(BINDIR)/sandbox: $(addprefix $(OBJDIR)/, sandbox.o syntax_tree.o utils.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
-$(BINDIR)/train: $(addprefix $(OBJDIR)/, train.o attentional.o bitext.o utils.o)
+$(BINDIR)/train: $(addprefix $(OBJDIR)/, train.o attentional.o bitext.o utils.o syntax_tree.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
-$(BINDIR)/predict: $(addprefix $(OBJDIR)/, predict.o attentional.o bitext.o decoder.o utils.o)
+$(BINDIR)/predict: $(addprefix $(OBJDIR)/, predict.o attentional.o bitext.o decoder.o utils.o syntax_tree.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
-$(BINDIR)/align: $(addprefix $(OBJDIR)/, align.o attentional.o bitext.o decoder.o utils.o)
+$(BINDIR)/align: $(addprefix $(OBJDIR)/, align.o attentional.o bitext.o decoder.o utils.o syntax_tree.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
 clean:

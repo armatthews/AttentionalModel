@@ -3,9 +3,9 @@
 #include <sstream>
 #include "syntax_tree.h"
 
-SyntaxTree::SyntaxTree() {}
+SyntaxTree::SyntaxTree() : dict(nullptr), label_(-1), id_(-1) {}
 
-SyntaxTree::SyntaxTree(string tree) {
+SyntaxTree::SyntaxTree(string tree, Dict* dict) : dict(dict), id_(-1) {
   // Sometimes Berkeley parser fails to parse a sentence and just outputs ()
   if (tree == "()") {
     return;
@@ -18,13 +18,13 @@ SyntaxTree::SyntaxTree(string tree) {
     assert (tree.find("(") == string::npos);
     assert (tree.find(")") == string::npos);
     assert (tree.find(" ") == string::npos);
-    label_ = tree;
+    label_ = dict->Convert(tree);
   }
   else {
     assert (tree[tree.length() - 1] == ')');
     unsigned first_space = tree.find(" ");
     assert (first_space != string::npos);
-    label_ = tree.substr(1, first_space - 1);
+    label_ = dict->Convert(tree.substr(1, first_space - 1));
 
     vector<string> child_strings;
     unsigned start = first_space + 1;
@@ -56,10 +56,10 @@ SyntaxTree::SyntaxTree(string tree) {
     }
 
     for (string child_string : child_strings) {
-      children.push_back(SyntaxTree(child_string));
+      children.push_back(SyntaxTree(child_string, dict));
     }
     assert (children.size() > 0);
-  }
+  } 
 }
 
 bool SyntaxTree::IsTerminal() const {
@@ -122,29 +122,57 @@ unsigned SyntaxTree::MaxDepth() const {
 }
 
 SyntaxTree& SyntaxTree::GetChild(unsigned i) {
+  assert (i < children.size());
   return children[i];
 }
 
 const SyntaxTree& SyntaxTree::GetChild(unsigned i) const {
+  assert (i < children.size());
   return children[i];
 }
 
-string SyntaxTree::label() const {
+WordId SyntaxTree::label() const {
   return label_;
+}
+
+unsigned SyntaxTree::id() const {
+  return id_;
+}
+
+vector<WordId> SyntaxTree::GetTerminals() const {
+  if (IsTerminal()) {
+    return {label_};
+  }
+  else {
+    vector<WordId> terminals;
+    for (const SyntaxTree& child : children) {
+      vector<WordId> child_terminals = child.GetTerminals();
+      terminals.insert(terminals.end(), child_terminals.begin(), child_terminals.end());
+    }
+    return terminals;
+  }
 }
 
 string SyntaxTree::ToString() const {
   if (IsTerminal()) {
-    return label_;
+    return dict->Convert(label_);
   }
 
   stringstream ss;
-  ss << "(" << label_;
+  ss << "(" << dict->Convert(label_);
   for (const SyntaxTree& child : children) {
     ss << " " << child.ToString();
   }
   ss << ")";
   return ss.str();
+}
+
+unsigned SyntaxTree::AssignNodeIds(unsigned start) {
+  for (SyntaxTree& child : children) {
+    start = child.AssignNodeIds(start);
+  }
+  id_ = start;
+  return start + 1;
 }
 
 ostream& operator<< (ostream& stream, const SyntaxTree& tree) {
