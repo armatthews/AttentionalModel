@@ -4,6 +4,7 @@
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/join.hpp>
+#include <boost/program_options.hpp>
 
 #include <iostream>
 #include <fstream>
@@ -16,6 +17,7 @@
 
 using namespace cnn;
 using namespace std;
+namespace po = boost::program_options;
 
 bool ctrlc_pressed = false;
 void ctrlc_handler(int signal) {
@@ -37,22 +39,13 @@ void trim(vector<string>& tokens, bool removeEmpty) {
   }
 }
 
-int main(int argc, char** argv) {
-  if (argc < 2) {
-    cerr << "Usage: cat source.txt | " << argv[0] << " model" << endl;
-    cerr << endl;
-    exit(1);
-  }
-  signal (SIGINT, ctrlc_handler);
-  cnn::Initialize(argc, argv);
-
-  vector<Model*> cnn_models(argc - 1);
-  vector<AttentionalModel*> attentional_models(argc - 1);
+tuple<Dict, Dict, vector<Model*>, vector<AttentionalModel*>> LoadModels(const vector<string>& model_filenames) {
+  vector<Model*> cnn_models;
+  vector<AttentionalModel*> attentional_models;
   // XXX: We just use the last set of dictionaries, assuming they're all the same
   Dict source_vocab;
   Dict target_vocab;
-  for (unsigned i = 0; i < argc - 1; ++i) {
-    const string model_filename = argv[i + 1];
+  for (const string& model_filename : model_filenames) {
     ifstream model_file(model_filename);
     if (!model_file.is_open()) {
       cerr << "ERROR: Unable to open " << model_filename << endl;
@@ -66,23 +59,80 @@ int main(int argc, char** argv) {
     target_vocab.Freeze();
 
     Model* model = new Model();
-    cnn_models[i] = model;
-    attentional_models[i] = new AttentionalModel(*model, source_vocab.size(), target_vocab.size());
+    AttentionalModel* attentional_model = new AttentionalModel(*model, source_vocab.size(), target_vocab.size());
+    cnn_models.push_back(model);
+    attentional_models.push_back(attentional_model);
 
-    ia & *attentional_models[i];
+    ia & *attentional_model;
     ia & *model;
   }
+  return make_tuple(source_vocab, target_vocab, cnn_models, attentional_models);
+}
 
-  AttentionalDecoder decoder(attentional_models);
+void OutputKBestList(unsigned sentence_number, KBestList<vector<WordId>> kbest, Dict& target_vocab) {
+  for (auto& scored_hyp : kbest.hypothesis_list()) {
+    double score = scored_hyp.first;
+    vector<WordId> hyp = scored_hyp.second;
+    vector<string> words(hyp.size());
+    for (unsigned i = 0; i < hyp.size(); ++i) {
+      words[i] = target_vocab.Convert(hyp[i]);
+    }
+    string translation = boost::algorithm::join(words, " ");
+    cout << sentence_number << " ||| " << translation << " ||| " << score << endl;
+  }
+}
+
+int main(int argc, char** argv) {
+  if (argc < 2) {
+    cerr << "Usage: cat source.txt | " << argv[0] << " model" << endl;
+    cerr << endl;
+    exit(1);
+  }
+  signal (SIGINT, ctrlc_handler);
+
+  po::options_description desc("description");
+  desc.add_options()
+  ("models", po::value<vector<string>>()->required()->composing(), "model file(s), as output by train ")
+  ("kbest_size", po::value<unsigned>()->default_value(10), "K-best list size")
+  ("beam_size", po::value<unsigned>()->default_value(10), "Beam size")
+  ("max_length", po::value<unsigned>()->default_value(100), "Maximum length of output sentences")
+  ("t2s", po::bool_switch()->default_value(false), "Treat input as trees rather than normal sentences") // XXX: Can't we infer this from the model somehow?
+  ("help", "Display this help message");
+
+  po::positional_options_description positional_options;
+  positional_options.add("models", -1);
+
+  po::variables_map vm;
+  po::store(po::command_line_parser(argc, argv).options(desc).positional(positional_options).run(), vm);
+
+  if (vm.count("help")) {
+    cerr << desc;
+    return 1;
+  }
+
+  po::notify(vm);
+
+  vector<string> model_filenames = vm["models"].as<vector<string>>();
+  const unsigned beam_size = vm["beam_size"].as<unsigned>();
+  const unsigned max_length = vm["max_length"].as<unsigned>();
+  const unsigned kbest_size = vm["kbest_size"].as<unsigned>(); 
+
+  cnn::Initialize(argc, argv);
+
+  Dict source_vocab;
+  Dict target_vocab;
+  vector<Model*> cnn_models;
+  vector<AttentionalModel*> attentional_models;
+  tie(source_vocab, target_vocab, cnn_models, attentional_models) = LoadModels(model_filenames);
 
   //WordId ksSOS = source_vocab.Convert("<s>");
   //WordId ksEOS = source_vocab.Convert("</s>");
   WordId ktSOS = target_vocab.Convert("<s>");
   WordId ktEOS = target_vocab.Convert("</s>");
+  source_vocab.Freeze();
+  target_vocab.Freeze();
 
-  unsigned beam_size = 10;
-  unsigned max_length = 100;
-  unsigned kbest_size = 10; 
+  AttentionalDecoder decoder(attentional_models);
   decoder.SetParams(max_length, ktSOS, ktEOS);
 
   string line;
@@ -99,24 +149,16 @@ int main(int argc, char** argv) {
       tokens.push_back(source_vocab.Convert(w));
     }
     cerr << "Read source sentence: " << boost::algorithm::join(tokens, " ") << endl;
+
     if (parts.size() > 1) {
       vector<string> reference = tokenize(parts[1], " ");
       trim(reference, true);
-      cerr << "  Read reference: " << boost::algorithm::join(reference, " ") << endl;
+      cerr << "Read reference: " << boost::algorithm::join(reference, " ") << endl;
     }
 
+    // Decoder, source, kbest_size, beam_size, target_vocab, sentence_number
     KBestList<vector<WordId> > kbest = decoder.TranslateKBest(source_tree, kbest_size, beam_size);
-    for (auto& scored_hyp : kbest.hypothesis_list()) {
-      double score = scored_hyp.first;
-      vector<WordId> hyp = scored_hyp.second;
-      vector<string> words(hyp.size());
-      for (unsigned i = 0; i < hyp.size(); ++i) {
-        words[i] = target_vocab.Convert(hyp[i]);
-      }
-      string translation = boost::algorithm::join(words, " ");
-      cout << sentence_number << " ||| " << translation << " ||| " << score << endl;
-    }
-
+    OutputKBestList(sentence_number, kbest, target_vocab);
     sentence_number++;
 
     if (ctrlc_pressed) {

@@ -48,7 +48,7 @@ KBestList<vector<WordId>> AttentionalDecoder::TranslateKBest(const SyntaxTree& s
     model_initial_states.push_back(os0);
   }
 
-  KBestList<vector<WordId> > completed_hyps(beam_size);
+  KBestList<vector<WordId> > completed_hyps(K);
   KBestList<vector<PartialHypothesis>> top_hyps(beam_size);
 
   // XXX: We're storing the same word sequence N times
