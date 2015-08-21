@@ -14,8 +14,8 @@ vector<string> tokenize(string input, string delimiter, int max_times);
 vector<string> tokenize(string input, string delimiter);
 vector<string> tokenize(string input, char delimiter);
 
-string strip(string input);
-vector<string> strip(vector<string> input);
+string strip(const string& input);
+vector<string> strip(const vector<string>& input, bool removeEmpty = false);
 
 map<string, double> parse_feature_string(string input);
 

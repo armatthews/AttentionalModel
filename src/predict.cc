@@ -29,16 +29,6 @@ void ctrlc_handler(int signal) {
   }
 }
 
-void trim(vector<string>& tokens, bool removeEmpty) {
-  for (unsigned i = 0; i < tokens.size(); ++i) {
-    boost::algorithm::trim(tokens[i]);
-    if (tokens[i].length() == 0 && removeEmpty) {
-      tokens.erase(tokens.begin() + i);
-      --i;
-    }
-  }
-}
-
 tuple<Dict, Dict, vector<Model*>, vector<AttentionalModel*>> LoadModels(const vector<string>& model_filenames) {
   vector<Model*> cnn_models;
   vector<AttentionalModel*> attentional_models;
@@ -139,7 +129,7 @@ int main(int argc, char** argv) {
   unsigned sentence_number = 0;
   while(getline(cin, line)) {
     vector<string> parts = tokenize(line, "|||");
-    trim(parts, false);
+    parts = strip(parts);
 
     SyntaxTree source_tree(parts[0], &source_vocab);
     source_tree.AssignNodeIds();
@@ -152,7 +142,7 @@ int main(int argc, char** argv) {
 
     if (parts.size() > 1) {
       vector<string> reference = tokenize(parts[1], " ");
-      trim(reference, true);
+      reference = strip(reference, true);
       cerr << "Read reference: " << boost::algorithm::join(reference, " ") << endl;
     }
 

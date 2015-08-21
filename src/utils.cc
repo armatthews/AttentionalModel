@@ -53,33 +53,19 @@ vector<string> tokenize(string input, char delimiter) {
   return tokenize(input, string(1, delimiter));
 }
 
-string strip(string input) {
-  size_t start = 0;
-  size_t end = input.length();
-
-  for (; start < input.length(); ++start) {
-    if (!isspace(input[start])) {
-      break;
-    }
-  }
- 
-  for (; end > 0; --end) {
-    if (!isspace(input[end - 1])) {
-      break;
-    }
-  }
-
-  if (end <= start) {
-    return "";
-  }
-
-  return input.substr(start, end - start);
+string strip(const string& input) {
+  string output = input;
+  boost::algorithm::trim(output);
+  return output;
 }
 
-vector<string> strip(vector<string> input) {
-  vector<string> output(input.size());
+vector<string> strip(const vector<string>& input, bool removeEmpty) {
+  vector<string> output;
   for (unsigned i = 0; i < input.size(); ++i) {
-    output[i] = strip(input[i]);
+    string s = strip(input[i]);
+    if (s.length() > 0 || !removeEmpty) {
+      output.push_back(s);
+    }
   }
   return output;
 }
