@@ -105,7 +105,8 @@ int main(int argc, char** argv) {
   vector<string> model_filenames = vm["models"].as<vector<string>>();
   const unsigned beam_size = vm["beam_size"].as<unsigned>();
   const unsigned max_length = vm["max_length"].as<unsigned>();
-  const unsigned kbest_size = vm["kbest_size"].as<unsigned>(); 
+  const unsigned kbest_size = vm["kbest_size"].as<unsigned>();
+  const bool t2s = vm["t2s"].as<bool>();
 
   cnn::Initialize(argc, argv);
 
@@ -115,8 +116,10 @@ int main(int argc, char** argv) {
   vector<AttentionalModel*> attentional_models;
   tie(source_vocab, target_vocab, cnn_models, attentional_models) = LoadModels(model_filenames);
 
-  //WordId ksSOS = source_vocab.Convert("<s>");
-  //WordId ksEOS = source_vocab.Convert("</s>");
+  assert (source_vocab.Contains("<s>"));
+  assert (source_vocab.Contains("</s>"));
+  WordId ksSOS = source_vocab.Convert("<s>");
+  WordId ksEOS = source_vocab.Convert("</s>");
   WordId ktSOS = target_vocab.Convert("<s>");
   WordId ktEOS = target_vocab.Convert("</s>");
   source_vocab.Freeze();
@@ -131,24 +134,46 @@ int main(int argc, char** argv) {
     vector<string> parts = tokenize(line, "|||");
     parts = strip(parts);
 
-    SyntaxTree source_tree(parts[0], &source_vocab);
-    source_tree.AssignNodeIds();
+    if (t2s) {
+      SyntaxTree source_tree(parts[0], &source_vocab);
+      source_tree.AssignNodeIds();
 
-    vector<string> tokens;
-    for (WordId w : source_tree.GetTerminals()) {
-      tokens.push_back(source_vocab.Convert(w));
+      vector<string> tokens;
+      for (WordId w : source_tree.GetTerminals()) {
+        tokens.push_back(source_vocab.Convert(w));
+      }
+      cerr << "Read source sentence: " << boost::algorithm::join(tokens, " ") << endl;
+
+      if (parts.size() > 1) {
+        vector<string> reference = tokenize(parts[1], " ");
+        reference = strip(reference, true);
+        cerr << "Read reference: " << boost::algorithm::join(reference, " ") << endl;
+      }
+
+      KBestList<vector<WordId> > kbest = decoder.TranslateKBest(source_tree, kbest_size, beam_size);
+      OutputKBestList(sentence_number, kbest, target_vocab);
     }
-    cerr << "Read source sentence: " << boost::algorithm::join(tokens, " ") << endl;
+    else {
+      vector<string> tokens = tokenize(parts[0], " ");
+      tokens = strip(tokens, true);
 
-    if (parts.size() > 1) {
-      vector<string> reference = tokenize(parts[1], " ");
-      reference = strip(reference, true);
-      cerr << "Read reference: " << boost::algorithm::join(reference, " ") << endl;
+      vector<WordId> source(tokens.size());
+      for (unsigned i = 0; i < tokens.size(); ++i) {
+        source[i] = source_vocab.Convert(tokens[i]);
+      }
+      source.insert(source.begin(), ksSOS);
+      source.insert(source.end(), ksEOS);
+      cerr << "Read source sentence: " << boost::algorithm::join(tokens, " ") << endl;
+
+      if (parts.size() > 1) {
+        vector<string> reference = tokenize(parts[1], " ");
+        reference = strip(reference, true);
+        cerr << "Read reference: " << boost::algorithm::join(reference, " ") << endl;
+      }
+
+      KBestList<vector<WordId> > kbest = decoder.TranslateKBest(source, kbest_size, beam_size);
+      OutputKBestList(sentence_number, kbest, target_vocab);
     }
-
-    // Decoder, source, kbest_size, beam_size, target_vocab, sentence_number
-    KBestList<vector<WordId> > kbest = decoder.TranslateKBest(source_tree, kbest_size, beam_size);
-    OutputKBestList(sentence_number, kbest, target_vocab);
     sentence_number++;
 
     if (ctrlc_pressed) {
