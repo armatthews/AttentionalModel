@@ -136,6 +136,7 @@ MLP AttentionalModel::GetFinalMLP(ComputationGraph& cg) const {
   MLP final_mlp = {i_fIH, i_fHb, i_fHO, i_fOb};
   return final_mlp;
 }
+
 Expression AttentionalModel::GetZerothContext(Expression zeroth_reverse_annotation, ComputationGraph& cg) const {
   Expression i_bs = parameter(cg, p_bs);
   Expression i_Ws = parameter(cg, p_Ws);
@@ -151,16 +152,28 @@ OutputState AttentionalModel::GetInitialOutputState(Expression zeroth_context, c
   return os;
 }
 
-Expression AttentionalModel::BuildGraph(const vector<WordId>& source, const vector<WordId>& target, ComputationGraph& cg) {
-  // Target should always contain at least <s> and </s>
-  assert (target.size() > 2);
-  output_builder.new_graph(cg);
-  output_builder.start_new_sequence();
-
+tuple<vector<Expression>, Expression> AttentionalModel::BuildAnnotationVectors(const vector<WordId>& source, ComputationGraph& cg) {
   vector<Expression> forward_annotations = BuildForwardAnnotations(source, cg);
   vector<Expression> reverse_annotations = BuildReverseAnnotations(source, cg);
   vector<Expression> annotations = BuildAnnotationVectors(forward_annotations, reverse_annotations, cg);
   Expression zeroth_context = GetZerothContext(reverse_annotations[0], cg);
+  return make_tuple(annotations, zeroth_context);
+}
+
+tuple<vector<Expression>, Expression> AttentionalModel::BuildAnnotationVectors(const SyntaxTree& source_tree, ComputationGraph& cg) {
+  vector<Expression> linear_annotations;
+  Expression zeroth_context;
+  vector<WordId> source = source_tree.GetTerminals();
+  tie(linear_annotations, zeroth_context) = BuildAnnotationVectors(source, cg);
+  vector<Expression> annotations = BuildTreeAnnotationVectors(source_tree, linear_annotations, cg); 
+  return make_tuple(annotations, zeroth_context);
+}
+
+Expression AttentionalModel::BuildGraphGivenAnnotations(const vector<Expression>& annotations, Expression zeroth_context, const vector<WordId>& target, ComputationGraph& cg) {
+  // Target should always contain at least <s> and </s>
+  assert (target.size() > 2);
+  output_builder.new_graph(cg);
+  output_builder.start_new_sequence();
 
   MLP aligner = GetAligner(cg);
   MLP final = GetFinalMLP(cg);
@@ -192,46 +205,20 @@ Expression AttentionalModel::BuildGraph(const vector<WordId>& source, const vect
   return total_error;
 }
 
+Expression AttentionalModel::BuildGraph(const vector<WordId>& source, const vector<WordId>& target, ComputationGraph& cg) {
+  vector<Expression> annotations;
+  Expression zeroth_context;
+  tie(annotations, zeroth_context) = BuildAnnotationVectors(source, cg);
+
+  return BuildGraphGivenAnnotations(annotations, zeroth_context, target, cg);
+}
+
 Expression AttentionalModel::BuildGraph(const SyntaxTree& source_tree, const vector<WordId>& target, ComputationGraph& cg) {
-  // Target should always contain at least <s> and </s>
-  assert (target.size() > 2);
-  output_builder.new_graph(cg);
-  output_builder.start_new_sequence();
+  vector<Expression> annotations;
+  Expression zeroth_context;
+  tie(annotations, zeroth_context) = BuildAnnotationVectors(source_tree, cg);
 
-  vector<Expression> forward_annotations = BuildForwardAnnotations(source_tree.GetTerminals(), cg);
-  vector<Expression> reverse_annotations = BuildReverseAnnotations(source_tree.GetTerminals(), cg);
-  vector<Expression> linear_annotations = BuildAnnotationVectors(forward_annotations, reverse_annotations, cg);
-  vector<Expression> annotations = BuildTreeAnnotationVectors(source_tree, linear_annotations, cg);
-  Expression zeroth_context = GetZerothContext(reverse_annotations[0], cg);
-
-  MLP aligner = GetAligner(cg);
-  MLP final = GetFinalMLP(cg);
-
-  vector<Expression> output_states(target.size());
-  vector<Expression> contexts(target.size());
-  contexts[0] = zeroth_context;
-
-  for (unsigned t = 1; t < target.size(); ++t) {
-    Expression prev_target_word_embedding = lookup(cg, p_Et, target[t - 1]);
-    OutputState os = GetNextOutputState(contexts[t - 1], prev_target_word_embedding, annotations, aligner, cg);
-    output_states[t] = os.state;
-    contexts[t] = os.context;
-  }
-
-  vector<Expression> output_distributions(target.size() - 1);
-  for (unsigned t = 1; t < target.size(); ++t) {
-    WordId prev_word = target[t - 1];
-    output_distributions[t - 1] = ComputeOutputDistribution(prev_word, output_states[t], contexts[t], final, cg);
-  }
-
-  vector<Expression> errors(target.size() - 1);
-  for (unsigned t = 1; t < target.size(); ++t) {
-    Expression output_distribution = output_distributions[t - 1];
-    Expression error = pickneglogsoftmax(output_distribution, target[t]);
-    errors[t - 1] = error;
-  }
-  Expression total_error = sum(errors);
-  return total_error;
+  return BuildGraphGivenAnnotations(annotations, zeroth_context, target, cg);
 }
 
 vector<Expression> AttentionalModel::BuildTreeAnnotationVectors(const SyntaxTree& source_tree, const vector<Expression>& linear_annotations, ComputationGraph& cg) {
@@ -280,5 +267,5 @@ vector<Expression> AttentionalModel::BuildTreeAnnotationVectors(const SyntaxTree
   }
   assert (node_stack.size() == index_stack.size());
 
-  return linear_annotations;
+  return tree_annotations;
 }

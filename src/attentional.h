@@ -4,7 +4,7 @@
 #include "cnn/cnn.h"
 #include "cnn/expr.h"
 #include "cnn/lstm.h"
-#include "cnn/treelstm.h"
+#include "treelstm.h"
 #include "bitext.h"
 #include "kbestlist.h"
 
@@ -47,6 +47,9 @@ protected:
   vector<Expression> BuildReverseAnnotations(const vector<WordId>& sentence, ComputationGraph& hg);
   vector<Expression> BuildAnnotationVectors(const vector<Expression>& forward_contexts, const vector<Expression>& reverse_contexts, ComputationGraph& hg);
   vector<Expression> BuildTreeAnnotationVectors(const SyntaxTree& source_tree, const vector<Expression>& linear_annotations, ComputationGraph& cg);
+  tuple<vector<Expression>, Expression> BuildAnnotationVectors(const vector<WordId>& source, ComputationGraph& cg);
+  tuple<vector<Expression>, Expression> BuildAnnotationVectors(const SyntaxTree& source_tree, ComputationGraph& cg);
+  Expression BuildGraphGivenAnnotations(const vector<Expression>& annotations, Expression zeroth_context, const vector<WordId>& target, ComputationGraph& cg);
   OutputState GetNextOutputState(const Expression& context, const Expression& prev_target_word_embedding, const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& hg, vector<float>* out_alignment = NULL);
   OutputState GetNextOutputState(const RNNPointer& rnn_pointer, const Expression& context, const Expression& prev_target_word_embedding, const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& hg, vector<float>* out_alignment = NULL);
   Expression ComputeOutputDistribution(const WordId prev_word, const Expression state, const Expression context, const MLP& final, ComputationGraph& hg);
@@ -71,7 +74,7 @@ private:
   Parameters* p_fHb; // Same, hidden bias
   Parameters* p_fHO; // Same, hidden->output weights
   Parameters* p_fOb; // Same, output bias
-  vector<cnn::real> zero_annotation;
+  vector<cnn::real> zero_annotation; // Just a vector of zeros, the same size as an annotation vector
 
   unsigned lstm_layer_count = 2;
   unsigned embedding_dim = 64; // Dimensionality of both source and target word embeddings. For now these are the same.

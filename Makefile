@@ -1,6 +1,6 @@
 CC=g++
-CNN_DIR = /home/austinma/git/ws15mt-cnn
-EIGEN = /opt/tools/eigen-dev/
+CNN_DIR = ./cnn
+EIGEN = ./eigen
 CNN_BUILD_DIR=$(CNN_DIR)/build
 INCS=-I$(CNN_DIR) -I$(CNN_BUILD_DIR) -I$(EIGEN)
 LIBS=-L$(CNN_BUILD_DIR)/cnn/
@@ -27,13 +27,13 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.cc
 $(BINDIR)/sandbox: $(addprefix $(OBJDIR)/, sandbox.o syntax_tree.o utils.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
-$(BINDIR)/train: $(addprefix $(OBJDIR)/, train.o attentional.o bitext.o utils.o syntax_tree.o)
+$(BINDIR)/train: $(addprefix $(OBJDIR)/, train.o attentional.o bitext.o utils.o syntax_tree.o treelstm.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
-$(BINDIR)/predict: $(addprefix $(OBJDIR)/, predict.o attentional.o bitext.o decoder.o utils.o syntax_tree.o)
+$(BINDIR)/predict: $(addprefix $(OBJDIR)/, predict.o attentional.o bitext.o decoder.o utils.o syntax_tree.o treelstm.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
-$(BINDIR)/align: $(addprefix $(OBJDIR)/, align.o attentional.o bitext.o decoder.o utils.o syntax_tree.o)
+$(BINDIR)/align: $(addprefix $(OBJDIR)/, align.o attentional.o bitext.o decoder.o utils.o syntax_tree.o treelstm.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
 clean:
