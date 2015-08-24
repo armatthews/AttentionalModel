@@ -50,8 +50,8 @@ protected:
   tuple<vector<Expression>, Expression> BuildAnnotationVectors(const vector<WordId>& source, ComputationGraph& cg);
   tuple<vector<Expression>, Expression> BuildAnnotationVectors(const SyntaxTree& source_tree, ComputationGraph& cg);
   Expression BuildGraphGivenAnnotations(const vector<Expression>& annotations, Expression zeroth_context, const vector<WordId>& target, ComputationGraph& cg);
-  OutputState GetNextOutputState(const Expression& context, const Expression& prev_target_word_embedding, const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& hg, vector<float>* out_alignment = NULL);
-  OutputState GetNextOutputState(const RNNPointer& rnn_pointer, const Expression& context, const Expression& prev_target_word_embedding, const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& hg, vector<float>* out_alignment = NULL);
+  OutputState GetNextOutputState(unsigned t, const Expression& context, const Expression& prev_target_word_embedding, const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& hg, vector<float>* out_alignment = NULL);
+  OutputState GetNextOutputState(unsigned t, const RNNPointer& rnn_pointer, const Expression& context, const Expression& prev_target_word_embedding, const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& hg, vector<float>* out_alignment = NULL);
   Expression ComputeOutputDistribution(const WordId prev_word, const Expression state, const Expression context, const MLP& final, ComputationGraph& hg);
   vector<unsigned&> GetParams();
   MLP GetAligner(ComputationGraph& cg) const;
@@ -74,6 +74,8 @@ private:
   Parameters* p_fHb; // Same, hidden bias
   Parameters* p_fHO; // Same, hidden->output weights
   Parameters* p_fOb; // Same, output bias
+  Parameters* p_tension; // diagonal tension for prior on alignments
+  Parameters* p_length_multiplier; // |t| \approx this times |s|
   vector<cnn::real> zero_annotation; // Just a vector of zeros, the same size as an annotation vector
 
   unsigned lstm_layer_count = 2;
@@ -82,6 +84,8 @@ private:
   unsigned output_state_dim = 16; // Dimensionality of s_j, the state just before outputing target word y_j
   unsigned alignment_hidden_dim = 16; // Dimensionality of the hidden layer in the alignment FFNN
   unsigned final_hidden_dim = 16; // Dimensionality of the hidden layer in the "final" FFNN
+
+  Expression alignment_prior(unsigned t, unsigned source_length, ComputationGraph& cg);
 
   friend class boost::serialization::access;
   template<class Archive> void serialize(Archive& ar, const unsigned int) {

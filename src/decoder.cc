@@ -68,13 +68,13 @@ vector<vector<float>> AttentionalDecoder::Align(const SyntaxTree& source, const 
 
 vector<WordId> AttentionalDecoder::SampleTranslation(DecoderState& ds, ComputationGraph& cg) {
   vector<WordId> output;
-  unsigned prev_word = kSOS;
+  WordId prev_word = kSOS;
   while (prev_word != kEOS && output.size() < max_length) {
     vector<Expression> model_log_output_distributions(models.size());
     for (unsigned i = 0; i < models.size(); ++i) {
       OutputState& os = ds.model_output_states[i];
       Expression prev_target_word_embedding = lookup(cg, models[i]->p_Et, prev_word);
-      os = models[i]->GetNextOutputState(os.context, prev_target_word_embedding, ds.model_annotations[i], ds.model_aligners[i], cg);
+      os = models[i]->GetNextOutputState(output.size(), os.context, prev_target_word_embedding, ds.model_annotations[i], ds.model_aligners[i], cg);
       model_log_output_distributions[i] = models[i]->ComputeOutputDistribution(prev_word, os.state, os.context, ds.model_final_mlps[i], cg);
     }
     Expression total_log_output_distribution = sum(model_log_output_distributions);
@@ -151,7 +151,7 @@ KBestList<vector<WordId>> AttentionalDecoder::TranslateKBest(DecoderState& ds, u
         for (unsigned i = 0; i < models.size(); ++i) {
           OutputState& os = hyp[i].state;
           Expression previous_target_word_embedding = lookup(cg, models[i]->p_Et, word);
-          OutputState new_state = models[i]->GetNextOutputState(os.rnn_pointer, os.context, previous_target_word_embedding, ds.model_annotations[i], ds.model_aligners[i], cg);
+          OutputState new_state = models[i]->GetNextOutputState(hyp[i].words.size(), os.rnn_pointer, os.context, previous_target_word_embedding, ds.model_annotations[i], ds.model_aligners[i], cg);
           PartialHypothesis new_hyp = {hyp[i].words, new_state};
           new_hyp.words.push_back(word);
           new_model_hyps[i] = new_hyp;
@@ -180,7 +180,7 @@ vector<vector<float>> AttentionalDecoder::Align(DecoderState& ds, const vector<W
     for (unsigned i = 0; i < models.size(); ++i) {
       vector<float> a;
       Expression target_word_embedding = lookup(cg, models[i]->p_Et, target[t]);
-      ds.model_output_states[i] = models[i]->GetNextOutputState(ds.model_output_states[i].context, target_word_embedding, ds.model_annotations[i], ds.model_aligners[i], cg, &a);
+      ds.model_output_states[i] = models[i]->GetNextOutputState(t - 1, ds.model_output_states[i].context, target_word_embedding, ds.model_annotations[i], ds.model_aligners[i], cg, &a);
       assert (a.size() == source_size);
       ds.model_alignments[i].push_back(a);
     }

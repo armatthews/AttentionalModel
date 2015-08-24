@@ -31,6 +31,9 @@ AttentionalModel::AttentionalModel(Model& model, unsigned src_vocab_size, unsign
   p_fHO = model.add_parameters({tgt_vocab_size, final_hidden_dim});
   p_fOb = model.add_parameters({tgt_vocab_size});
 
+  p_tension = model.add_parameters({1,1});
+  p_length_multiplier = model.add_parameters({1,1});
+
   zero_annotation.resize(2 * half_annotation_dim);
 }
 
@@ -70,15 +73,15 @@ vector<Expression> AttentionalModel::BuildAnnotationVectors(const vector<Express
   return annotations;
 }
 
-OutputState AttentionalModel::GetNextOutputState(const Expression& prev_context, const Expression& prev_target_word_embedding,
+OutputState AttentionalModel::GetNextOutputState(unsigned t, const Expression& prev_context, const Expression& prev_target_word_embedding,
     const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& cg, vector<float>* out_alignment) {
-  return GetNextOutputState(output_builder.state(), prev_context, prev_target_word_embedding, annotations, aligner, cg, out_alignment);
+  return GetNextOutputState(t, output_builder.state(), prev_context, prev_target_word_embedding, annotations, aligner, cg, out_alignment);
 }
 
 // TODO: If you ever want to optimize something, look no further. These concatenates can be removed by introducing new parameters
 // or refactoring MLP into a proper class, leading to nice gains. Also there's gotta be a way to batch compute these alignment things
 // rather than doing it one scalar at a time...
-OutputState AttentionalModel::GetNextOutputState(const RNNPointer& rnn_pointer, const Expression& prev_context, const Expression& prev_target_word_embedding,
+OutputState AttentionalModel::GetNextOutputState(unsigned t, const RNNPointer& rnn_pointer, const Expression& prev_context, const Expression& prev_target_word_embedding,
     const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& cg, vector<float>* out_alignment) {
   const unsigned source_size = annotations.size();
 
@@ -87,15 +90,14 @@ OutputState AttentionalModel::GetNextOutputState(const RNNPointer& rnn_pointer, 
   vector<Expression> unnormalized_alignments(source_size); // e_ij
 
   for (unsigned s = 0; s < source_size; ++s) {
-    double prior = 1.0;
     Expression a_input = concatenate({new_state, annotations[s]});
     Expression a_hidden1 = affine_transform({aligner.i_Hb, aligner.i_IH, a_input});
     Expression a_hidden2 = tanh(a_hidden1);
     Expression a_output = affine_transform({aligner.i_Ob, aligner.i_HO, a_hidden2});
-    unnormalized_alignments[s] = a_output * prior;
+    unnormalized_alignments[s] = a_output;
   }
 
-  Expression unnormalized_alignment_vector = concatenate(unnormalized_alignments);
+  Expression unnormalized_alignment_vector = concatenate(unnormalized_alignments);// + log(alignment_prior(t, source_size, cg));
   Expression normalized_alignment_vector = softmax(unnormalized_alignment_vector); // \alpha_ij
   if (out_alignment != NULL) {
     *out_alignment = as_vector(cg.forward());
@@ -148,7 +150,7 @@ Expression AttentionalModel::GetZerothContext(Expression zeroth_reverse_annotati
 OutputState AttentionalModel::GetInitialOutputState(Expression zeroth_context, const vector<Expression>& annotations, const MLP& aligner, const WordId kSOS, ComputationGraph& cg, vector<float>* alignment) {
   output_builder.start_new_sequence();
   Expression previous_target_word_embedding = lookup(cg, p_Et, kSOS);
-  OutputState os = GetNextOutputState(zeroth_context, previous_target_word_embedding, annotations, aligner, cg, alignment);
+  OutputState os = GetNextOutputState(0, zeroth_context, previous_target_word_embedding, annotations, aligner, cg, alignment);
   return os;
 }
 
@@ -184,7 +186,7 @@ Expression AttentionalModel::BuildGraphGivenAnnotations(const vector<Expression>
 
   for (unsigned t = 1; t < target.size(); ++t) {
     Expression prev_target_word_embedding = lookup(cg, p_Et, target[t - 1]);
-    OutputState os = GetNextOutputState(contexts[t - 1], prev_target_word_embedding, annotations, aligner, cg);
+    OutputState os = GetNextOutputState(t - 1, contexts[t - 1], prev_target_word_embedding, annotations, aligner, cg);
     output_states[t] = os.state;
     contexts[t] = os.context;
   }
@@ -238,9 +240,10 @@ vector<Expression> AttentionalModel::BuildTreeAnnotationVectors(const SyntaxTree
       assert (tree_annotations.size() == node->id());
       vector<int> children(node->NumChildren());
       for (unsigned j = 0; j < node->NumChildren(); ++j) {
-        int child_id = (int)node->GetChild(j).id();
+        unsigned child_id = node->GetChild(j).id();
         assert (child_id < tree_annotations.size());
-        children[j] = child_id;
+        assert (child_id < (unsigned)INT_MAX);
+        children[j] = (int)child_id;
       }
 
       Expression input_expr;
@@ -268,4 +271,19 @@ vector<Expression> AttentionalModel::BuildTreeAnnotationVectors(const SyntaxTree
   assert (node_stack.size() == index_stack.size());
 
   return tree_annotations;
+}
+
+Expression AttentionalModel::alignment_prior(unsigned t, unsigned source_length, ComputationGraph& cg) {
+  vector<Expression> priors(source_length);
+  Expression lambda = parameter(cg, p_tension);
+  Expression len_mult = parameter(cg, p_length_multiplier);
+  Expression target_len = source_length * len_mult;
+  for (unsigned s = 0; s < source_length; ++s) {
+    Expression num = input(cg, t + 1);
+    Expression thing_inside_abs = cdiv(num, target_len) - (s + 1.0f) / source_length;
+    Expression abs_val = max(thing_inside_abs, -thing_inside_abs);
+    Expression p = -lambda * abs_val;
+    priors[s] = p;
+  }
+  return softmax(concatenate(priors));
 }
