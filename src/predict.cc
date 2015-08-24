@@ -89,8 +89,8 @@ int main(int argc, char** argv) {
     KBestList<vector<WordId>> kbest;
     if (t2s) {
       SyntaxTree source_tree;
-      vector<WordId> reference;
-      tie(source_tree, reference) = ReadT2SInputLine(line, source_vocab, target_vocab);
+      vector<WordId> target;
+      tie(source_tree, target) = ReadT2SInputLine(line, source_vocab, target_vocab);
       kbest = decoder.TranslateKBest(source_tree, kbest_size, beam_size); 
     }
     else {

@@ -13,7 +13,7 @@ OBJDIR=obj
 SRCDIR=src
 
 .PHONY: clean
-all: make_dirs $(BINDIR)/train $(BINDIR)/predict $(BINDIR)/sandbox $(BINDIR)/align
+all: make_dirs $(BINDIR)/train $(BINDIR)/predict $(BINDIR)/sandbox $(BINDIR)/align $(BINDIR)/sample
 
 make_dirs:
 	mkdir -p $(OBJDIR)
@@ -35,6 +35,12 @@ $(BINDIR)/predict: $(addprefix $(OBJDIR)/, predict.o decoder.o bitext.o attentio
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
 $(BINDIR)/align: $(addprefix $(OBJDIR)/, align.o decoder.o bitext.o attentional.o syntax_tree.o utils.o treelstm.o)
+	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
+
+$(BINDIR)/sample: $(addprefix $(OBJDIR)/, sample.o attentional.o bitext.o decoder.o utils.o syntax_tree.o treelstm.o)
+	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
+
+$(BINDIR)/loss: $(addprefix $(OBJDIR)/, loss.o attentional.o bitext.o decoder.o utils.o syntax_tree.o treelstm.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
 clean:

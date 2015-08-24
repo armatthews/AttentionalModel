@@ -89,8 +89,8 @@ int main(int argc, char** argv) {
       vector<WordId> output;
       if (t2s) {
         SyntaxTree source_tree;
-        vector<WordId> reference;
-        tie(source_tree, reference) = ReadT2SInputLine(line, source_vocab, target_vocab);
+        vector<WordId> target;
+        tie(source_tree, target) = ReadT2SInputLine(line, source_vocab, target_vocab);
         output = decoder.SampleTranslation(source_tree);
       }
       else {

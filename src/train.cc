@@ -142,22 +142,23 @@ int main(int argc, char** argv) {
   assert (train_bitext->source_vocab->size() == src_vocab_size);
   assert (train_bitext->source_vocab->size() == tgt_vocab_size);
 
-  cnn::Initialize(argc, argv);
+  cnn::Initialize(argc, argv, 1);
   std::mt19937 rndeng(42);
   Model model;
   AttentionalModel attentional_model(model, train_bitext->source_vocab->size(), train_bitext->target_vocab->size());
-  //SimpleSGDTrainer sgd(&model, 0.0, 0.1);
+  SimpleSGDTrainer sgd(&model, 0.0, 0.1);
   //AdagradTrainer sgd(&model, 0.0, 0.1);
   //AdadeltaTrainer sgd(&model, 0.0);
   //AdadeltaTrainer sgd(&model, 0.0, 1e-6, 0.992);
   //RmsPropTrainer sgd(&model, 0.0, 0.1);
-  AdamTrainer sgd(&model, 1e-4, 0.1);
-  sgd.eta_decay = 0.05;
+  //AdamTrainer sgd(&model, 1e-4, 0.1);
+  //AdamTrainer sgd(&model, 0.0, 0.01);
+  sgd.eta_decay = 0.01;
 
   cerr << "Training model...\n";
   unsigned minibatch_count = 0;
   unsigned dev_freq_count = 0;
-  const unsigned minibatch_size = std::min(100U, train_bitext->size());
+  const unsigned minibatch_size = std::min(1U, train_bitext->size());
   const unsigned dev_frequency = std::min(5000U, train_bitext->size());
   cnn::real best_dev_loss = numeric_limits<cnn::real>::max();
   for (unsigned iteration = 0; iteration < num_iterations; iteration++) {
@@ -188,7 +189,7 @@ int main(int argc, char** argv) {
       }
       if (i % 50 == 49) {
         float fractional_iteration = (float)iteration + ((float)(i + 1) / train_bitext->size());
-        cerr << "--" << fractional_iteration << " loss: " << tloss << " (perp=" << exp(tloss/tword_count) << ")" << endl;
+        cerr << "--" << fractional_iteration << "     perp=" << exp(tloss/tword_count) << endl;
         tloss = 0;
         tword_count = 0;
       }
@@ -201,7 +202,7 @@ int main(int argc, char** argv) {
         auto dev_loss = ComputeLoss(*dev_bitext, attentional_model, t2s);
         auto dev_perp = exp(dev_loss.first / dev_loss.second);
         bool new_best = dev_loss.first <= best_dev_loss;
-        cerr << "--" << fractional_iteration << " dev perp: " << dev_perp << (new_best ? " (New best!)" : "") << endl;
+        cerr << "**" << fractional_iteration << " dev perp: " << dev_perp << (new_best ? " (New best!)" : "") << endl;
         if (new_best) {
           Serialize(*train_bitext, attentional_model, model);
           best_dev_loss = dev_loss.first;

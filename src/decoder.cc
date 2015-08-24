@@ -335,6 +335,16 @@ tuple<vector<WordId>, vector<WordId>> ReadInputLine(const string& line, Dict& so
     target.push_back(ktEOS);
   }
 
+  cerr << "Read input:";
+  for (WordId w: source) {
+    cerr << " " << source_vocab.Convert(w);
+  }
+  cerr << " |||";
+  for (WordId w: target) {
+    cerr << " " << target_vocab.Convert(w);
+  }
+  cerr << endl;
+
   return make_tuple(source, target);
 }
 
@@ -353,6 +363,16 @@ tuple<SyntaxTree, vector<WordId>> ReadT2SInputLine(const string& line, Dict& sou
     target = ReadSentence(parts[1], &target_vocab);
     target.push_back(ktEOS);
   } 
+
+  cerr << "Read tree input:";
+  for (WordId w: source_tree.GetTerminals()) {
+    cerr << " " << source_vocab.Convert(w);
+  }
+  cerr << " |||";
+  for (WordId w: target) {
+    cerr << " " << target_vocab.Convert(w);
+  }
+  cerr << endl;
 
   return make_tuple(source_tree, target);
 }
