@@ -136,7 +136,11 @@ int main(int argc, char** argv) {
   const bool t2s = vm["t2s"].as<bool>();
 
   Bitext* train_bitext = ReadBitext(train_bitext_filename, t2s);
+  unsigned src_vocab_size = train_bitext->source_vocab->size();
+  unsigned tgt_vocab_size = train_bitext->source_vocab->size();
   Bitext* dev_bitext = ReadBitext(dev_bitext_filename, train_bitext, t2s);
+  assert (train_bitext->source_vocab->size() == src_vocab_size);
+  assert (train_bitext->source_vocab->size() == tgt_vocab_size);
 
   cnn::Initialize(argc, argv);
   std::mt19937 rndeng(42);
@@ -147,12 +151,14 @@ int main(int argc, char** argv) {
   //AdadeltaTrainer sgd(&model, 0.0);
   //AdadeltaTrainer sgd(&model, 0.0, 1e-6, 0.992);
   //RmsPropTrainer sgd(&model, 0.0, 0.1);
-  AdamTrainer sgd(&model, 1.e-4);
+  AdamTrainer sgd(&model, 1e-4, 0.1);
   sgd.eta_decay = 0.05;
 
   cerr << "Training model...\n";
   unsigned minibatch_count = 0;
-  const unsigned minibatch_size = 10;
+  unsigned dev_freq_count = 0;
+  const unsigned minibatch_size = std::min(100U, train_bitext->size());
+  const unsigned dev_frequency = std::min(5000U, train_bitext->size());
   cnn::real best_dev_loss = numeric_limits<cnn::real>::max();
   for (unsigned iteration = 0; iteration < num_iterations; iteration++) {
     unsigned word_count = 0;
@@ -161,25 +167,27 @@ int main(int argc, char** argv) {
     double loss = 0.0;
     double tloss = 0.0;
     for (unsigned i = 0; i < train_bitext->size(); ++i) {
-      ComputationGraph cg;
-      const vector<WordId>& target_sentence = train_bitext->target_sentences[i];
-      word_count += train_bitext->target_sentences[i].size() - 1; // Minus one for <s>
-      tword_count += train_bitext->target_sentences[i].size() - 1; // Minus one for <s>
-      if (t2s) {
-        const SyntaxTree& source_tree = train_bitext->source_trees[i];
-        attentional_model.BuildGraph(source_tree, target_sentence, cg);
+      {
+        ComputationGraph cg;
+        const vector<WordId>& target_sentence = train_bitext->target_sentences[i];
+        word_count += train_bitext->target_sentences[i].size() - 1; // Minus one for <s>
+        tword_count += train_bitext->target_sentences[i].size() - 1; // Minus one for <s>
+        if (t2s) {
+          const SyntaxTree& source_tree = train_bitext->source_trees[i];
+          attentional_model.BuildGraph(source_tree, target_sentence, cg);
+        }
+        else {
+          const vector<WordId>& source_sentence = train_bitext->source_sentences[i];
+          attentional_model.BuildGraph(source_sentence, target_sentence, cg);
+        }
+        cg.forward();
+        double l = as_scalar(cg.forward());
+        loss += l;
+        tloss += l;
+        cg.backward();
       }
-      else {
-        const vector<WordId>& source_sentence = train_bitext->source_sentences[i];
-        attentional_model.BuildGraph(source_sentence, target_sentence, cg);
-      }
-      cg.forward();
-      double l = as_scalar(cg.forward());
-      loss += l;
-      tloss += l;
-      cg.backward();
-      if (i % 50 == 0 && i > 0) {
-        float fractional_iteration = (float)iteration + ((float)i / train_bitext->size());
+      if (i % 50 == 49) {
+        float fractional_iteration = (float)iteration + ((float)(i + 1) / train_bitext->size());
         cerr << "--" << fractional_iteration << " loss: " << tloss << " (perp=" << exp(tloss/tword_count) << ")" << endl;
         tloss = 0;
         tword_count = 0;
@@ -188,20 +196,25 @@ int main(int argc, char** argv) {
         sgd.update(1.0 / minibatch_size);
         minibatch_count = 0;
       }
+      if (++dev_freq_count == dev_frequency) {
+        float fractional_iteration = (float)iteration + ((float)(i + 1) / train_bitext->size());
+        auto dev_loss = ComputeLoss(*dev_bitext, attentional_model, t2s);
+        auto dev_perp = exp(dev_loss.first / dev_loss.second);
+        bool new_best = dev_loss.first <= best_dev_loss;
+        cerr << "--" << fractional_iteration << " dev perp: " << dev_perp << (new_best ? " (New best!)" : "") << endl;
+        if (new_best) {
+          Serialize(*train_bitext, attentional_model, model);
+          best_dev_loss = dev_loss.first;
+        }
+        dev_freq_count = 0;
+      }
       if (ctrlc_pressed) {
         break;
       }
     }
+    sgd.update_epoch();
     if (ctrlc_pressed) {
       break;
-    }
-    auto dev_loss = ComputeLoss(*dev_bitext, attentional_model, t2s);
-    cerr << "Iteration " << iteration + 1 << " loss: " << loss << " (perp=" << exp(loss/word_count) << ")" << " dev loss: " << dev_loss.first << endl;
-    sgd.update_epoch();
-    if (dev_loss.first <= best_dev_loss) {
-      cerr << "New best!" << endl;
-      Serialize(*train_bitext, attentional_model, model);
-      best_dev_loss = dev_loss.first;
     }
   }
 

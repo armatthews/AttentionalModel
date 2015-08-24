@@ -1,9 +1,7 @@
 #include "cnn/cnn.h"
 #include "cnn/training.h"
 
-#include <boost/archive/text_iarchive.hpp>
-#include <boost/algorithm/string.hpp>
-#include <boost/algorithm/string/join.hpp>
+#include <boost/program_options.hpp>
 
 #include <iostream>
 #include <fstream>
@@ -16,6 +14,7 @@
 
 using namespace cnn;
 using namespace std;
+namespace po = boost::program_options;
 
 bool ctrlc_pressed = false;
 void ctrlc_handler(int signal) {
@@ -27,16 +26,6 @@ void ctrlc_handler(int signal) {
   }
 }
 
-void trim(vector<string>& tokens, bool removeEmpty) {
-  for (unsigned i = 0; i < tokens.size(); ++i) {
-    boost::algorithm::trim(tokens[i]);
-    if (tokens[i].length() == 0 && removeEmpty) {
-      tokens.erase(tokens.begin() + i);
-      --i;
-    }
-  }
-}
-
 int main(int argc, char** argv) {
   if (argc < 2) {
     cerr << "Usage: cat source.txt | " << argv[0] << " model" << endl;
@@ -45,76 +34,75 @@ int main(int argc, char** argv) {
   }
   signal (SIGINT, ctrlc_handler);
 
+  po::options_description desc("description");
+  desc.add_options()
+  ("models", po::value<vector<string>>()->required()->composing(), "model file(s), as output by train")
+  ("show_eos", po::bool_switch()->default_value(false), "Show alignment links for the target word </s>") // XXX: Can't we infer this from the model somehow?
+  ("t2s", po::bool_switch()->default_value(false), "Treat input as trees rather than normal sentences") // XXX: Can't we infer this from the model somehow?
+  ("help", "Display this help message");
 
-  cnn::Initialize(argc, argv);
-  Dict source_vocab;
-  Dict target_vocab;
-  vector<Model*> cnn_models(argc - 1);
-  vector<AttentionalModel*> attentional_models(argc - 1);
-  for (unsigned i = 0; i < argc - 1; ++i) {
-    const string model_filename = argv[i + 1];
-    ifstream model_file(model_filename);
-    if (!model_file.is_open()) {
-      cerr << "ERROR: Unable to open " << model_filename << endl;
-      exit(1);
-    }
-    boost::archive::text_iarchive ia(model_file);
+  po::positional_options_description positional_options;
+  positional_options.add("models", -1);
 
-    ia & source_vocab;
-    ia & target_vocab;
-    source_vocab.Freeze();
-    target_vocab.Freeze();
+  po::variables_map vm;
+  po::store(po::command_line_parser(argc, argv).options(desc).positional(positional_options).run(), vm);
 
-    Model* model = new Model();
-    cnn_models[i] = model;
-    attentional_models[i] = new AttentionalModel(*model, source_vocab.size(), target_vocab.size());
-
-    ia & *attentional_models[i];
-    ia & *model;
+  if (vm.count("help")) {
+    cerr << desc;
+    return 1;
   }
 
-  WordId ksBOS = source_vocab.Convert("<s>");
-  WordId ksEOS = source_vocab.Convert("</s>");
-  WordId ktBOS = target_vocab.Convert("<s>");
+  po::notify(vm);
+
+  vector<string> model_filenames = vm["models"].as<vector<string>>();
+  const bool show_eos = vm["show_eos"].as<bool>();
+  const bool t2s = vm["t2s"].as<bool>();
+
+  cnn::Initialize(argc, argv);
+
+  Dict source_vocab;
+  Dict target_vocab;
+  vector<Model*> cnn_models;
+  vector<AttentionalModel*> attentional_models;
+  tie(source_vocab, target_vocab, cnn_models, attentional_models) = LoadModels(model_filenames);
+
+  assert (source_vocab.Contains("<s>"));
+  assert (source_vocab.Contains("</s>"));
+  WordId ktSOS = target_vocab.Convert("<s>");
   WordId ktEOS = target_vocab.Convert("</s>");
+  source_vocab.Freeze();
+  target_vocab.Freeze();
 
   AttentionalDecoder decoder(attentional_models);
-  decoder.SetParams(100, ktBOS, ktEOS);
+  decoder.SetParams(0, ktSOS, ktEOS);
 
   string line;
-  for (; getline(cin, line);) {
+  unsigned sentence_number = 0;
+  while(getline(cin, line)) {
     vector<string> parts = tokenize(line, "|||");
-    trim(parts, false);
+    parts = strip(parts);
 
-    vector<string> source_tokens = tokenize(parts[0], " ");
-    trim(source_tokens, true);
-
-    vector<WordId> source(source_tokens.size() + 2);
-    source[0] = ksBOS;
-    for (unsigned i = 0; i < source_tokens.size(); ++i) {
-      source[i + 1] = source_vocab.Convert(source_tokens[i]);
+    vector<vector<float>> alignment;
+    if (t2s) {
+      SyntaxTree source_tree;
+      vector<WordId> target;
+      tie(source_tree, target) = ReadT2SInputLine(line, source_vocab, target_vocab);
+      alignment = decoder.Align(source_tree, target);
+      cerr << "Source has " << source_tree.GetTerminals().size() << " words and " << source_tree.NumNodes() << " nodes. Target has " << target.size() << " words." << endl;
     }
-    source[source_tokens.size() + 1] = ksEOS;
-
-    vector<string> target_tokens = tokenize(parts[1], " ");
-    trim(target_tokens, true);
-
-    vector<WordId> target(target_tokens.size() + 2);
-    target[0] = ktBOS;
-    for (unsigned i = 0; i < target_tokens.size(); ++i) {
-      target[i + 1] = target_vocab.Convert(target_tokens[i]);
+    else {
+      vector<WordId> source;
+      vector<WordId> target;
+      tie(source, target) = ReadInputLine(line, source_vocab, target_vocab);
+      alignment = decoder.Align(source, target);
+      cerr << "Source has " << source.size() << " words. Target has " << target.size() << " words." << endl;
     }
-    target[target_tokens.size() + 1] = ktEOS;
 
-    cout << boost::algorithm::join(source_tokens, " ") << endl;
-    cout << boost::algorithm::join(target_tokens, " ") << endl;
+    assert (alignment.size() > 0);
+    if (!show_eos) {
+      alignment.pop_back();
+    }
 
-    assert (source[0] == ksBOS);
-    assert (source[source.size() - 1] == ksEOS);
-    assert (target[0] == ktBOS);
-    assert (target[target.size() - 1] == ktEOS);
-
-    vector<vector<float> > alignment = decoder.Align(source, target);
     unsigned j = 0;
     for (vector<float> v : alignment) {
       for (unsigned i = 0; i < v.size(); ++i) {
@@ -123,6 +111,12 @@ int main(int argc, char** argv) {
       cout << endl;
     }
     cout << endl;
+
+    sentence_number++;
+
+    if (ctrlc_pressed) {
+      break;
+    }
   }
 
   return 0;

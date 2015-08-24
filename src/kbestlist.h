@@ -1,7 +1,10 @@
 #pragma once
 #include <deque>
 #include <utility>
+#include "cnn/dict.h"
+#include "utils.h"
 
+using namespace cnn;
 using namespace std;
 
 template <typename T>
@@ -9,6 +12,7 @@ class KBestList {
 public:
   unsigned max_size;
 
+  KBestList() : max_size(0) {}
   explicit KBestList(unsigned max_size) : max_size(max_size) {}
 
   bool add(double score, T hyp) {
@@ -40,7 +44,7 @@ public:
     return true;
   }
 
-  unsigned size() const { 
+  unsigned size() const {
     return hypotheses.size();
   }
 
@@ -50,3 +54,5 @@ public:
 private:
   deque<pair<double, T>> hypotheses;
 };
+
+void OutputKBestList(unsigned sentence_number, KBestList<vector<WordId>> kbest, Dict& target_vocab);

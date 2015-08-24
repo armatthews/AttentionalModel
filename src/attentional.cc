@@ -113,7 +113,7 @@ OutputState AttentionalModel::GetNextOutputState(const RNNPointer& rnn_pointer, 
 Expression AttentionalModel::ComputeOutputDistribution(const WordId prev_word, const Expression state, const Expression context, const MLP& final, ComputationGraph& cg) {
   Expression prev_target_embedding = lookup(cg, p_Et, prev_word);
   Expression final_input = concatenate({prev_target_embedding, state, context});
-  Expression final_hidden1 = affine_transform({final.i_Hb, final.i_IH, final_input}); 
+  Expression final_hidden1 = affine_transform({final.i_Hb, final.i_IH, final_input});
   Expression final_hidden2 = tanh({final_hidden1});
   Expression final_output = affine_transform({final.i_Ob, final.i_HO, final_hidden2});
   return final_output;
@@ -165,7 +165,7 @@ tuple<vector<Expression>, Expression> AttentionalModel::BuildAnnotationVectors(c
   Expression zeroth_context;
   vector<WordId> source = source_tree.GetTerminals();
   tie(linear_annotations, zeroth_context) = BuildAnnotationVectors(source, cg);
-  vector<Expression> annotations = BuildTreeAnnotationVectors(source_tree, linear_annotations, cg); 
+  vector<Expression> annotations = BuildTreeAnnotationVectors(source_tree, linear_annotations, cg);
   return make_tuple(annotations, zeroth_context);
 }
 

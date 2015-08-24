@@ -1,26 +1,120 @@
-    map<string, int> translations;
-    for (unsigned j = 0; j < 1000; ++j) {
-      vector<WordId> target = attentional_model.SampleTranslation(source, ktSOS, ktEOS, 10);
-      vector<string> words(target.size());
-      for  (unsigned i = 0; i < target.size(); ++i) {
-        words[i] = target_vocab.Convert(target[i]);
-      }
-      string translation = boost::algorithm::join(words, " ");
-      translations[translation]++;
+#include "cnn/cnn.h"
+#include "cnn/training.h"
 
+#include <boost/program_options.hpp>
+#include <boost/algorithm/string/join.hpp>
+
+#include <iostream>
+#include <fstream>
+#include <csignal>
+
+#include "bitext.h"
+#include "attentional.h"
+#include "decoder.h"
+#include "utils.h"
+
+using namespace cnn;
+using namespace std;
+namespace po = boost::program_options;
+
+bool ctrlc_pressed = false;
+void ctrlc_handler(int signal) {
+  if (ctrlc_pressed) {
+    exit(1);
+  }
+  else {
+    ctrlc_pressed = true;
+  }
+}
+
+int main(int argc, char** argv) {
+  if (argc < 2) {
+    cerr << "Usage: cat source.txt | " << argv[0] << " model" << endl;
+    cerr << endl;
+    exit(1);
+  }
+  signal (SIGINT, ctrlc_handler);
+
+  po::options_description desc("description");
+  desc.add_options()
+  ("models", po::value<vector<string>>()->required()->composing(), "model file(s), as output by train")
+  ("samples,n", po::value<unsigned>()->default_value(1), "Number of samples per sentence")
+  ("max_length", po::value<unsigned>()->default_value(100), "Maximum length of output sentences")
+  ("t2s", po::bool_switch()->default_value(false), "Treat input as trees rather than normal sentences") // XXX: Can't we infer this from the model somehow?
+  ("help", "Display this help message");
+
+  po::positional_options_description positional_options;
+  positional_options.add("models", -1);
+
+  po::variables_map vm;
+  po::store(po::command_line_parser(argc, argv).options(desc).positional(positional_options).run(), vm);
+
+  if (vm.count("help")) {
+    cerr << desc;
+    return 1;
+  }
+
+  po::notify(vm);
+
+  vector<string> model_filenames = vm["models"].as<vector<string>>();
+  unsigned samples = vm["samples"].as<unsigned>();
+  unsigned max_length = vm["max_length"].as<unsigned>();
+  const bool t2s = vm["t2s"].as<bool>();
+
+  cnn::Initialize(argc, argv);
+
+  Dict source_vocab;
+  Dict target_vocab;
+  vector<Model*> cnn_models;
+  vector<AttentionalModel*> attentional_models;
+  tie(source_vocab, target_vocab, cnn_models, attentional_models) = LoadModels(model_filenames);
+
+  assert (source_vocab.Contains("<s>"));
+  assert (source_vocab.Contains("</s>"));
+  WordId ktSOS = target_vocab.Convert("<s>");
+  WordId ktEOS = target_vocab.Convert("</s>");
+  source_vocab.Freeze();
+  target_vocab.Freeze();
+
+  AttentionalDecoder decoder(attentional_models);
+  decoder.SetParams(max_length, ktSOS, ktEOS);
+
+  string line;
+  unsigned sentence_number = 0;
+  while(getline(cin, line)) {
+    vector<string> parts = tokenize(line, "|||");
+    parts = strip(parts);
+
+    for (unsigned sample = 0; sample < samples; ++sample) {
+      vector<WordId> output;
+      if (t2s) {
+        SyntaxTree source_tree;
+        vector<WordId> reference;
+        tie(source_tree, reference) = ReadT2SInputLine(line, source_vocab, target_vocab);
+        output = decoder.SampleTranslation(source_tree);
+      }
+      else {
+        vector<WordId> source;
+        vector<WordId> target;
+        tie(source, target) = ReadInputLine(line, source_vocab, target_vocab);
+        output = decoder.SampleTranslation(source);
+      }
+
+      vector<string> words;
+      for (WordId w : output) {
+        words.push_back(target_vocab.Convert(w));
+      }
+      cout << sentence_number << " ||| " << boost::algorithm::join(words, " ") << endl;
       if (ctrlc_pressed) {
         break;
       }
     }
+    sentence_number++;
 
-    vector<pair<int, string> > translations2;
-    for (auto it = translations.begin(); it != translations.end(); ++it) {
-      translations2.push_back(make_pair(it->second, it->first));
+    if (ctrlc_pressed) {
+      break;
     }
+  }
 
-    auto comp = [](const pair<int, string>& a, const pair<int, string>& b) { return a.first > b.first || (a.first == b.first && a.second < b.second);};
-    sort(translations2.begin(), translations2.end(), comp);
-
-    for (auto it = translations2.begin(); it != translations2.end(); ++it) {
-      cout << it->first << "\t" << it->second << endl;
-    }
+  return 0;
+}

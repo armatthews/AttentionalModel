@@ -101,7 +101,7 @@ int main(int argc, char** argv) {
     }
     cout << endl;
     VariableIndex i_d = hg.add_function<SquaredEuclideanDistance>({i_y, i_yhat});
-    double loss = as_scalar(hg.forward()); 
+    double loss = as_scalar(hg.forward());
     if (ctrlc_pressed) {
       break;
     }

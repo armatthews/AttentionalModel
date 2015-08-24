@@ -2,8 +2,11 @@
 #include <vector>
 #include <map>
 #include <string>
+#include <tuple>
+#include "cnn/dict.h"
 
 using namespace std;
+using namespace cnn;
 
 typedef int WordId;
 

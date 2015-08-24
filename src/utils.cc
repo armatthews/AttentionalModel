@@ -7,6 +7,7 @@
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/regex.hpp>
+#include "utils.h"
 
 using namespace std;
 
@@ -76,7 +77,6 @@ map<string, double> parse_feature_string(string input) {
     vector<string> kvp = tokenize(piece, "=", 1);
     if (kvp.size() != 2) {
       cerr << "Invalid feature name-value pair: \"" << piece << "\n";
-      //cerr << "Invalid feature name-value pair: \"" << boost::algorithm::join(kvp, "=") << "\n";
       exit(1);
     }
 

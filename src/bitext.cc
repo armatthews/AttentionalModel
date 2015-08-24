@@ -63,7 +63,7 @@ bool ReadCorpus(string filename, Bitext& bitext, bool t2s) {
     if (add_bos_eos) {
       target.insert(target.begin(), tBOS);
       target.push_back(tEOS);
-    } 
+    }
     bitext.target_sentences.push_back(target);
   }
   return true;
