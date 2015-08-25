@@ -95,8 +95,6 @@ OutputState AttentionalModel::GetNextOutputState(unsigned t, const Expression& p
   return GetNextOutputState(t, output_builder.state(), prev_context, prev_target_word_embedding, annotations, aligner, cg, out_alignment);
 }
 
-// TODO: There's gotta be a way to batch compute these alignment things
-// rather than doing it one scalar at a time...
 OutputState AttentionalModel::GetNextOutputState(unsigned t, const RNNPointer& rnn_pointer, const Expression& prev_context, const Expression& prev_target_word_embedding,
     const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& cg, vector<float>* out_alignment) {
   const unsigned source_size = annotations.size();
@@ -104,32 +102,32 @@ OutputState AttentionalModel::GetNextOutputState(unsigned t, const RNNPointer& r
   Expression annotation_matrix = concatenate_cols(annotations); // \alpha
   Expression state_rnn_input = concatenate({prev_context, prev_target_word_embedding});
   Expression new_state = output_builder.add_input(rnn_pointer, state_rnn_input); // new_state = RNN(prev_state, prev_context, prev_target_word)
-  //vector<Expression> unnormalized_alignments(source_size); // e_ij
+  vector<Expression> unnormalized_alignments(source_size); // e_ij
 
   // The two loops below accomplish exactly the same thing.
   // The second one is slightly faster (at least for large-ish state sizes),
   // because W * new_state does not change with respect to s, so we have
   // factored it out. The code below is kind of ugly, so we leave the simple
   // loop here for clarity.
-  /*for (unsigned s = 0; s < source_size; ++s) {
+  for (unsigned s = 0; s < source_size; ++s) {
     unnormalized_alignments[s] = aligner.Feed({new_state, annotations[s]});
-  }*/
+  }
 
-  Expression new_bias = affine_transform({aligner.i_Hb, aligner.i_IH[0], new_state});
+  //Expression new_bias = affine_transform({aligner.i_Hb, aligner.i_IH[0], new_state});
   /*for (unsigned s = 0; s < source_size; ++s) {
     Expression hidden = tanh(affine_transform({new_bias, aligner.i_IH[1], annotations[s]}));
     Expression output = affine_transform({aligner.i_Ob, aligner.i_HO, hidden});
     unnormalized_alignments[s] = output;
   }*/
 
-  //Expression unnormalized_alignment_vector = concatenate(unnormalized_alignments);// + log(alignment_prior(t, source_size, cg));
+  Expression unnormalized_alignment_vector = concatenate(unnormalized_alignments);// + log(alignment_prior(t, source_size, cg));
 
   // Yet another implementation of the above, this time batching all the calls to the MLP into matrix-matrix operations
   // This yields a little over 10% speed up over the above.
-  Expression bias_broadcast1 = concatenate_cols(vector<Expression>(annotations.size(), new_bias));
+  /*Expression bias_broadcast1 = concatenate_cols(vector<Expression>(annotations.size(), new_bias));
   Expression hidden = tanh(affine_transform({bias_broadcast1, aligner.i_IH[1], annotation_matrix}));
   Expression bias_broadcast2 = concatenate_cols(vector<Expression>(annotations.size(), aligner.i_Ob));
-  Expression unnormalized_alignment_vector = transpose(affine_transform({bias_broadcast2, aligner.i_HO, hidden}));
+  Expression unnormalized_alignment_vector = transpose(affine_transform({bias_broadcast2, aligner.i_HO, hidden}));*/
 
   Expression normalized_alignment_vector = softmax(unnormalized_alignment_vector); // \alpha_ij
   if (out_alignment != NULL) {

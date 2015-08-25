@@ -66,6 +66,18 @@ vector<vector<float>> AttentionalDecoder::Align(const SyntaxTree& source, const 
   return Align(ds, target, cg);
 }
 
+vector<cnn::real> AttentionalDecoder::Loss(const vector<WordId>& source, const vector<WordId>& target) {
+  ComputationGraph cg;
+  DecoderState ds = Initialize(source, cg);
+  return Loss(ds, target, cg);
+}
+
+vector<cnn::real> AttentionalDecoder::Loss(const SyntaxTree& source, const vector<WordId>& target) {
+  ComputationGraph cg;
+  DecoderState ds = Initialize(source, cg);
+  return Loss(ds, target, cg);
+}
+
 vector<WordId> AttentionalDecoder::SampleTranslation(DecoderState& ds, ComputationGraph& cg) {
   vector<WordId> output;
   WordId prev_word = kSOS;
@@ -171,6 +183,7 @@ KBestList<vector<WordId>> AttentionalDecoder::TranslateKBest(DecoderState& ds, u
 }
 
 vector<vector<float>> AttentionalDecoder::Align(DecoderState& ds, const vector<WordId>& target, ComputationGraph& cg) {
+  assert (target.size() >= 2 && target[0] == 1 && target[target.size() - 1] == 2);
   assert (ds.model_annotations.size() == models.size());
   assert (models.size() > 0);
   assert (ds.model_alignments[0].size() == 1);
@@ -209,8 +222,29 @@ vector<vector<float>> AttentionalDecoder::Align(DecoderState& ds, const vector<W
   return alignment;
 }
 
-vector<cnn::real> AttentionalDecoder::Loss(DecoderState& source, const vector<WordId>& target, ComputationGraph& cg) {
-  vector<cnn::real> losses;
+vector<cnn::real> AttentionalDecoder::Loss(DecoderState& ds, const vector<WordId>& target, ComputationGraph& cg) {
+  assert (target.size() >= 2 && target[0] == 1 && target[target.size() - 1] == 2);
+  vector<cnn::real> losses(target.size());
+
+  for (unsigned i = 0; i < models.size(); ++i) {
+    for (unsigned t = 1; t < target.size(); ++t) {
+      OutputState& os = ds.model_output_states[i];
+      WordId prev_word = target[t - 1];
+      Expression prev_target_word_embedding = lookup(cg, models[i]->p_Et, prev_word);
+      Expression output_distribution = models[i]->ComputeOutputDistribution(prev_word, os.state, os.context, ds.model_final_mlps[i], cg);
+      Expression error = pickneglogsoftmax(output_distribution, target[t]);
+      losses[t] += as_scalar(cg.incremental_forward());
+
+      os = models[i]->GetNextOutputState(t - 1, ds.model_output_states[i].context, prev_target_word_embedding, ds.model_annotations[i], ds.model_aligners[i], cg);
+      ds.model_output_states[i] = os;
+    }
+  }
+
+  for (unsigned i = 0; i < losses.size(); ++i) {
+    losses[i] /= models.size();
+  }
+
+  losses.erase(losses.begin());
   return losses;
 }
 
@@ -273,6 +307,7 @@ DecoderState AttentionalDecoder::InitializeGivenAnnotations(const vector<vector<
 }
 
 DecoderState AttentionalDecoder::Initialize(const vector<WordId>& source, ComputationGraph& cg) { 
+  assert (source.size() >= 2 && source[0] == 1 && source[source.size() - 1] == 2);
   vector<vector<Expression>> model_annotations;
   vector<Expression> model_zeroth_contexts;
   tie(model_annotations, model_zeroth_contexts) = InitializeAnnotations(source, cg);
@@ -323,6 +358,7 @@ tuple<vector<WordId>, vector<WordId>> ReadInputLine(const string& line, Dict& so
 
   WordId ksSOS = source_vocab.Convert("<s>");
   WordId ksEOS = source_vocab.Convert("</s>");
+  WordId ktSOS = target_vocab.Convert("<s>");
   WordId ktEOS = target_vocab.Convert("</s>");
 
   vector<WordId> source = ReadSentence(parts[0], &source_vocab);
@@ -332,6 +368,7 @@ tuple<vector<WordId>, vector<WordId>> ReadInputLine(const string& line, Dict& so
   vector<WordId> target;
   if (parts.size() > 1) {
     target = ReadSentence(parts[1], &target_vocab);
+    target.insert(target.begin(), ktSOS);
     target.push_back(ktEOS);
   }
 
@@ -353,6 +390,7 @@ tuple<SyntaxTree, vector<WordId>> ReadT2SInputLine(const string& line, Dict& sou
   parts = strip(parts);
   assert (parts.size() == 1 || parts.size() == 2);
 
+  WordId ktSOS = target_vocab.Convert("<s>");
   WordId ktEOS = target_vocab.Convert("</s>");
 
   SyntaxTree source_tree(parts[0], &source_vocab);
@@ -361,6 +399,7 @@ tuple<SyntaxTree, vector<WordId>> ReadT2SInputLine(const string& line, Dict& sou
   vector<WordId> target;
   if (parts.size() > 1) {
     target = ReadSentence(parts[1], &target_vocab);
+    target.insert(target.begin(), ktSOS);
     target.push_back(ktEOS);
   } 
 

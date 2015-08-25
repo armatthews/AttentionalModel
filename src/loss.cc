@@ -37,7 +37,6 @@ int main(int argc, char** argv) {
   po::options_description desc("description");
   desc.add_options()
   ("models", po::value<vector<string>>()->required()->composing(), "model file(s), as output by train")
-  ("show_eos", po::bool_switch()->default_value(false), "Show alignment links for the target word </s>") // XXX: Can't we infer this from the model somehow?
   ("t2s", po::bool_switch()->default_value(false), "Treat input as trees rather than normal sentences") // XXX: Can't we infer this from the model somehow?
   ("help", "Display this help message");
 
@@ -55,7 +54,6 @@ int main(int argc, char** argv) {
   po::notify(vm);
 
   vector<string> model_filenames = vm["models"].as<vector<string>>();
-  const bool show_eos = vm["show_eos"].as<bool>();
   const bool t2s = vm["t2s"].as<bool>();
 
   cnn::Initialize(argc, argv);
@@ -82,36 +80,30 @@ int main(int argc, char** argv) {
     vector<string> parts = tokenize(line, "|||");
     parts = strip(parts);
 
-    vector<vector<float>> alignment;
+    vector<cnn::real> losses;
     if (t2s) {
       SyntaxTree source_tree;
       vector<WordId> target;
       tie(source_tree, target) = ReadT2SInputLine(line, source_vocab, target_vocab);
-      alignment = decoder.Align(source_tree, target);
-      //cerr << "Source has " << source_tree.GetTerminals().size() << " words and " << source_tree.NumNodes() << " nodes. Target has " << target.size() << " words." << endl;
+      losses = decoder.Loss(source_tree, target);
     }
     else {
       vector<WordId> source;
       vector<WordId> target;
       tie(source, target) = ReadInputLine(line, source_vocab, target_vocab);
-      alignment = decoder.Align(source, target);
-      //cerr << "Source has " << source.size() << " words. Target has " << target.size() << " words." << endl;
+      losses = decoder.Loss(source, target); 
     }
 
-    assert (alignment.size() > 0);
-    if (!show_eos) {
-      alignment.pop_back();
+    cerr << "Target has " << losses.size() << " words." << endl;
+    cnn::real total_loss = 0;
+    for (unsigned i = 0; i < losses.size(); ++i) {
+      total_loss += losses[i];
     }
-
-    unsigned j = 0;
-    for (vector<float> v : alignment) {
-      for (unsigned i = 0; i < v.size(); ++i) {
-        cout << (i == 0 ? "" : " ") << v[i];
-      }
-      cout << endl;
+    cout << "Total perp: " << exp(total_loss/losses.size()) << "\tPerp per word: ";
+    for (unsigned i = 0; i < losses.size(); ++i) {
+      cout << (i == 0 ? "" : " ") << exp(losses[i]);
     }
     cout << endl;
-
     sentence_number++;
 
     if (ctrlc_pressed) {

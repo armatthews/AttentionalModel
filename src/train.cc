@@ -141,6 +141,9 @@ int main(int argc, char** argv) {
   unsigned src_vocab_size = train_bitext->source_vocab->size();
   unsigned tgt_vocab_size = train_bitext->source_vocab->size();
   Bitext* dev_bitext = ReadBitext(dev_bitext_filename, train_bitext, t2s);
+  for (WordId w = src_vocab_size; w < train_bitext->source_vocab->size(); ++w) {
+    cerr << "New source word: " << train_bitext->source_vocab->Convert(w) << endl;
+  }
   assert (train_bitext->source_vocab->size() == src_vocab_size);
   assert (train_bitext->source_vocab->size() == tgt_vocab_size);
 
@@ -148,7 +151,7 @@ int main(int argc, char** argv) {
   std::mt19937 rndeng(42);
   Model model;
   AttentionalModel attentional_model(model, train_bitext->source_vocab->size(), train_bitext->target_vocab->size());
-  SimpleSGDTrainer sgd(&model, 0.0, 0.2);
+  SimpleSGDTrainer sgd(&model, 1e-4, 0.2);
   //AdagradTrainer sgd(&model, 0.0, 0.1);
   //AdadeltaTrainer sgd(&model, 0.0);
   //AdadeltaTrainer sgd(&model, 0.0, 1e-6, 0.992);
