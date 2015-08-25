@@ -24,10 +24,12 @@ struct OutputState {
 
 // A simple 2 layer MLP
 struct MLP {
-  Expression i_IH;
+  vector<Expression> i_IH;
   Expression i_Hb;
   Expression i_HO;
   Expression i_Ob;
+
+  Expression Feed(vector<Expression> input) const;
 };
 
 struct PartialHypothesis {
@@ -52,7 +54,7 @@ protected:
   Expression BuildGraphGivenAnnotations(const vector<Expression>& annotations, Expression zeroth_context, const vector<WordId>& target, ComputationGraph& cg);
   OutputState GetNextOutputState(unsigned t, const Expression& context, const Expression& prev_target_word_embedding, const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& hg, vector<float>* out_alignment = NULL);
   OutputState GetNextOutputState(unsigned t, const RNNPointer& rnn_pointer, const Expression& context, const Expression& prev_target_word_embedding, const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& hg, vector<float>* out_alignment = NULL);
-  Expression ComputeOutputDistribution(const WordId prev_word, const Expression state, const Expression context, const MLP& final, ComputationGraph& hg);
+  Expression ComputeOutputDistribution(const WordId prev_word, const Expression state, const Expression context, const MLP& final_mlp, ComputationGraph& hg);
   vector<unsigned&> GetParams();
   MLP GetAligner(ComputationGraph& cg) const;
   MLP GetFinalMLP(ComputationGraph& cg) const;
@@ -64,16 +66,24 @@ private:
   TreeLSTMBuilder tree_builder;
   LookupParameters* p_Es; // source language word embedding matrix
   LookupParameters* p_Et; // target language word embedding matrix
-  Parameters* p_aIH; // Alignment NN weight matrix between the input and hidden layers
+
+  // Alignment NN
+  Parameters* p_aIH1; // weight matrix between the input state and hidden layer
+  Parameters* p_aIH2; // weight matrix between the input annotation and hidden layer
   Parameters* p_aHb; // Alignment NN hidden layer bias
   Parameters* p_aHO; // Alignment NN weight matrix between the hidden and output layers
   Parameters* p_aOb; // Alignment NN output layer bias;
   Parameters* p_Ws; // Used to compute p_0 from h_backwards_0
   Parameters* p_bs; // Used to compute p_0 from h_backwars_0
-  Parameters* p_fIH; // "Final" NN (from the tuple (y_{i-1}, s_i, c_i) to the distribution over output words y_i), input->hidden weights
+
+  // "Final" NN (from the tuple (y_{i-1}, s_i, c_i) to the distribution over output words y_i)
+  Parameters* p_fIH1; // input prev embedding->hidden weights
+  Parameters* p_fIH2; // input state->hidden weights
+  Parameters* p_fIH3; // input context->hidden weights
   Parameters* p_fHb; // Same, hidden bias
   Parameters* p_fHO; // Same, hidden->output weights
   Parameters* p_fOb; // Same, output bias
+
   Parameters* p_tension; // diagonal tension for prior on alignments
   Parameters* p_length_multiplier; // |t| \approx this times |s|
   vector<cnn::real> zero_annotation; // Just a vector of zeros, the same size as an annotation vector

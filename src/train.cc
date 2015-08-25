@@ -113,6 +113,7 @@ int main(int argc, char** argv) {
   ("train_bitext", po::value<string>()->required(), "Training bitext in source_tree ||| target format")
   ("dev_bitext", po::value<string>()->default_value(""), "(Optional) Dev bitext, used for early stopping")
   ("num_iterations,i", po::value<unsigned>()->default_value(UINT_MAX), "Number of epochs to train for")
+  ("random_seed,r", po::value<unsigned>()->default_value(0), "Random seed. If this value is 0 a seed will be chosen randomly.")
   ("t2s", po::bool_switch()->default_value(false), "Treat input as trees rather than normal sentences")
   ("help", "Display this help message");
 
@@ -133,6 +134,7 @@ int main(int argc, char** argv) {
   const string train_bitext_filename = vm["train_bitext"].as<string>();
   const string dev_bitext_filename = vm["dev_bitext"].as<string>();
   const unsigned num_iterations = vm["num_iterations"].as<unsigned>();
+  const unsigned random_seed = vm["random_seed"].as<unsigned>();
   const bool t2s = vm["t2s"].as<bool>();
 
   Bitext* train_bitext = ReadBitext(train_bitext_filename, t2s);
@@ -142,18 +144,19 @@ int main(int argc, char** argv) {
   assert (train_bitext->source_vocab->size() == src_vocab_size);
   assert (train_bitext->source_vocab->size() == tgt_vocab_size);
 
-  cnn::Initialize(argc, argv, 1);
+  cnn::Initialize(argc, argv, random_seed);
   std::mt19937 rndeng(42);
   Model model;
   AttentionalModel attentional_model(model, train_bitext->source_vocab->size(), train_bitext->target_vocab->size());
-  SimpleSGDTrainer sgd(&model, 0.0, 0.1);
+  SimpleSGDTrainer sgd(&model, 0.0, 0.2);
   //AdagradTrainer sgd(&model, 0.0, 0.1);
   //AdadeltaTrainer sgd(&model, 0.0);
   //AdadeltaTrainer sgd(&model, 0.0, 1e-6, 0.992);
   //RmsPropTrainer sgd(&model, 0.0, 0.1);
   //AdamTrainer sgd(&model, 1e-4, 0.1);
   //AdamTrainer sgd(&model, 0.0, 0.01);
-  sgd.eta_decay = 0.01;
+  //sgd.eta_decay = 0.01;
+  sgd.eta_decay = 0.5;
 
   cerr << "Training model...\n";
   unsigned minibatch_count = 0;
@@ -207,13 +210,16 @@ int main(int argc, char** argv) {
           Serialize(*train_bitext, attentional_model, model);
           best_dev_loss = dev_loss.first;
         }
+        else {
+          sgd.update_epoch();
+        }
         dev_freq_count = 0;
       }
       if (ctrlc_pressed) {
         break;
       }
     }
-    sgd.update_epoch();
+    //sgd.update_epoch();
     if (ctrlc_pressed) {
       break;
     }

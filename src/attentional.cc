@@ -11,6 +11,20 @@ using namespace std;
 using namespace cnn;
 using namespace cnn::expr;
 
+Expression MLP::Feed(vector<Expression> inputs) const {
+  assert (inputs.size() == i_IH.size());
+  vector<Expression> xs(2 * inputs.size() + 1);
+  xs[0] = i_Hb;
+  for (unsigned i = 0; i < inputs.size(); ++i) {
+    xs[2 * i + 1] = i_IH[i];
+    xs[2 * i + 2] = inputs[i];
+  }
+  Expression hidden1 = affine_transform(xs);
+  Expression hidden2 = tanh({hidden1});
+  Expression output = affine_transform({i_Ob, i_HO, hidden2});
+  return output;
+}
+
 AttentionalModel::AttentionalModel(Model& model, unsigned src_vocab_size, unsigned tgt_vocab_size) {
   forward_builder = LSTMBuilder(lstm_layer_count, embedding_dim, half_annotation_dim, &model);
   reverse_builder = LSTMBuilder(lstm_layer_count, embedding_dim, half_annotation_dim, &model);
@@ -18,7 +32,8 @@ AttentionalModel::AttentionalModel(Model& model, unsigned src_vocab_size, unsign
   tree_builder = TreeLSTMBuilder(5, lstm_layer_count, 2 * half_annotation_dim, 2 * half_annotation_dim, &model);
   p_Es = model.add_lookup_parameters(src_vocab_size, {embedding_dim});
   p_Et = model.add_lookup_parameters(tgt_vocab_size, {embedding_dim});
-  p_aIH = model.add_parameters({alignment_hidden_dim, output_state_dim + 2 * half_annotation_dim});
+  p_aIH1 = model.add_parameters({alignment_hidden_dim, output_state_dim});
+  p_aIH2 = model.add_parameters({alignment_hidden_dim, 2 * half_annotation_dim});
   p_aHb = model.add_parameters({alignment_hidden_dim, 1});
   p_aHO = model.add_parameters({1, alignment_hidden_dim});
   p_aOb = model.add_parameters({1, 1});
@@ -26,7 +41,9 @@ AttentionalModel::AttentionalModel(Model& model, unsigned src_vocab_size, unsign
   p_Ws = model.add_parameters({2 * half_annotation_dim, half_annotation_dim});
   p_bs = model.add_parameters({2 * half_annotation_dim});
 
-  p_fIH = model.add_parameters({final_hidden_dim, embedding_dim + 2 * half_annotation_dim + output_state_dim});
+  p_fIH1 = model.add_parameters({final_hidden_dim, embedding_dim});
+  p_fIH2 = model.add_parameters({final_hidden_dim, output_state_dim});
+  p_fIH3 = model.add_parameters({final_hidden_dim, 2 * half_annotation_dim}); 
   p_fHb = model.add_parameters({final_hidden_dim});
   p_fHO = model.add_parameters({tgt_vocab_size, final_hidden_dim});
   p_fOb = model.add_parameters({tgt_vocab_size});
@@ -78,31 +95,47 @@ OutputState AttentionalModel::GetNextOutputState(unsigned t, const Expression& p
   return GetNextOutputState(t, output_builder.state(), prev_context, prev_target_word_embedding, annotations, aligner, cg, out_alignment);
 }
 
-// TODO: If you ever want to optimize something, look no further. These concatenates can be removed by introducing new parameters
-// or refactoring MLP into a proper class, leading to nice gains. Also there's gotta be a way to batch compute these alignment things
+// TODO: There's gotta be a way to batch compute these alignment things
 // rather than doing it one scalar at a time...
 OutputState AttentionalModel::GetNextOutputState(unsigned t, const RNNPointer& rnn_pointer, const Expression& prev_context, const Expression& prev_target_word_embedding,
     const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& cg, vector<float>* out_alignment) {
   const unsigned source_size = annotations.size();
 
+  Expression annotation_matrix = concatenate_cols(annotations); // \alpha
   Expression state_rnn_input = concatenate({prev_context, prev_target_word_embedding});
   Expression new_state = output_builder.add_input(rnn_pointer, state_rnn_input); // new_state = RNN(prev_state, prev_context, prev_target_word)
-  vector<Expression> unnormalized_alignments(source_size); // e_ij
+  //vector<Expression> unnormalized_alignments(source_size); // e_ij
 
-  for (unsigned s = 0; s < source_size; ++s) {
-    Expression a_input = concatenate({new_state, annotations[s]});
-    Expression a_hidden1 = affine_transform({aligner.i_Hb, aligner.i_IH, a_input});
-    Expression a_hidden2 = tanh(a_hidden1);
-    Expression a_output = affine_transform({aligner.i_Ob, aligner.i_HO, a_hidden2});
-    unnormalized_alignments[s] = a_output;
-  }
+  // The two loops below accomplish exactly the same thing.
+  // The second one is slightly faster (at least for large-ish state sizes),
+  // because W * new_state does not change with respect to s, so we have
+  // factored it out. The code below is kind of ugly, so we leave the simple
+  // loop here for clarity.
+  /*for (unsigned s = 0; s < source_size; ++s) {
+    unnormalized_alignments[s] = aligner.Feed({new_state, annotations[s]});
+  }*/
 
-  Expression unnormalized_alignment_vector = concatenate(unnormalized_alignments);// + log(alignment_prior(t, source_size, cg));
+  Expression new_bias = affine_transform({aligner.i_Hb, aligner.i_IH[0], new_state});
+  /*for (unsigned s = 0; s < source_size; ++s) {
+    Expression hidden = tanh(affine_transform({new_bias, aligner.i_IH[1], annotations[s]}));
+    Expression output = affine_transform({aligner.i_Ob, aligner.i_HO, hidden});
+    unnormalized_alignments[s] = output;
+  }*/
+
+  //Expression unnormalized_alignment_vector = concatenate(unnormalized_alignments);// + log(alignment_prior(t, source_size, cg));
+
+  // Yet another implementation of the above, this time batching all the calls to the MLP into matrix-matrix operations
+  // This yields a little over 10% speed up over the above.
+  Expression bias_broadcast1 = concatenate_cols(vector<Expression>(annotations.size(), new_bias));
+  Expression hidden = tanh(affine_transform({bias_broadcast1, aligner.i_IH[1], annotation_matrix}));
+  Expression bias_broadcast2 = concatenate_cols(vector<Expression>(annotations.size(), aligner.i_Ob));
+  Expression unnormalized_alignment_vector = transpose(affine_transform({bias_broadcast2, aligner.i_HO, hidden}));
+
   Expression normalized_alignment_vector = softmax(unnormalized_alignment_vector); // \alpha_ij
   if (out_alignment != NULL) {
     *out_alignment = as_vector(cg.forward());
   }
-  Expression annotation_matrix = concatenate_cols(annotations); // \alpha
+  //Expression annotation_matrix = concatenate_cols(annotations); // \alpha
   Expression context = annotation_matrix * normalized_alignment_vector; // c = \alpha * h
 
   OutputState os;
@@ -112,30 +145,29 @@ OutputState AttentionalModel::GetNextOutputState(unsigned t, const RNNPointer& r
   return os;
 }
 
-Expression AttentionalModel::ComputeOutputDistribution(const WordId prev_word, const Expression state, const Expression context, const MLP& final, ComputationGraph& cg) {
+Expression AttentionalModel::ComputeOutputDistribution(const WordId prev_word, const Expression state, const Expression context, const MLP& final_mlp, ComputationGraph& cg) {
   Expression prev_target_embedding = lookup(cg, p_Et, prev_word);
-  Expression final_input = concatenate({prev_target_embedding, state, context});
-  Expression final_hidden1 = affine_transform({final.i_Hb, final.i_IH, final_input});
-  Expression final_hidden2 = tanh({final_hidden1});
-  Expression final_output = affine_transform({final.i_Ob, final.i_HO, final_hidden2});
-  return final_output;
+  return final_mlp.Feed({prev_target_embedding, state, context}); 
 }
 
 MLP AttentionalModel::GetAligner(ComputationGraph& cg) const {
-  Expression i_aIH = parameter(cg, p_aIH);
+  Expression i_aIH1 = parameter(cg, p_aIH1);
+  Expression i_aIH2 = parameter(cg, p_aIH2);
   Expression i_aHb = parameter(cg, p_aHb);
   Expression i_aHO = parameter(cg, p_aHO);
   Expression i_aOb = parameter(cg, p_aOb);
-  MLP aligner = {i_aIH, i_aHb, i_aHO, i_aOb};
+  MLP aligner = {{i_aIH1, i_aIH2}, i_aHb, i_aHO, i_aOb};
   return aligner;
 }
 
 MLP AttentionalModel::GetFinalMLP(ComputationGraph& cg) const {
-  Expression i_fIH = parameter(cg, p_fIH);
+  Expression i_fIH1 = parameter(cg, p_fIH1);
+  Expression i_fIH2 = parameter(cg, p_fIH2);
+  Expression i_fIH3 = parameter(cg, p_fIH3);
   Expression i_fHb = parameter(cg, p_fHb);
   Expression i_fHO = parameter(cg, p_fHO);
   Expression i_fOb = parameter(cg, p_fOb);
-  MLP final_mlp = {i_fIH, i_fHb, i_fHO, i_fOb};
+  MLP final_mlp = {{i_fIH1, i_fIH2, i_fIH3}, i_fHb, i_fHO, i_fOb};
   return final_mlp;
 }
 
