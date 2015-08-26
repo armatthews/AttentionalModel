@@ -34,31 +34,7 @@ void ctrlc_handler(int signal) {
   }
 }
 
-int test() {
-  KBestList<string> kbest(3);
-  //kbest.add(5.0, "hello");
-  //kbest.add(4.0, "salut");
-  //kbest.add(6.0, "konnichiwa");
-  kbest.add(-1.0, "nihao");
-  kbest.add(16.0, "hola");
-
-  for (auto p : kbest.hypothesis_list()) {
-    cout << p.first << "\t" << p.second << endl;
-  }
-  return 0;
-}
-
 int main(int argc, char** argv) {
-  string line;
-  while (getline(cin, line)) {
-    boost::algorithm::trim(line);
-    SyntaxTree tree(line);
-    //cout << tree << endl;
-    cout << tree.MaxBranchCount() << endl;
-  }
-  return 0;
-  cerr << SIZE_MAX << endl;
-  return test();
   signal (SIGINT, ctrlc_handler);
 
   cnn::Initialize(argc, argv);
@@ -92,14 +68,6 @@ int main(int argc, char** argv) {
     VariableIndex i_t = hg.add_function<AffineTransform>({i_b, i_W, i_x});
     VariableIndex i_yhat = hg.add_function<SumColumns>({i_t, i_a});
 
-    const Tensor& t = hg.incremental_forward();
-    for (unsigned i = 0; i < t.d.rows(); ++i) {
-      cout << (i == 0 ? "" : "\n");
-      for (unsigned j = 0; j < t.d.cols(); ++j) {
-        cout << (j == 0 ? "" : " ") << TensorTools::AccessElement(t, Dim(i, j));
-      }
-    }
-    cout << endl;
     VariableIndex i_d = hg.add_function<SquaredEuclideanDistance>({i_y, i_yhat});
     double loss = as_scalar(hg.forward()); 
     if (ctrlc_pressed) {
@@ -110,18 +78,6 @@ int main(int argc, char** argv) {
     cout << "Iteration " << iteration << " loss: " << loss << endl;
     //sgd.update_epoch();
   }
-
-  cout << "Weight matrix:" << endl;
-  cout << TensorTools::AccessElement(p_W.values, Dim(0, 0)) << " "
-       <<  TensorTools::AccessElement(p_W.values, Dim(1, 0)) << endl;
-  cout << TensorTools::AccessElement(p_W.values, Dim(0, 1)) << " "
-       <<  TensorTools::AccessElement(p_W.values, Dim(1, 1)) << endl;
-
-  cout << "bias matrix:" << endl;
-  cout << TensorTools::AccessElement(p_b.values, Dim(0, 0)) << " "
-       <<  TensorTools::AccessElement(p_b.values, Dim(1, 0)) << endl;
-  cout << TensorTools::AccessElement(p_b.values, Dim(0, 1)) << " "
-       <<  TensorTools::AccessElement(p_b.values, Dim(1, 1)) << endl;
 
   return 0;
 }
