@@ -94,7 +94,6 @@ int main(int argc, char** argv) {
       losses = decoder.Loss(source, target); 
     }
 
-    cerr << "Target has " << losses.size() << " words." << endl;
     cnn::real total_loss = 0;
     for (unsigned i = 0; i < losses.size(); ++i) {
       total_loss += losses[i];
@@ -104,6 +103,8 @@ int main(int argc, char** argv) {
       cout << (i == 0 ? "" : " ") << exp(losses[i]);
     }
     cout << endl;
+    cout.flush();
+
     sentence_number++;
 
     if (ctrlc_pressed) {

@@ -60,8 +60,8 @@ void Serialize(Bitext& bitext, AttentionalModel& attentional_model, Model& model
   boost::archive::text_oarchive oa(cout);
   oa & *bitext.source_vocab;
   oa & *bitext.target_vocab;
-  oa << attentional_model;
-  oa << model;
+  oa & attentional_model;
+  oa & model;
 }
 
 pair<cnn::real, unsigned> ComputeLoss(const Bitext& bitext, AttentionalModel& attentional_model, bool t2s) {
@@ -209,6 +209,7 @@ int main(int argc, char** argv) {
         auto dev_perp = exp(dev_loss.first / dev_loss.second);
         bool new_best = dev_loss.first <= best_dev_loss;
         cerr << "**" << fractional_iteration << " dev perp: " << dev_perp << (new_best ? " (New best!)" : "") << endl;
+        cerr.flush();
         if (new_best) {
           Serialize(*train_bitext, attentional_model, model);
           best_dev_loss = dev_loss.first;

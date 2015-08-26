@@ -1,5 +1,7 @@
 #include <boost/algorithm/string/join.hpp>
+#include <iostream>
 #include "kbestlist.h"
+using namespace std;
 
 void OutputKBestList(unsigned sentence_number, KBestList<vector<WordId>> kbest, Dict& target_vocab) {
   for (auto& scored_hyp : kbest.hypothesis_list()) {
@@ -12,5 +14,5 @@ void OutputKBestList(unsigned sentence_number, KBestList<vector<WordId>> kbest, 
     string translation = boost::algorithm::join(words, " ");
     cout << sentence_number << " ||| " << translation << " ||| " << score << endl;
   }
+  cout.flush();
 }
-
