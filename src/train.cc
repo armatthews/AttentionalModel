@@ -151,15 +151,15 @@ int main(int argc, char** argv) {
   std::mt19937 rndeng(42);
   Model model;
   AttentionalModel attentional_model(model, train_bitext->source_vocab->size(), train_bitext->target_vocab->size());
-  SimpleSGDTrainer sgd(&model, 1e-4, 0.2);
-  //AdagradTrainer sgd(&model, 0.0, 0.1);
+  //SimpleSGDTrainer sgd(&model, 1e-4, 0.2);
+  AdagradTrainer sgd(&model, 0.0, 0.1);
   //AdadeltaTrainer sgd(&model, 0.0);
   //AdadeltaTrainer sgd(&model, 0.0, 1e-6, 0.992);
-  //RmsPropTrainer sgd(&model, 0.0, 0.1);
-  //AdamTrainer sgd(&model, 1e-4, 0.1);
+  //RmsPropTrainer sgd(&model, 1e-4, 0.1);
   //AdamTrainer sgd(&model, 0.0, 0.01);
+  //AdamTrainer sgd(&model, 1e-4, 0.01);
   //sgd.eta_decay = 0.01;
-  sgd.eta_decay = 0.5;
+  //sgd.eta_decay = 0.5;
 
   cerr << "Training model...\n";
   unsigned minibatch_count = 0;
