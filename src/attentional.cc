@@ -240,6 +240,7 @@ Expression AttentionalModel::BuildGraphGivenAnnotations(const vector<Expression>
 }
 
 Expression AttentionalModel::BuildGraph(const vector<WordId>& source, const vector<WordId>& target, ComputationGraph& cg) {
+  assert (target.size() >= 2 && target[0] == 1 && target[target.size() - 1] == 2);
   vector<Expression> annotations;
   Expression zeroth_context;
   tie(annotations, zeroth_context) = BuildAnnotationVectors(source, cg);
@@ -248,6 +249,7 @@ Expression AttentionalModel::BuildGraph(const vector<WordId>& source, const vect
 }
 
 Expression AttentionalModel::BuildGraph(const SyntaxTree& source_tree, const vector<WordId>& target, ComputationGraph& cg) {
+  assert (target.size() >= 2 && target[0] == 1 && target[target.size() - 1] == 2);
   vector<Expression> annotations;
   Expression zeroth_context;
   tie(annotations, zeroth_context) = BuildAnnotationVectors(source_tree, cg);
