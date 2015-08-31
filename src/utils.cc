@@ -33,7 +33,7 @@ inline unsigned int UTF8StringLen(const string& x) {
   return len;
 }
 
-vector<string> tokenize(string input, string delimiter, int max_times) {
+vector<string> tokenize(string input, string delimiter, unsigned max_times) {
   vector<string> tokens;
   //tokens.reserve(max_times);
   size_t last = 0;
