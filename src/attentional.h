@@ -89,11 +89,11 @@ private:
   vector<cnn::real> zero_annotation; // Just a vector of zeros, the same size as an annotation vector
 
   unsigned lstm_layer_count = 2;
-  unsigned embedding_dim = 256; // Dimensionality of both source and target word embeddings. For now these are the same.
-  unsigned half_annotation_dim = 256; // Dimensionality of h_forward and h_backward. The full h has twice this dimension.
-  unsigned output_state_dim = 256; // Dimensionality of s_j, the state just before outputing target word y_j
-  unsigned alignment_hidden_dim = 256; // Dimensionality of the hidden layer in the alignment FFNN
-  unsigned final_hidden_dim = 256; // Dimensionality of the hidden layer in the "final" FFNN
+  unsigned embedding_dim = 64; // Dimensionality of both source and target word embeddings. For now these are the same.
+  unsigned half_annotation_dim = 64; // Dimensionality of h_forward and h_backward. The full h has twice this dimension.
+  unsigned output_state_dim = 64; // Dimensionality of s_j, the state just before outputing target word y_j
+  unsigned alignment_hidden_dim = 64; // Dimensionality of the hidden layer in the alignment FFNN
+  unsigned final_hidden_dim = 64; // Dimensionality of the hidden layer in the "final" FFNN
 
   Expression alignment_prior(unsigned t, unsigned source_length, ComputationGraph& cg);
 

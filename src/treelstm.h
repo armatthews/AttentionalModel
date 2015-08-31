@@ -41,7 +41,7 @@ struct TreeLSTMBuilder : public RNNBuilder {
 
   // first index is layer, then ...
   std::vector<std::vector<Expression>> param_vars;
-  std::vector<std::vector<Expression>> lparam_vars;
+  std::vector<std::vector<std::vector<Expression>>> lparam_vars;
 
   // first index is time, second is layer
   std::vector<std::vector<Expression>> h, c;

@@ -148,12 +148,11 @@ int main(int argc, char** argv) {
   std::mt19937 rndeng(42);
   Model model;
   AttentionalModel attentional_model(model, train_bitext->source_vocab->size(), train_bitext->target_vocab->size());
-  //SimpleSGDTrainer sgd(&model, 1e-4, 0.2);
+  //SimpleSGDTrainer sgd(&model, 0.0, 0.25);
   //AdagradTrainer sgd(&model, 0.0, 0.1);
   //AdadeltaTrainer sgd(&model, 0.0, 1e-6, 0.999);
   //RmsPropTrainer sgd(&model, 0.0, 1.0, 1e-20, 0.95);
-  AdamTrainer sgd(&model, 0.0, 0.001, 0.01, 0.9999, 1e-20);
-  //AdamTrainer sgd(&model, 1e-4, 0.01);
+  AdamTrainer sgd(&model, 0.0, 0.001, 0.01, 0.9999, 1e-20); 
   //sgd.eta_decay = 0.01;
   //sgd.eta_decay = 0.5;
 

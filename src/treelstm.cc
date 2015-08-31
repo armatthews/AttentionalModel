@@ -12,8 +12,8 @@ using namespace cnn::expr;
 
 namespace cnn {
 
-enum { X2I, C2I, BI, X2F, C2F, BF, X2O, C2O, BO, X2C, BC };
-enum { H2I, H2F, H2O, H2C };
+enum { X2I, BI, X2F, BF, X2O, BO, X2C, BC };
+enum { H2I, H2F, H2O, H2C, C2I, C2F, C2O };
 // See "Improved Semantic Representations From Tree-Structured Long Short-Term Memory Networks"
 // by Tai, Socher, and Manning (2015), section 3.2, for details on this model.
 // http://arxiv.org/pdf/1503.00075v3.pdf
@@ -27,19 +27,19 @@ TreeLSTMBuilder::TreeLSTMBuilder(unsigned N,
     // i
     Parameters* p_x2i = model->add_parameters({hidden_dim, layer_input_dim});
     LookupParameters* p_h2i = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
-    Parameters* p_c2i = model->add_parameters({hidden_dim, hidden_dim});
+    LookupParameters* p_c2i = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
     Parameters* p_bi = model->add_parameters({hidden_dim});
 
     // f
     Parameters* p_x2f = model->add_parameters({hidden_dim, layer_input_dim});
     LookupParameters* p_h2f = model->add_lookup_parameters(N*N, {hidden_dim, hidden_dim});
-    Parameters* p_c2f = model->add_parameters({hidden_dim, hidden_dim});
+    LookupParameters* p_c2f = model->add_lookup_parameters(N*N, {hidden_dim, hidden_dim});
     Parameters* p_bf = model->add_parameters({hidden_dim});
 
     // o
     Parameters* p_x2o = model->add_parameters({hidden_dim, layer_input_dim});
     LookupParameters* p_h2o = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
-    Parameters* p_c2o = model->add_parameters({hidden_dim, hidden_dim});
+    LookupParameters* p_c2o = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
     Parameters* p_bo = model->add_parameters({hidden_dim});
 
     // c (a.k.a. u)
@@ -48,8 +48,8 @@ TreeLSTMBuilder::TreeLSTMBuilder(unsigned N,
     Parameters* p_bc = model->add_parameters({hidden_dim});
     layer_input_dim = hidden_dim;  // output (hidden) from 1st layer is input to next
 
-    vector<Parameters*> ps = {p_x2i, p_c2i, p_bi, p_x2f, p_c2f, p_bf, p_x2o, p_c2o, p_bo, p_x2c, p_bc};
-    vector<LookupParameters*> lps = {p_h2i, p_h2f, p_h2o, p_h2c};
+    vector<Parameters*> ps = {p_x2i, p_bi, p_x2f, p_bf, p_x2o, p_bo, p_x2c, p_bc};
+    vector<LookupParameters*> lps = {p_h2i, p_h2f, p_h2o, p_h2c, p_c2i, p_c2f, p_c2o};
     params.push_back(ps);
     lparams.push_back(lps);
   }  // layers
@@ -57,6 +57,7 @@ TreeLSTMBuilder::TreeLSTMBuilder(unsigned N,
 
 void TreeLSTMBuilder::new_graph_impl(ComputationGraph& cg){
   param_vars.clear();
+  lparam_vars.clear();
 
   for (unsigned i = 0; i < layers; ++i){
     auto& p = params[i];
@@ -64,32 +65,30 @@ void TreeLSTMBuilder::new_graph_impl(ComputationGraph& cg){
 
     //i
     Expression i_x2i = parameter(cg, p[X2I]);
-    Expression i_c2i = parameter(cg, p[C2I]);
     Expression i_bi = parameter(cg, p[BI]);
     //f
     Expression i_x2f = parameter(cg, p[X2F]);
-    Expression i_c2f = parameter(cg, p[C2F]);
     Expression i_bf = parameter(cg, p[BF]);
     //o
     Expression i_x2o = parameter(cg, p[X2O]);
-    Expression i_c2o = parameter(cg, p[C2O]);
     Expression i_bo = parameter(cg, p[BO]);
     //c
     Expression i_x2c = parameter(cg, p[X2C]);
     Expression i_bc = parameter(cg, p[BC]);
 
-    vector<Expression> vars = {i_x2i, i_c2i, i_bi, i_x2f, i_c2f, i_bf, i_x2o, i_c2o, i_bo, i_x2c, i_bc};
+    vector<Expression> vars = {i_x2i, i_bi, i_x2f, i_bf, i_x2o, i_bo, i_x2c, i_bc};
     param_vars.push_back(vars);
 
-    vector<Expression> lvars((3 + N) * N);
-    for (unsigned k = 0; k < N; ++k) {
-      lvars[k * (N + 3) + 0] = lookup(cg, lp[H2I], k);
-      lvars[k * (N + 3) + 1] = lookup(cg, lp[H2O], k);
-      lvars[k * (N + 3) + 2] = lookup(cg, lp[H2C], k);
-      for (unsigned j = 0; j < N; ++j) {
-        lvars[k * (N + 3) + 3 + j] = lookup(cg, lp[H2F], k);
+    assert (lp.size() == C2O + 1);
+    vector<vector<Expression>> lvars(lp.size());
+    for (unsigned p_type = H2I; p_type <= C2O; p_type++) {
+    LookupParameters* p = lp[p_type];
+      vector<Expression> vals(p->values.size());
+      for (unsigned k = 0; k < p->values.size(); ++k) {
+        vals[k] = lookup(cg, p, k);
       }
-    }
+      lvars[p_type] = vals;
+    } 
     lparam_vars.push_back(lvars);
   }
 }
@@ -149,14 +148,15 @@ Expression TreeLSTMBuilder::add_input(vector<int> children, const Expression& x)
     Expression i_ait;
     if (has_prev_state) {
       vector<Expression> xs = {vars[BI], vars[X2I], in};
-      xs.reserve(2 * children.size() + 3);
+      xs.reserve(4 * children.size() + 3);
       for (unsigned j = 0; j < children.size(); ++j) {
         unsigned ej = (j < N) ? j : N - 1;
-        xs.push_back(lookup(cg, lparams[i][H2I], ej));
-        //xs.push_back(lparam_vars[i][j * (N + 3) + 0]);
+        xs.push_back(lparam_vars[i][H2I][ej]); 
         xs.push_back(i_h_children[j]);
+        xs.push_back(lparam_vars[i][C2I][ej]);
+        xs.push_back(i_c_children[j]);
       }
-      assert (xs.size() == 2 * children.size() + 3);
+      assert (xs.size() == 4 * children.size() + 3);
       i_ait = affine_transform(xs);
     }
     else
@@ -170,14 +170,15 @@ Expression TreeLSTMBuilder::add_input(vector<int> children, const Expression& x)
       Expression i_aft;
       if (has_prev_state) {
         vector<Expression> xs = {vars[BF], vars[X2F], in};
-        xs.reserve(2 * children.size() + 3);
+        xs.reserve(4 * children.size() + 3);
         for (unsigned j = 0; j < children.size(); ++j) {
-          unsigned ej = (j < N) ? j : N - 1;
-          xs.push_back(lookup(cg, lparams[i][H2F], ej * N + ek));
-          //xs.push_back(lparam_vars[i][j * (N + 3) + 3 + k]);
+          unsigned ej = (j < N) ? j : N - 1; 
+          xs.push_back(lparam_vars[i][H2F][ej * N + ek]);
           xs.push_back(i_h_children[j]);
+          xs.push_back(lparam_vars[i][C2F][ej * N + ek]);
+          xs.push_back(i_c_children[j]);
         }
-        assert (xs.size() == 2 * children.size() + 3);
+        assert (xs.size() == 4 * children.size() + 3);
         i_aft = affine_transform(xs);
       }
       else
@@ -194,8 +195,7 @@ Expression TreeLSTMBuilder::add_input(vector<int> children, const Expression& x)
       xs.reserve(2 * children.size() + 3);
       for (unsigned j = 0; j < children.size(); ++j) {
         unsigned ej = (j < N) ? j : N - 1;
-        xs.push_back(lookup(cg, lparams[i][H2C], ej));
-        //xs.push_back(lparam_vars[i][j * (N + 3) + 2]);
+        xs.push_back(lparam_vars[i][H2C][ej]); 
         xs.push_back(i_h_children[j]);
       }
       assert (xs.size() == 2 * children.size() + 3);
@@ -223,14 +223,15 @@ Expression TreeLSTMBuilder::add_input(vector<int> children, const Expression& x)
     Expression i_aot;
     if (has_prev_state) {
       vector<Expression> xs = {vars[BO], vars[X2O], in};
-      xs.reserve(2 * children.size() + 3);
+      xs.reserve(4 * children.size() + 3);
       for (unsigned j = 0; j < children.size(); ++j) {
         unsigned ej = (j < N) ? j : N - 1;
-        xs.push_back(lookup(cg, lparams[i][H2O], ej));
-        //xs.push_back(lparam_vars[i][j * (N + 3) + 1]);
+        xs.push_back(lookup(cg, lparams[i][H2O], ej)); 
         xs.push_back(i_h_children[j]);
+        xs.push_back(lparam_vars[i][C2O][ej]);
+        xs.push_back(i_c_children[j]);
       }
-      assert (xs.size() == 2 * children.size() + 3);
+      assert (xs.size() == 4 * children.size() + 3);
       i_aot = affine_transform(xs);
     }
     else
