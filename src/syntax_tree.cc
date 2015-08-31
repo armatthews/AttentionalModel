@@ -47,7 +47,7 @@ SyntaxTree::SyntaxTree(string tree, Dict* dict) : dict(dict), id_(-1) {
           child_strings.push_back(tree.substr(start, i - start + 1));
        }
         start = i + 1;
-      } 
+      }
     }
 
     unsigned end = tree.length() - 2;
@@ -59,7 +59,7 @@ SyntaxTree::SyntaxTree(string tree, Dict* dict) : dict(dict), id_(-1) {
       children.push_back(SyntaxTree(child_string, dict));
     }
     assert (children.size() > 0);
-  } 
+  }
 }
 
 bool SyntaxTree::IsTerminal() const {

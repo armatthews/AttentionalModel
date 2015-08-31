@@ -1,9 +1,6 @@
 #include "cnn/cnn.h"
 #include "cnn/training.h"
 
-#include <boost/archive/text_iarchive.hpp>
-#include <boost/algorithm/string.hpp>
-#include <boost/algorithm/string/join.hpp>
 #include <boost/program_options.hpp>
 
 #include <iostream>
@@ -29,49 +26,6 @@ void ctrlc_handler(int signal) {
   }
 }
 
-tuple<Dict, Dict, vector<Model*>, vector<AttentionalModel*>> LoadModels(const vector<string>& model_filenames) {
-  vector<Model*> cnn_models;
-  vector<AttentionalModel*> attentional_models;
-  // XXX: We just use the last set of dictionaries, assuming they're all the same
-  Dict source_vocab;
-  Dict target_vocab;
-  for (const string& model_filename : model_filenames) {
-    ifstream model_file(model_filename);
-    if (!model_file.is_open()) {
-      cerr << "ERROR: Unable to open " << model_filename << endl;
-      exit(1);
-    }
-    boost::archive::text_iarchive ia(model_file);
-
-    ia & source_vocab;
-    ia & target_vocab;
-    source_vocab.Freeze();
-    target_vocab.Freeze();
-
-    Model* model = new Model();
-    AttentionalModel* attentional_model = new AttentionalModel(*model, source_vocab.size(), target_vocab.size());
-    cnn_models.push_back(model);
-    attentional_models.push_back(attentional_model);
-
-    ia & *attentional_model;
-    ia & *model;
-  }
-  return make_tuple(source_vocab, target_vocab, cnn_models, attentional_models);
-}
-
-void OutputKBestList(unsigned sentence_number, KBestList<vector<WordId>> kbest, Dict& target_vocab) {
-  for (auto& scored_hyp : kbest.hypothesis_list()) {
-    double score = scored_hyp.first;
-    vector<WordId> hyp = scored_hyp.second;
-    vector<string> words(hyp.size());
-    for (unsigned i = 0; i < hyp.size(); ++i) {
-      words[i] = target_vocab.Convert(hyp[i]);
-    }
-    string translation = boost::algorithm::join(words, " ");
-    cout << sentence_number << " ||| " << translation << " ||| " << score << endl;
-  }
-}
-
 int main(int argc, char** argv) {
   if (argc < 2) {
     cerr << "Usage: cat source.txt | " << argv[0] << " model" << endl;
@@ -82,7 +36,7 @@ int main(int argc, char** argv) {
 
   po::options_description desc("description");
   desc.add_options()
-  ("models", po::value<vector<string>>()->required()->composing(), "model file(s), as output by train ")
+  ("models", po::value<vector<string>>()->required()->composing(), "model file(s), as output by train")
   ("kbest_size", po::value<unsigned>()->default_value(10), "K-best list size")
   ("beam_size", po::value<unsigned>()->default_value(10), "Beam size")
   ("max_length", po::value<unsigned>()->default_value(100), "Maximum length of output sentences")
@@ -105,7 +59,8 @@ int main(int argc, char** argv) {
   vector<string> model_filenames = vm["models"].as<vector<string>>();
   const unsigned beam_size = vm["beam_size"].as<unsigned>();
   const unsigned max_length = vm["max_length"].as<unsigned>();
-  const unsigned kbest_size = vm["kbest_size"].as<unsigned>(); 
+  const unsigned kbest_size = vm["kbest_size"].as<unsigned>();
+  const bool t2s = vm["t2s"].as<bool>();
 
   cnn::Initialize(argc, argv);
 
@@ -115,8 +70,8 @@ int main(int argc, char** argv) {
   vector<AttentionalModel*> attentional_models;
   tie(source_vocab, target_vocab, cnn_models, attentional_models) = LoadModels(model_filenames);
 
-  //WordId ksSOS = source_vocab.Convert("<s>");
-  //WordId ksEOS = source_vocab.Convert("</s>");
+  assert (source_vocab.Contains("<s>"));
+  assert (source_vocab.Contains("</s>"));
   WordId ktSOS = target_vocab.Convert("<s>");
   WordId ktEOS = target_vocab.Convert("</s>");
   source_vocab.Freeze();
@@ -131,23 +86,19 @@ int main(int argc, char** argv) {
     vector<string> parts = tokenize(line, "|||");
     parts = strip(parts);
 
-    SyntaxTree source_tree(parts[0], &source_vocab);
-    source_tree.AssignNodeIds();
-
-    vector<string> tokens;
-    for (WordId w : source_tree.GetTerminals()) {
-      tokens.push_back(source_vocab.Convert(w));
+    KBestList<vector<WordId>> kbest;
+    if (t2s) {
+      SyntaxTree source_tree;
+      vector<WordId> target;
+      tie(source_tree, target) = ReadT2SInputLine(line, source_vocab, target_vocab);
+      kbest = decoder.TranslateKBest(source_tree, kbest_size, beam_size); 
     }
-    cerr << "Read source sentence: " << boost::algorithm::join(tokens, " ") << endl;
-
-    if (parts.size() > 1) {
-      vector<string> reference = tokenize(parts[1], " ");
-      reference = strip(reference, true);
-      cerr << "Read reference: " << boost::algorithm::join(reference, " ") << endl;
+    else {
+      vector<WordId> source;
+      vector<WordId> target;
+      tie(source, target) = ReadInputLine(line, source_vocab, target_vocab);
+      kbest = decoder.TranslateKBest(source, kbest_size, beam_size); 
     }
-
-    // Decoder, source, kbest_size, beam_size, target_vocab, sentence_number
-    KBestList<vector<WordId> > kbest = decoder.TranslateKBest(source_tree, kbest_size, beam_size);
     OutputKBestList(sentence_number, kbest, target_vocab);
     sentence_number++;
 

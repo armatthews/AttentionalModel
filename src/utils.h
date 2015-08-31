@@ -2,15 +2,18 @@
 #include <vector>
 #include <map>
 #include <string>
+#include <tuple>
+#include "cnn/dict.h"
 
 using namespace std;
+using namespace cnn;
 
 typedef int WordId;
 
 inline unsigned int UTF8Len(unsigned char x);
 inline unsigned int UTF8StringLen(const string& x);
 
-vector<string> tokenize(string input, string delimiter, int max_times);
+vector<string> tokenize(string input, string delimiter, unsigned max_times);
 vector<string> tokenize(string input, string delimiter);
 vector<string> tokenize(string input, char delimiter);
 

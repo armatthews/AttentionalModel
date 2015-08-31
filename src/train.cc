@@ -29,54 +29,57 @@ void ctrlc_handler(int signal) {
 }
 
 template <class RNG>
-void shuffle(T2SBitext& bitext, RNG& g) {
+void shuffle(Bitext& bitext, RNG& g) {
   vector<unsigned> indices(bitext.size(), 0);
   for (unsigned i = 0; i < bitext.size(); ++i) {
     indices[i] = i;
   }
   shuffle(indices.begin(), indices.end(), g);
-  vector<SyntaxTree> source(bitext.size());
-  vector<vector<WordId> > target(bitext.size());
+
+  vector<vector<WordId>> source_sentences(bitext.source_sentences.size());
+  vector<SyntaxTree> source_trees(bitext.source_trees.size());
+  vector<vector<WordId> > target_sentences(bitext.target_sentences.size());
   for (unsigned i = 0; i < bitext.size(); ++i) {
-    source[i] = bitext.source_trees[i];
-    target[i] = bitext.target_sentences[i];
+    if (i < bitext.source_trees.size()) {
+      source_trees[i] = bitext.source_trees[i];
+    }
+    if (i < bitext.source_sentences.size()) {
+      source_sentences[i] = bitext.source_sentences[i];
+    }
+    target_sentences[i] = bitext.target_sentences[i];
   }
-  bitext.source_trees = source;
-  bitext.target_sentences = target;
+  bitext.source_trees = source_trees;
+  bitext.source_sentences = source_sentences;
+  bitext.target_sentences = target_sentences;
 }
 
 void Serialize(Bitext& bitext, AttentionalModel& attentional_model, Model& model) {
   int r = ftruncate(fileno(stdout), 0);
-  fseek(stdout, 0, SEEK_SET); 
+  fseek(stdout, 0, SEEK_SET);
 
   boost::archive::text_oarchive oa(cout);
-  oa & bitext.source_vocab;
-  oa & bitext.target_vocab;
-  oa << attentional_model;
-  oa << model;
+  oa & *bitext.source_vocab;
+  oa & *bitext.target_vocab;
+  oa & attentional_model;
+  oa & model;
 }
 
-void Serialize(T2SBitext& bitext, AttentionalModel& attentional_model, Model& model) {
-  int r = ftruncate(fileno(stdout), 0);
-  fseek(stdout, 0, SEEK_SET); 
-
-  boost::archive::text_oarchive oa(cout);
-  oa & bitext.source_vocab;
-  oa & bitext.target_vocab;
-  oa << attentional_model;
-  oa << model;
-}
-
-pair<cnn::real, unsigned> ComputeLoss(Bitext& bitext, AttentionalModel& attentional_model) {
+pair<cnn::real, unsigned> ComputeLoss(const Bitext& bitext, AttentionalModel& attentional_model, bool t2s) {
   cnn::real loss = 0.0;
   unsigned word_count = 0;
   for (unsigned i = 0; i < bitext.size(); ++i) {
-    const vector<WordId>& source_sentence = bitext.source_sentences[i];
+    ComputationGraph cg;
     const vector<WordId>& target_sentence = bitext.target_sentences[i];
     word_count += bitext.target_sentences[i].size() - 1; // Minus one for <s>
-    ComputationGraph hg;
-    attentional_model.BuildGraph(source_sentence, target_sentence, hg);
-    double l = as_scalar(hg.forward());
+    if (t2s) {
+      const SyntaxTree& source_tree = bitext.source_trees[i];
+      attentional_model.BuildGraph(source_tree, target_sentence, cg);
+    }
+    else {
+      const vector<WordId>& source_sentence = bitext.source_sentences[i];
+      attentional_model.BuildGraph(source_sentence, target_sentence, cg);
+    }
+    double l = as_scalar(cg.forward());
     loss += l;
     if (ctrlc_pressed) {
       break;
@@ -85,22 +88,16 @@ pair<cnn::real, unsigned> ComputeLoss(Bitext& bitext, AttentionalModel& attentio
   return make_pair(loss, word_count);
 }
 
-pair<cnn::real, unsigned> ComputeLoss(T2SBitext& bitext, AttentionalModel& attentional_model) {
-  cnn::real loss = 0.0;
-  unsigned word_count = 0;
-  for (unsigned i = 0; i < bitext.size(); ++i) {
-    const SyntaxTree& source_tree = bitext.source_trees[i];
-    const vector<WordId>& target_sentence = bitext.target_sentences[i];
-    word_count += bitext.target_sentences[i].size() - 1; // Minus one for <s>
-    ComputationGraph hg;
-    attentional_model.BuildGraph(source_tree, target_sentence, hg);
-    double l = as_scalar(hg.forward());
-    loss += l;
-    if (ctrlc_pressed) {
-      break;
-    }
-  }
-  return make_pair(loss, word_count);
+Bitext* ReadBitext(const string& filename, Bitext* parent, bool t2s) {
+  Bitext* bitext = (parent == NULL) ? new Bitext() : new Bitext(parent);
+  ReadCorpus(filename, *bitext, t2s);
+  cerr << "Read " << bitext->size() << " lines from " << filename << endl;
+  cerr << "Vocab size: " << bitext->source_vocab->size() << "/" << bitext->target_vocab->size() << endl;
+  return bitext;
+}
+
+Bitext* ReadBitext(const string& filename, bool t2s) {
+  return ReadBitext(filename, nullptr, t2s);
 }
 
 int main(int argc, char** argv) {
@@ -116,6 +113,8 @@ int main(int argc, char** argv) {
   ("train_bitext", po::value<string>()->required(), "Training bitext in source_tree ||| target format")
   ("dev_bitext", po::value<string>()->default_value(""), "(Optional) Dev bitext, used for early stopping")
   ("num_iterations,i", po::value<unsigned>()->default_value(UINT_MAX), "Number of epochs to train for")
+  ("random_seed,r", po::value<unsigned>()->default_value(0), "Random seed. If this value is 0 a seed will be chosen randomly.")
+  ("t2s", po::bool_switch()->default_value(false), "Treat input as trees rather than normal sentences")
   ("help", "Display this help message");
 
   po::positional_options_description positional_options;
@@ -135,65 +134,64 @@ int main(int argc, char** argv) {
   const string train_bitext_filename = vm["train_bitext"].as<string>();
   const string dev_bitext_filename = vm["dev_bitext"].as<string>();
   const unsigned num_iterations = vm["num_iterations"].as<unsigned>();
+  const unsigned random_seed = vm["random_seed"].as<unsigned>();
+  const bool t2s = vm["t2s"].as<bool>();
 
-  T2SBitext train_bitext;
-  ReadT2SCorpus(train_bitext_filename, train_bitext, true);
-  cerr << "Read " << train_bitext.size() << " lines from " << train_bitext_filename << endl;
-  cerr << "Vocab size: " << train_bitext.source_vocab.size() << "/" << train_bitext.target_vocab.size() << endl; 
+  Bitext* train_bitext = ReadBitext(train_bitext_filename, t2s);
+  unsigned src_vocab_size = train_bitext->source_vocab->size();
+  unsigned tgt_vocab_size = train_bitext->source_vocab->size();
+  Bitext* dev_bitext = ReadBitext(dev_bitext_filename, train_bitext, t2s);
+  assert (train_bitext->source_vocab->size() == src_vocab_size);
+  assert (train_bitext->source_vocab->size() == tgt_vocab_size);
 
-  T2SBitext dev_bitext; 
-  // TODO: The vocabulary objects really need to be tied. This is a really ghetto way of doing it
-  dev_bitext.source_vocab = train_bitext.source_vocab;
-  dev_bitext.target_vocab = train_bitext.target_vocab;
-  unsigned initial_source_vocab_size = dev_bitext.source_vocab.size();
-  unsigned initial_target_vocab_size = dev_bitext.target_vocab.size();
-  ReadT2SCorpus(dev_bitext_filename, dev_bitext, true);
-  // Make sure the vocabulary sizes didn't change. If the dev set contains any words not in the training set, that's a problem!
-  for (unsigned i = initial_source_vocab_size; i < dev_bitext.source_vocab.size(); ++i) {
-    cerr << "ERROR: New word added to source dict: " << dev_bitext.source_vocab.Convert(i) << endl;
-  }
-  assert (initial_source_vocab_size == dev_bitext.source_vocab.size());
-  assert (initial_target_vocab_size == dev_bitext.target_vocab.size());
-  cerr << "Read " << dev_bitext.size() << " lines from " << dev_bitext_filename << endl;
-  cerr << "Vocab size: " << dev_bitext.source_vocab.size() << "/" << dev_bitext.target_vocab.size() << endl;
-
-  cnn::Initialize(argc, argv);
+  cnn::Initialize(argc, argv, random_seed);
   std::mt19937 rndeng(42);
   Model model;
-  AttentionalModel attentional_model(model, train_bitext.source_vocab.size(), train_bitext.target_vocab.size());
-  //SimpleSGDTrainer sgd(&model, 0.0, 0.1);
+  AttentionalModel attentional_model(model, train_bitext->source_vocab->size(), train_bitext->target_vocab->size());
+  //SimpleSGDTrainer sgd(&model, 1e-4, 0.2);
   //AdagradTrainer sgd(&model, 0.0, 0.1);
-  //AdadeltaTrainer sgd(&model, 0.0);
-  //AdadeltaTrainer sgd(&model, 0.0, 1e-6, 0.992);
-  //RmsPropTrainer sgd(&model, 0.0, 0.1);
-  AdamTrainer sgd(&model, 1.e-4);
-  sgd.eta_decay = 0.05;
+  //AdadeltaTrainer sgd(&model, 0.0, 1e-6, 0.999);
+  //RmsPropTrainer sgd(&model, 0.0, 1.0, 1e-20, 0.95);
+  AdamTrainer sgd(&model, 0.0, 0.001, 0.01, 0.9999, 1e-20);
+  //AdamTrainer sgd(&model, 1e-4, 0.01);
+  //sgd.eta_decay = 0.01;
+  //sgd.eta_decay = 0.5;
 
   cerr << "Training model...\n";
   unsigned minibatch_count = 0;
-  const unsigned minibatch_size = 10;
+  unsigned dev_freq_count = 0;
+  const unsigned minibatch_size = std::min(1U, train_bitext->size());
+  const unsigned dev_frequency = std::min(5000U, train_bitext->size());
   cnn::real best_dev_loss = numeric_limits<cnn::real>::max();
   for (unsigned iteration = 0; iteration < num_iterations; iteration++) {
     unsigned word_count = 0;
     unsigned tword_count = 0;
-    shuffle(train_bitext, rndeng);
+    shuffle(*train_bitext, rndeng);
     double loss = 0.0;
     double tloss = 0.0;
-    for (unsigned i = 0; i < train_bitext.size(); ++i) { 
-      const SyntaxTree& source_tree = train_bitext.source_trees[i];
-      const vector<WordId>& target_sentence = train_bitext.target_sentences[i];
-      word_count += train_bitext.target_sentences[i].size() - 1; // Minus one for <s>
-      tword_count += train_bitext.target_sentences[i].size() - 1; // Minus one for <s>
-      ComputationGraph hg;
-      attentional_model.BuildGraph(source_tree, target_sentence, hg);
-      hg.forward();
-      double l = as_scalar(hg.forward());
-      loss += l;
-      tloss += l;
-      hg.backward();
-      if (i % 50 == 0 && i > 0) {
-        float fractional_iteration = (float)iteration + ((float)i / train_bitext.size());
-        cerr << "--" << fractional_iteration << " loss: " << tloss << " (perp=" << exp(tloss/tword_count) << ")" << endl;
+    for (unsigned i = 0; i < train_bitext->size(); ++i) {
+      {
+        ComputationGraph cg;
+        const vector<WordId>& target_sentence = train_bitext->target_sentences[i];
+        word_count += train_bitext->target_sentences[i].size() - 1; // Minus one for <s>
+        tword_count += train_bitext->target_sentences[i].size() - 1; // Minus one for <s>
+        if (t2s) {
+          const SyntaxTree& source_tree = train_bitext->source_trees[i];
+          attentional_model.BuildGraph(source_tree, target_sentence, cg);
+        }
+        else {
+          const vector<WordId>& source_sentence = train_bitext->source_sentences[i];
+          attentional_model.BuildGraph(source_sentence, target_sentence, cg);
+        }
+        cg.forward();
+        double l = as_scalar(cg.forward());
+        loss += l;
+        tloss += l;
+        cg.backward();
+      }
+      if (i % 50 == 49) {
+        float fractional_iteration = (float)iteration + ((float)(i + 1) / train_bitext->size());
+        cerr << "--" << fractional_iteration << "     perp=" << exp(tloss/tword_count) << endl;
         tloss = 0;
         tword_count = 0;
       }
@@ -201,20 +199,29 @@ int main(int argc, char** argv) {
         sgd.update(1.0 / minibatch_size);
         minibatch_count = 0;
       }
+      if (++dev_freq_count == dev_frequency) {
+        float fractional_iteration = (float)iteration + ((float)(i + 1) / train_bitext->size());
+        auto dev_loss = ComputeLoss(*dev_bitext, attentional_model, t2s);
+        auto dev_perp = exp(dev_loss.first / dev_loss.second);
+        bool new_best = dev_loss.first <= best_dev_loss;
+        cerr << "**" << fractional_iteration << " dev perp: " << dev_perp << (new_best ? " (New best!)" : "") << endl;
+        cerr.flush();
+        if (new_best) {
+          Serialize(*train_bitext, attentional_model, model);
+          best_dev_loss = dev_loss.first;
+        }
+        else {
+          sgd.update_epoch();
+        }
+        dev_freq_count = 0;
+      }
       if (ctrlc_pressed) {
         break;
       }
     }
+    //sgd.update_epoch();
     if (ctrlc_pressed) {
       break;
-    }
-    auto dev_loss = ComputeLoss(dev_bitext, attentional_model); 
-    cerr << "Iteration " << iteration + 1 << " loss: " << loss << " (perp=" << exp(loss/word_count) << ")" << " dev loss: " << dev_loss.first << endl;
-    sgd.update_epoch();
-    if (dev_loss.first <= best_dev_loss) {
-      cerr << "New best!" << endl;
-      Serialize(train_bitext, attentional_model, model);
-      best_dev_loss = dev_loss.first;
     }
   }
 

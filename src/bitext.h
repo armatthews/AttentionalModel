@@ -9,22 +9,16 @@ using namespace cnn;
 
 struct Bitext {
   Bitext();
+  Bitext(Bitext* parent); // Tie vocabularies
+  shared_ptr<Dict> source_vocab;
+  shared_ptr<Dict> target_vocab;
+  vector<SyntaxTree> source_trees;
   vector<vector<WordId> > source_sentences;
   vector<vector<WordId> > target_sentences;
-  Dict source_vocab;
-  Dict target_vocab;
 
   unsigned size() const;
+private:
+  bool has_parent;
 };
 
-struct T2SBitext {
-  vector<SyntaxTree> source_trees;
-  vector<vector<WordId> > target_sentences;
-  Dict source_vocab;
-  Dict target_vocab;
-
-  unsigned size() const;
-};
-
-bool ReadCorpus(string filename, Bitext& bitext, bool add_bos_eos);
-bool ReadT2SCorpus(string filename, T2SBitext& bitext, bool add_bos_eos);
+bool ReadCorpus(string filename, Bitext& bitext, bool t2s);
