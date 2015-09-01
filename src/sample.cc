@@ -85,21 +85,21 @@ int main(int argc, char** argv) {
     vector<string> parts = tokenize(line, "|||");
     parts = strip(parts);
 
-    for (unsigned sample = 0; sample < samples; ++sample) {
-      vector<WordId> output;
-      if (t2s) {
-        SyntaxTree source_tree;
-        vector<WordId> target;
-        tie(source_tree, target) = ReadT2SInputLine(line, source_vocab, target_vocab);
-        output = decoder.SampleTranslation(source_tree);
-      }
-      else {
-        vector<WordId> source;
-        vector<WordId> target;
-        tie(source, target) = ReadInputLine(line, source_vocab, target_vocab);
-        output = decoder.SampleTranslation(source);
-      }
+    vector<vector<WordId>> outputs;
+    if (t2s) {
+      SyntaxTree source_tree;
+      vector<WordId> target;
+      tie(source_tree, target) = ReadT2SInputLine(line, source_vocab, target_vocab);
+      outputs = decoder.SampleTranslations(source_tree, samples);
+    }
+    else {
+      vector<WordId> source;
+      vector<WordId> target;
+      tie(source, target) = ReadInputLine(line, source_vocab, target_vocab);
+      outputs = decoder.SampleTranslations(source, samples);
+    }
 
+    for (const vector<WordId>& output : outputs) {
       vector<string> words;
       for (WordId w : output) {
         words.push_back(target_vocab.Convert(w));

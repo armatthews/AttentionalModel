@@ -15,13 +15,13 @@ public:
   explicit AttentionalDecoder(const vector<AttentionalModel*>& models);
   void SetParams(unsigned max_length, WordId kSOS, WordId kEOS);
 
-  vector<WordId> SampleTranslation(const vector<WordId>& source) const;
+  vector<vector<WordId>> SampleTranslations(const vector<WordId>& source, unsigned n) const;
   vector<WordId> Translate(const vector<WordId>& source, unsigned beam_size) const;
   KBestList<vector<WordId>> TranslateKBest(const vector<WordId>& source, unsigned K, unsigned beam_size) const;
   vector<vector<float>> Align(const vector<WordId>& source, const vector<WordId>& target) const;
   vector<cnn::real> Loss(const vector<WordId>& source, const vector<WordId>& target) const;
 
-  vector<WordId> SampleTranslation(const SyntaxTree& source) const;
+  vector<vector<WordId>> SampleTranslations(const SyntaxTree& source, unsigned n) const;
   vector<WordId> Translate(const SyntaxTree& source, unsigned beam_size) const;
   KBestList<vector<WordId>> TranslateKBest(const SyntaxTree& source, unsigned K, unsigned beam_size) const;
   vector<vector<float>> Align(const SyntaxTree& source, const vector<WordId>& target) const;
@@ -31,7 +31,7 @@ private:
   // Each of these methods is a generic version that takes a DecoderState rather than a source object.
   // This allows us to minimize code duplication by abstracting away whether the input was a sentence
   // or a source-side syntax tree.
-  vector<WordId> SampleTranslation(DecoderState& ds, ComputationGraph& cg) const;
+  vector<vector<WordId>> SampleTranslations(DecoderState& ds, unsigned n, ComputationGraph& cg) const;
   KBestList<vector<WordId>> TranslateKBest(DecoderState& ds, unsigned K, unsigned beam_size, ComputationGraph& cg) const;
   vector<vector<float>> Align(DecoderState& ds, const vector<WordId>& target, ComputationGraph& cg) const;
   vector<cnn::real> Loss(DecoderState& ds, const vector<WordId>& target, ComputationGraph& cg) const;

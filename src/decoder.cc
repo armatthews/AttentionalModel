@@ -20,16 +20,16 @@ void AttentionalDecoder::SetParams(unsigned max_length, WordId kSOS, WordId kEOS
   this->kEOS = kEOS;
 }
 
-vector<WordId> AttentionalDecoder::SampleTranslation(const vector<WordId>& source) const {
+vector<vector<WordId>> AttentionalDecoder::SampleTranslations(const vector<WordId>& source, unsigned n) const {
   ComputationGraph cg;
   DecoderState ds = Initialize(source, cg);
-  return SampleTranslation(ds, cg);
+  return SampleTranslations(ds, n, cg);
 }
 
-vector<WordId> AttentionalDecoder::SampleTranslation(const SyntaxTree& source_tree) const {
+vector<vector<WordId>> AttentionalDecoder::SampleTranslations(const SyntaxTree& source_tree, unsigned n) const {
   ComputationGraph cg;
   DecoderState ds = Initialize(source_tree, cg);
-  return SampleTranslation(ds, cg);
+  return SampleTranslations(ds, n, cg);
 }
 
 vector<WordId> AttentionalDecoder::Translate(const vector<WordId>& source, unsigned beam_size) const {
@@ -78,33 +78,37 @@ vector<cnn::real> AttentionalDecoder::Loss(const SyntaxTree& source, const vecto
   return Loss(ds, target, cg);
 }
 
-vector<WordId> AttentionalDecoder::SampleTranslation(DecoderState& ds, ComputationGraph& cg) const {
-  vector<WordId> output;
-  WordId prev_word = kSOS;
-  while (prev_word != kEOS && output.size() < max_length) {
-    vector<Expression> model_log_output_distributions(models.size());
-    for (unsigned i = 0; i < models.size(); ++i) {
-      OutputState& os = ds.model_output_states[i];
-      Expression prev_target_word_embedding = lookup(cg, models[i]->p_Et, prev_word);
-      os = models[i]->GetNextOutputState(output.size(), os.context, prev_target_word_embedding, ds.model_annotations[i], ds.model_aligners[i], cg);
-      model_log_output_distributions[i] = models[i]->ComputeOutputDistribution(prev_word, os.state, os.context, ds.model_final_mlps[i], cg);
-    }
-    Expression total_log_output_distribution = sum(model_log_output_distributions);
-    Expression output_distribution = softmax(total_log_output_distribution);
-    vector<float> dist = as_vector(cg.incremental_forward());
-    double r = rand01();
-    unsigned w = 0;
-    while (true) {
-      r -= dist[w];
-      if (r < 0.0) {
-        break;
+vector<vector<WordId>> AttentionalDecoder::SampleTranslations(DecoderState& ds, unsigned n, ComputationGraph& cg) const {
+  vector<vector<WordId>> outputs(n);
+  for (unsigned j = 0; j < n; ++j) {
+    vector<WordId> output;
+    WordId prev_word = kSOS;
+    while (prev_word != kEOS && output.size() < max_length) {
+      vector<Expression> model_log_output_distributions(models.size());
+      for (unsigned i = 0; i < models.size(); ++i) {
+        OutputState& os = ds.model_output_states[i];
+        Expression prev_target_word_embedding = lookup(cg, models[i]->p_Et, prev_word);
+        os = models[i]->GetNextOutputState(output.size(), os.context, prev_target_word_embedding, ds.model_annotations[i], ds.model_aligners[i], cg);
+        model_log_output_distributions[i] = models[i]->ComputeOutputDistribution(prev_word, os.state, os.context, ds.model_final_mlps[i], cg);
       }
-      ++w;
+      Expression total_log_output_distribution = sum(model_log_output_distributions);
+      Expression output_distribution = softmax(total_log_output_distribution);
+      vector<float> dist = as_vector(cg.incremental_forward());
+      double r = rand01();
+      unsigned w = 0;
+      while (true) {
+        r -= dist[w];
+        if (r < 0.0) {
+          break;
+        }
+        ++w;
+      }
+      output.push_back(w);
+      prev_word = w;
     }
-    output.push_back(w);
-    prev_word = w;
+    outputs[j] = output;
   }
-  return output;
+  return outputs;
 }
 
 KBestList<vector<WordId>> AttentionalDecoder::TranslateKBest(DecoderState& ds, unsigned K, unsigned beam_size, ComputationGraph& cg) const {
