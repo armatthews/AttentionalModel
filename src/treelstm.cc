@@ -164,10 +164,10 @@ Expression TreeLSTMBuilder::add_input(vector<int> children, const Expression& x)
         unsigned ej = (j < N) ? j : N - 1;
         xs.push_back(LookupParameter(i, H2I, ej));
         xs.push_back(i_h_children[j]);
-        //xs.push_back(LookupParameter(i, C2I, ej));
-        //xs.push_back(i_c_children[j]);
+        xs.push_back(LookupParameter(i, C2I, ej));
+        xs.push_back(i_c_children[j]);
       }
-      assert (xs.size() == 2 * children.size() + 3);
+      assert (xs.size() == 4 * children.size() + 3);
       i_ait = affine_transform(xs);
     }
     else
@@ -186,10 +186,10 @@ Expression TreeLSTMBuilder::add_input(vector<int> children, const Expression& x)
           unsigned ej = (j < N) ? j : N - 1; 
           xs.push_back(LookupParameter(i, H2F, ej * N + ek));
           xs.push_back(i_h_children[j]);
-          //xs.push_back(LookupParameter(i, C2F, ej * N + ek));
-          //xs.push_back(i_c_children[j]);
+          xs.push_back(LookupParameter(i, C2F, ej * N + ek));
+          xs.push_back(i_c_children[j]);
         }
-        assert (xs.size() == 2 * children.size() + 3);
+        assert (xs.size() == 4 * children.size() + 3);
         i_aft = affine_transform(xs);
       }
       else
@@ -239,10 +239,10 @@ Expression TreeLSTMBuilder::add_input(vector<int> children, const Expression& x)
         unsigned ej = (j < N) ? j : N - 1;
         xs.push_back(LookupParameter(i, H2O, ej));
         xs.push_back(i_h_children[j]);
-        //xs.push_back(LookupParameter(i, C2O, ej));
-        //xs.push_back(i_c_children[j]);
+        xs.push_back(LookupParameter(i, C2O, ej));
+        xs.push_back(i_c_children[j]);
       }
-      assert (xs.size() == 2 * children.size() + 3);
+      assert (xs.size() == 4 * children.size() + 3);
       i_aot = affine_transform(xs);
     }
     else
