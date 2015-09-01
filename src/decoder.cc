@@ -20,65 +20,65 @@ void AttentionalDecoder::SetParams(unsigned max_length, WordId kSOS, WordId kEOS
   this->kEOS = kEOS;
 }
 
-vector<WordId> AttentionalDecoder::SampleTranslation(const vector<WordId>& source) {
+vector<WordId> AttentionalDecoder::SampleTranslation(const vector<WordId>& source) const {
   ComputationGraph cg;
   DecoderState ds = Initialize(source, cg);
   return SampleTranslation(ds, cg);
 }
 
-vector<WordId> AttentionalDecoder::SampleTranslation(const SyntaxTree& source_tree) {
+vector<WordId> AttentionalDecoder::SampleTranslation(const SyntaxTree& source_tree) const {
   ComputationGraph cg;
   DecoderState ds = Initialize(source_tree, cg);
   return SampleTranslation(ds, cg);
 }
 
-vector<WordId> AttentionalDecoder::Translate(const vector<WordId>& source, unsigned beam_size) {
+vector<WordId> AttentionalDecoder::Translate(const vector<WordId>& source, unsigned beam_size) const {
   KBestList<vector<WordId>> kbest = TranslateKBest(source, 1, beam_size);
   return kbest.hypothesis_list().begin()->second;
 }
 
-vector<WordId> AttentionalDecoder::Translate(const SyntaxTree& source, unsigned beam_size) {
+vector<WordId> AttentionalDecoder::Translate(const SyntaxTree& source, unsigned beam_size) const {
   KBestList<vector<WordId>> kbest = TranslateKBest(source, 1, beam_size);
   return kbest.hypothesis_list().begin()->second;
 }
 
-KBestList<vector<WordId>> AttentionalDecoder::TranslateKBest(const SyntaxTree& source_tree, unsigned K, unsigned beam_size) {
+KBestList<vector<WordId>> AttentionalDecoder::TranslateKBest(const SyntaxTree& source_tree, unsigned K, unsigned beam_size) const {
   ComputationGraph cg;
   DecoderState ds = Initialize(source_tree, cg);
   return TranslateKBest(ds, K, beam_size, cg);
 }
 
-KBestList<vector<WordId>> AttentionalDecoder::TranslateKBest(const vector<WordId>& source, unsigned K, unsigned beam_size) {
+KBestList<vector<WordId>> AttentionalDecoder::TranslateKBest(const vector<WordId>& source, unsigned K, unsigned beam_size) const {
   ComputationGraph cg;
   DecoderState ds = Initialize(source, cg);
   return TranslateKBest(ds, K, beam_size, cg);
 }
 
-vector<vector<float>> AttentionalDecoder::Align(const vector<WordId>& source, const vector<WordId>& target) {
+vector<vector<float>> AttentionalDecoder::Align(const vector<WordId>& source, const vector<WordId>& target) const {
   ComputationGraph cg;
   DecoderState ds = Initialize(source, cg);
   return Align(ds, target, cg);
 }
 
-vector<vector<float>> AttentionalDecoder::Align(const SyntaxTree& source, const vector<WordId>& target) {
+vector<vector<float>> AttentionalDecoder::Align(const SyntaxTree& source, const vector<WordId>& target) const {
   ComputationGraph cg;
   DecoderState ds = Initialize(source, cg);
   return Align(ds, target, cg);
 }
 
-vector<cnn::real> AttentionalDecoder::Loss(const vector<WordId>& source, const vector<WordId>& target) {
+vector<cnn::real> AttentionalDecoder::Loss(const vector<WordId>& source, const vector<WordId>& target) const {
   ComputationGraph cg;
   DecoderState ds = Initialize(source, cg);
   return Loss(ds, target, cg);
 }
 
-vector<cnn::real> AttentionalDecoder::Loss(const SyntaxTree& source, const vector<WordId>& target) {
+vector<cnn::real> AttentionalDecoder::Loss(const SyntaxTree& source, const vector<WordId>& target) const {
   ComputationGraph cg;
   DecoderState ds = Initialize(source, cg);
   return Loss(ds, target, cg);
 }
 
-vector<WordId> AttentionalDecoder::SampleTranslation(DecoderState& ds, ComputationGraph& cg) {
+vector<WordId> AttentionalDecoder::SampleTranslation(DecoderState& ds, ComputationGraph& cg) const {
   vector<WordId> output;
   WordId prev_word = kSOS;
   while (prev_word != kEOS && output.size() < max_length) {
@@ -107,7 +107,7 @@ vector<WordId> AttentionalDecoder::SampleTranslation(DecoderState& ds, Computati
   return output;
 }
 
-KBestList<vector<WordId>> AttentionalDecoder::TranslateKBest(DecoderState& ds, unsigned K, unsigned beam_size, ComputationGraph& cg) {
+KBestList<vector<WordId>> AttentionalDecoder::TranslateKBest(DecoderState& ds, unsigned K, unsigned beam_size, ComputationGraph& cg) const {
   KBestList<vector<WordId> > completed_hyps(beam_size);
   KBestList<vector<PartialHypothesis>> top_hyps(beam_size);
 
@@ -182,7 +182,7 @@ KBestList<vector<WordId>> AttentionalDecoder::TranslateKBest(DecoderState& ds, u
   return completed_hyps;
 }
 
-vector<vector<float>> AttentionalDecoder::Align(DecoderState& ds, const vector<WordId>& target, ComputationGraph& cg) {
+vector<vector<float>> AttentionalDecoder::Align(DecoderState& ds, const vector<WordId>& target, ComputationGraph& cg) const {
   assert (target.size() >= 2 && target[0] == 1 && target[target.size() - 1] == 2);
   assert (ds.model_annotations.size() == models.size());
   assert (models.size() > 0);
@@ -222,7 +222,7 @@ vector<vector<float>> AttentionalDecoder::Align(DecoderState& ds, const vector<W
   return alignment;
 }
 
-vector<cnn::real> AttentionalDecoder::Loss(DecoderState& ds, const vector<WordId>& target, ComputationGraph& cg) {
+vector<cnn::real> AttentionalDecoder::Loss(DecoderState& ds, const vector<WordId>& target, ComputationGraph& cg) const {
   assert (target.size() >= 2 && target[0] == 1 && target[target.size() - 1] == 2);
   vector<cnn::real> losses(target.size());
 
@@ -248,7 +248,7 @@ vector<cnn::real> AttentionalDecoder::Loss(DecoderState& ds, const vector<WordId
   return losses;
 }
 
-tuple<vector<vector<Expression>>, vector<Expression>> AttentionalDecoder::InitializeAnnotations(const vector<WordId>& source, ComputationGraph& cg) {
+tuple<vector<vector<Expression>>, vector<Expression>> AttentionalDecoder::InitializeAnnotations(const vector<WordId>& source, ComputationGraph& cg) const {
   vector<vector<Expression>> model_annotations;
   vector<Expression> model_zeroth_contexts;
   for (AttentionalModel* model : models) {
@@ -261,7 +261,7 @@ tuple<vector<vector<Expression>>, vector<Expression>> AttentionalDecoder::Initia
   return make_tuple(model_annotations, model_zeroth_contexts);
 }
 
-tuple<vector<vector<Expression>>, vector<Expression>> AttentionalDecoder::InitializeAnnotations(const SyntaxTree& source, ComputationGraph& cg) {
+tuple<vector<vector<Expression>>, vector<Expression>> AttentionalDecoder::InitializeAnnotations(const SyntaxTree& source, ComputationGraph& cg) const {
   vector<vector<Expression>> model_annotations;
   vector<Expression> model_zeroth_contexts;
   for (AttentionalModel* model : models) {
@@ -274,7 +274,7 @@ tuple<vector<vector<Expression>>, vector<Expression>> AttentionalDecoder::Initia
   return make_tuple(model_annotations, model_zeroth_contexts);
 }
 
-DecoderState AttentionalDecoder::InitializeGivenAnnotations(const vector<vector<Expression>>& model_annotations, const vector<Expression> model_zeroth_contexts, ComputationGraph& cg) { 
+DecoderState AttentionalDecoder::InitializeGivenAnnotations(const vector<vector<Expression>>& model_annotations, const vector<Expression> model_zeroth_contexts, ComputationGraph& cg) const {
   assert (model_annotations.size() == models.size());
   assert (model_zeroth_contexts.size() == models.size());
 
@@ -306,7 +306,7 @@ DecoderState AttentionalDecoder::InitializeGivenAnnotations(const vector<vector<
   return { model_annotations, model_aligners, model_final_mlps, model_output_states, model_alignments };
 }
 
-DecoderState AttentionalDecoder::Initialize(const vector<WordId>& source, ComputationGraph& cg) { 
+DecoderState AttentionalDecoder::Initialize(const vector<WordId>& source, ComputationGraph& cg) const {
   assert (source.size() >= 2 && source[0] == 1 && source[source.size() - 1] == 2);
   vector<vector<Expression>> model_annotations;
   vector<Expression> model_zeroth_contexts;
@@ -314,7 +314,7 @@ DecoderState AttentionalDecoder::Initialize(const vector<WordId>& source, Comput
   return InitializeGivenAnnotations(model_annotations, model_zeroth_contexts, cg);
 }
 
-DecoderState AttentionalDecoder::Initialize(const SyntaxTree& source, ComputationGraph& cg) { 
+DecoderState AttentionalDecoder::Initialize(const SyntaxTree& source, ComputationGraph& cg) const {
   vector<vector<Expression>> model_annotations;
   vector<Expression> model_zeroth_contexts;
   tie(model_annotations, model_zeroth_contexts) = InitializeAnnotations(source, cg);
