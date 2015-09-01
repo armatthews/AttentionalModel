@@ -33,6 +33,7 @@ struct TreeLSTMBuilder : public RNNBuilder {
   void new_graph_impl(ComputationGraph& cg) override;
   void start_new_sequence_impl(const std::vector<Expression>& h0) override;
   Expression add_input_impl(int prev, const Expression& x) override;
+  Expression LookupParameter(unsigned layer, unsigned p_type, unsigned value);
 
  public:
   // first index is layer, then ...
@@ -53,6 +54,8 @@ struct TreeLSTMBuilder : public RNNBuilder {
   std::vector<Expression> c0;
   unsigned layers;
   unsigned N; // Max branching factor
+private:
+  ComputationGraph* cg;
 };
 
 } // namespace cnn

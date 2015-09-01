@@ -21,7 +21,7 @@ TreeLSTMBuilder::TreeLSTMBuilder(unsigned N,
                          unsigned layers,
                          unsigned input_dim,
                          unsigned hidden_dim,
-                         Model* model) : layers(layers), N(N) {
+                         Model* model) : layers(layers), N(N), cg(nullptr) {
   unsigned layer_input_dim = input_dim;
   for (unsigned i = 0; i < layers; ++i) {
     // i
@@ -55,9 +55,12 @@ TreeLSTMBuilder::TreeLSTMBuilder(unsigned N,
   }  // layers
 }
 
-void TreeLSTMBuilder::new_graph_impl(ComputationGraph& cg){
+void TreeLSTMBuilder::new_graph_impl(ComputationGraph& cg) {
+  this->cg = &cg;
   param_vars.clear();
   lparam_vars.clear();
+  param_vars.reserve(layers);
+  lparam_vars.reserve(layers);
 
   for (unsigned i = 0; i < layers; ++i){
     auto& p = params[i];
@@ -85,12 +88,21 @@ void TreeLSTMBuilder::new_graph_impl(ComputationGraph& cg){
     LookupParameters* p = lp[p_type];
       vector<Expression> vals(p->values.size());
       for (unsigned k = 0; k < p->values.size(); ++k) {
-        vals[k] = lookup(cg, p, k);
+        //vals[k] = lookup(cg, p, k);
+        vals[k].i = 0;
       }
       lvars[p_type] = vals;
     } 
     lparam_vars.push_back(lvars);
   }
+}
+
+Expression TreeLSTMBuilder::LookupParameter(unsigned layer, unsigned p_type, unsigned value) {
+  if (lparam_vars[layer][p_type][value].i == 0) {
+    LookupParameters* p = lparams[layer][p_type];
+    lparam_vars[layer][p_type][value] = lookup(*cg, p, value);
+  }
+  return lparam_vars[layer][p_type][value];
 }
 
 // layout: 0..layers = c
@@ -113,7 +125,6 @@ void TreeLSTMBuilder::start_new_sequence_impl(const vector<Expression>& hinit) {
 }
 
 Expression TreeLSTMBuilder::add_input(vector<int> children, const Expression& x) {
-  ComputationGraph& cg = *(ComputationGraph*)x.pg;
   h.push_back(vector<Expression>(layers));
   c.push_back(vector<Expression>(layers));
   vector<Expression>& ht = h.back();
@@ -151,12 +162,12 @@ Expression TreeLSTMBuilder::add_input(vector<int> children, const Expression& x)
       xs.reserve(4 * children.size() + 3);
       for (unsigned j = 0; j < children.size(); ++j) {
         unsigned ej = (j < N) ? j : N - 1;
-        xs.push_back(lparam_vars[i][H2I][ej]); 
+        xs.push_back(LookupParameter(i, H2I, ej));
         xs.push_back(i_h_children[j]);
-        xs.push_back(lparam_vars[i][C2I][ej]);
-        xs.push_back(i_c_children[j]);
+        //xs.push_back(LookupParameter(i, C2I, ej));
+        //xs.push_back(i_c_children[j]);
       }
-      assert (xs.size() == 4 * children.size() + 3);
+      assert (xs.size() == 2 * children.size() + 3);
       i_ait = affine_transform(xs);
     }
     else
@@ -173,12 +184,12 @@ Expression TreeLSTMBuilder::add_input(vector<int> children, const Expression& x)
         xs.reserve(4 * children.size() + 3);
         for (unsigned j = 0; j < children.size(); ++j) {
           unsigned ej = (j < N) ? j : N - 1; 
-          xs.push_back(lparam_vars[i][H2F][ej * N + ek]);
+          xs.push_back(LookupParameter(i, H2F, ej * N + ek));
           xs.push_back(i_h_children[j]);
-          xs.push_back(lparam_vars[i][C2F][ej * N + ek]);
-          xs.push_back(i_c_children[j]);
+          //xs.push_back(LookupParameter(i, C2F, ej * N + ek));
+          //xs.push_back(i_c_children[j]);
         }
-        assert (xs.size() == 4 * children.size() + 3);
+        assert (xs.size() == 2 * children.size() + 3);
         i_aft = affine_transform(xs);
       }
       else
@@ -195,7 +206,7 @@ Expression TreeLSTMBuilder::add_input(vector<int> children, const Expression& x)
       xs.reserve(2 * children.size() + 3);
       for (unsigned j = 0; j < children.size(); ++j) {
         unsigned ej = (j < N) ? j : N - 1;
-        xs.push_back(lparam_vars[i][H2C][ej]); 
+        xs.push_back(LookupParameter(i, H2C, ej));
         xs.push_back(i_h_children[j]);
       }
       assert (xs.size() == 2 * children.size() + 3);
@@ -226,12 +237,12 @@ Expression TreeLSTMBuilder::add_input(vector<int> children, const Expression& x)
       xs.reserve(4 * children.size() + 3);
       for (unsigned j = 0; j < children.size(); ++j) {
         unsigned ej = (j < N) ? j : N - 1;
-        xs.push_back(lookup(cg, lparams[i][H2O], ej)); 
+        xs.push_back(LookupParameter(i, H2O, ej));
         xs.push_back(i_h_children[j]);
-        xs.push_back(lparam_vars[i][C2O][ej]);
-        xs.push_back(i_c_children[j]);
+        //xs.push_back(LookupParameter(i, C2O, ej));
+        //xs.push_back(i_c_children[j]);
       }
-      assert (xs.size() == 4 * children.size() + 3);
+      assert (xs.size() == 2 * children.size() + 3);
       i_aot = affine_transform(xs);
     }
     else

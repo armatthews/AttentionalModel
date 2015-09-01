@@ -191,6 +191,7 @@ int main(int argc, char** argv) {
       if (i % 50 == 49) {
         float fractional_iteration = (float)iteration + ((float)(i + 1) / train_bitext->size());
         cerr << "--" << fractional_iteration << "     perp=" << exp(tloss/tword_count) << endl;
+        cerr.flush();
         tloss = 0;
         tword_count = 0;
       }
