@@ -1,4 +1,5 @@
 #include <queue>
+#include <cmath>
 #include "cnn/nodes.h"
 #include "cnn/cnn.h"
 #include "cnn/expr.h"
@@ -52,6 +53,8 @@ AttentionalModel::AttentionalModel(Model& model, unsigned src_vocab_size, unsign
   p_length_multiplier = model.add_parameters({1,1});
 
   zero_annotation.resize(2 * half_annotation_dim);
+  eos_onehot.resize(tgt_vocab_size);
+  eos_onehot[2] = 1.0; // XXX
 }
 
 vector<Expression> AttentionalModel::BuildForwardAnnotations(const vector<WordId>& sentence, ComputationGraph& cg) {
@@ -129,7 +132,7 @@ OutputState AttentionalModel::GetNextOutputState(unsigned t, const RNNPointer& r
   Expression bias_broadcast1 = concatenate_cols(vector<Expression>(annotations.size(), new_bias));
   Expression hidden = tanh(affine_transform({bias_broadcast1, aligner.i_IH[1], annotation_matrix}));
   Expression bias_broadcast2 = concatenate_cols(vector<Expression>(annotations.size(), aligner.i_Ob));
-  Expression unnormalized_alignment_vector = transpose(affine_transform({bias_broadcast2, aligner.i_HO, hidden}));
+  Expression unnormalized_alignment_vector = transpose(affine_transform({bias_broadcast2, aligner.i_HO, hidden}));// + log(alignment_prior(t, source_size, cg));
 
   Expression normalized_alignment_vector = softmax(unnormalized_alignment_vector); // \alpha_ij
   if (out_alignment != NULL) {
@@ -145,9 +148,18 @@ OutputState AttentionalModel::GetNextOutputState(unsigned t, const RNNPointer& r
   return os;
 }
 
-Expression AttentionalModel::ComputeOutputDistribution(const WordId prev_word, const Expression state, const Expression context, const MLP& final_mlp, ComputationGraph& cg) {
+Expression AttentionalModel::ComputeOutputDistribution(unsigned source_length, unsigned t, const WordId prev_word, const Expression state, const Expression context, const MLP& final_mlp, ComputationGraph& cg) {
   Expression prev_target_embedding = lookup(cg, p_Et, prev_word);
-  return final_mlp.Feed({prev_target_embedding, state, context}); 
+  Expression output_distribution = final_mlp.Feed({prev_target_embedding, state, context});
+
+  // Here we add a poisson prior over the sentence length by modifying the probability of outputting </s>
+  // According to train.zhen the length ratio has mean=1.1493084919 and variance=0.104629 (stddev=0.323465)
+  /*Expression eos = input(cg, {(long)eos_onehot.size()}, &eos_onehot);
+  double lambda = 1.1493084919 * source_length;
+  double stop_prior = t * log(lambda) - lgamma(t + 1) - lambda;
+  output_distribution = output_distribution + stop_prior * eos;*/
+
+  return output_distribution;
 }
 
 MLP AttentionalModel::GetAligner(ComputationGraph& cg) const {
@@ -226,7 +238,7 @@ Expression AttentionalModel::BuildGraphGivenAnnotations(const vector<Expression>
   vector<Expression> output_distributions(target.size() - 1);
   for (unsigned t = 1; t < target.size(); ++t) {
     WordId prev_word = target[t - 1];
-    output_distributions[t - 1] = ComputeOutputDistribution(prev_word, output_states[t], contexts[t], final, cg);
+    output_distributions[t - 1] = ComputeOutputDistribution(annotations.size(), t, prev_word, output_states[t], contexts[t], final, cg);
   }
 
   vector<Expression> errors(target.size() - 1);

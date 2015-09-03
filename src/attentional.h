@@ -54,7 +54,7 @@ protected:
   Expression BuildGraphGivenAnnotations(const vector<Expression>& annotations, Expression zeroth_context, const vector<WordId>& target, ComputationGraph& cg);
   OutputState GetNextOutputState(unsigned t, const Expression& context, const Expression& prev_target_word_embedding, const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& hg, vector<float>* out_alignment = NULL);
   OutputState GetNextOutputState(unsigned t, const RNNPointer& rnn_pointer, const Expression& context, const Expression& prev_target_word_embedding, const vector<Expression>& annotations, const MLP& aligner, ComputationGraph& hg, vector<float>* out_alignment = NULL);
-  Expression ComputeOutputDistribution(const WordId prev_word, const Expression state, const Expression context, const MLP& final_mlp, ComputationGraph& hg);
+  Expression ComputeOutputDistribution(unsigned source_length, unsigned t, const WordId prev_word, const Expression state, const Expression context, const MLP& final_mlp, ComputationGraph& hg);
   vector<unsigned&> GetParams();
   MLP GetAligner(ComputationGraph& cg) const;
   MLP GetFinalMLP(ComputationGraph& cg) const;
@@ -87,6 +87,7 @@ private:
   Parameters* p_tension; // diagonal tension for prior on alignments
   Parameters* p_length_multiplier; // |t| \approx this times |s|
   vector<cnn::real> zero_annotation; // Just a vector of zeros, the same size as an annotation vector
+  vector<cnn::real> eos_onehot; // A one-hot vector the size of the vocabulary, with a 1 in the spot of </s>
 
   unsigned lstm_layer_count = 2;
   unsigned embedding_dim = 64; // Dimensionality of both source and target word embeddings. For now these are the same.

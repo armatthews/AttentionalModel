@@ -3,6 +3,7 @@
 #include <boost/algorithm/string/join.hpp>
 #include <iostream>
 #include <fstream>
+#include <cmath>
 #include "decoder.h"
 #include "utils.h"
 
@@ -79,6 +80,7 @@ vector<cnn::real> AttentionalDecoder::Loss(const SyntaxTree& source, const vecto
 }
 
 vector<vector<WordId>> AttentionalDecoder::SampleTranslations(DecoderState& ds, unsigned n, ComputationGraph& cg) const {
+  const unsigned source_length = ds.model_annotations[0].size();
   vector<vector<WordId>> outputs(n);
   for (unsigned j = 0; j < n; ++j) {
     vector<WordId> output;
@@ -89,7 +91,7 @@ vector<vector<WordId>> AttentionalDecoder::SampleTranslations(DecoderState& ds, 
         OutputState& os = ds.model_output_states[i];
         Expression prev_target_word_embedding = lookup(cg, models[i]->p_Et, prev_word);
         os = models[i]->GetNextOutputState(output.size(), os.context, prev_target_word_embedding, ds.model_annotations[i], ds.model_aligners[i], cg);
-        model_log_output_distributions[i] = models[i]->ComputeOutputDistribution(prev_word, os.state, os.context, ds.model_final_mlps[i], cg);
+        model_log_output_distributions[i] = models[i]->ComputeOutputDistribution(source_length, output.size(), prev_word, os.state, os.context, ds.model_final_mlps[i], cg);
       }
       Expression total_log_output_distribution = sum(model_log_output_distributions);
       Expression output_distribution = softmax(total_log_output_distribution);
@@ -114,6 +116,7 @@ vector<vector<WordId>> AttentionalDecoder::SampleTranslations(DecoderState& ds, 
 KBestList<vector<WordId>> AttentionalDecoder::TranslateKBest(DecoderState& ds, unsigned K, unsigned beam_size, ComputationGraph& cg) const {
   KBestList<vector<WordId> > completed_hyps(beam_size);
   KBestList<vector<PartialHypothesis>> top_hyps(beam_size);
+  const unsigned source_length = ds.model_annotations[0].size();
 
   // XXX: We're storing the same word sequence N times
   vector<PartialHypothesis> initial_partial_hyps(models.size());
@@ -136,7 +139,7 @@ KBestList<vector<WordId>> AttentionalDecoder::TranslateKBest(DecoderState& ds, u
 
         // Compute, normalize, and log the output distribution
         WordId prev_word = (length > 0) ? hyp[i].words[length - 1] : kSOS;
-        Expression unnormalized_output_distribution = models[i]->ComputeOutputDistribution(prev_word, os.state, os.context, ds.model_final_mlps[i], cg);
+        Expression unnormalized_output_distribution = models[i]->ComputeOutputDistribution(source_length, length, prev_word, os.state, os.context, ds.model_final_mlps[i], cg);
         Expression output_distribution = softmax(unnormalized_output_distribution);
         Expression log_output_distribution = log(output_distribution);
         model_log_distributions[i] = log_output_distribution;
@@ -229,13 +232,14 @@ vector<vector<float>> AttentionalDecoder::Align(DecoderState& ds, const vector<W
 vector<cnn::real> AttentionalDecoder::Loss(DecoderState& ds, const vector<WordId>& target, ComputationGraph& cg) const {
   assert (target.size() >= 2 && target[0] == 1 && target[target.size() - 1] == 2);
   vector<cnn::real> losses(target.size());
+  const unsigned source_length = ds.model_annotations[0].size();
 
   for (unsigned i = 0; i < models.size(); ++i) {
     for (unsigned t = 1; t < target.size(); ++t) {
       OutputState& os = ds.model_output_states[i];
       WordId prev_word = target[t - 1];
       Expression prev_target_word_embedding = lookup(cg, models[i]->p_Et, prev_word);
-      Expression output_distribution = models[i]->ComputeOutputDistribution(prev_word, os.state, os.context, ds.model_final_mlps[i], cg);
+      Expression output_distribution = models[i]->ComputeOutputDistribution(source_length, t - 1, prev_word, os.state, os.context, ds.model_final_mlps[i], cg);
       Expression error = pickneglogsoftmax(output_distribution, target[t]);
       losses[t] += as_scalar(cg.incremental_forward());
 
