@@ -4,7 +4,7 @@
 
 using namespace std;
 
-Bitext::Bitext() : has_parent(false) {
+void Bitext::InitializeVocabularies() {
   source_vocab = make_shared<Dict>();
   source_vocab->Convert("UNK");
   source_vocab->Convert("<s>");
@@ -16,55 +16,103 @@ Bitext::Bitext() : has_parent(false) {
   target_vocab->Convert("</s>");
 }
 
-Bitext::Bitext(Bitext* parent) : has_parent(true){
-  assert (parent != nullptr);
-  source_vocab = parent->source_vocab;
-  target_vocab = parent->target_vocab;
+S2SBitext::S2SBitext(Bitext* parent) {
+  if (parent == nullptr) {
+    InitializeVocabularies();
+  }
+  else {
+    source_vocab = parent->source_vocab;
+    target_vocab = parent->target_vocab;
+  }
 }
 
-unsigned Bitext::size() const {
-  assert(source_sentences.size() == target_sentences.size() || source_trees.size() == target_sentences.size());
-  return target_sentences.size();
+unsigned S2SBitext::size() const {
+  return data.size();
 }
 
-bool ReadCorpus(string filename, Bitext& bitext, bool t2s) {
-  const bool add_bos_eos = true;
+void S2SBitext::Shuffle(mt19937& rndeng) {
+  shuffle(data.begin(), data.end(), rndeng);
+}
+
+bool S2SBitext::ReadCorpus(string filename) {
+  ifstream f(filename);
+  if (!f.is_open()) {
+    return false;
+  }
+ 
+  WordId sBOS = source_vocab->Convert("<s>");
+  WordId sEOS = source_vocab->Convert("</s>");
+  WordId tBOS = target_vocab->Convert("<s>");
+  WordId tEOS = target_vocab->Convert("</s>");
+
+  for (string line; getline(f, line);) {
+    vector<string> parts = tokenize(line, "|||");
+    assert (parts.size() == 2);
+
+    vector<WordId> source = ReadSentence(strip(parts[0]), source_vocab.get());
+    source.insert(source.begin(), sBOS);
+    source.push_back(sEOS);
+
+    vector<WordId> target = ReadSentence(strip(parts[1]), target_vocab.get());
+    target.insert(target.begin(), tBOS);
+    target.push_back(tEOS);
+
+    data.push_back(make_pair(source, target));
+  }
+
+  return true;
+}
+
+const S2SBitext::SentencePair& S2SBitext::GetDatum(unsigned i) const {
+  assert (i < data.size());
+  return data[i];
+}
+
+T2SBitext::T2SBitext(Bitext* parent) {
+  if (parent == nullptr) {
+    InitializeVocabularies();
+  }
+  else {
+    source_vocab = parent->source_vocab;
+    target_vocab = parent->target_vocab;
+  }
+}
+
+unsigned T2SBitext::size() const {
+  return data.size();
+}
+
+void T2SBitext::Shuffle(mt19937& rndeng) {
+  shuffle(data.begin(), data.end(), rndeng);
+}
+
+bool T2SBitext::ReadCorpus(string filename) {
   ifstream f(filename);
   if (!f.is_open()) {
     return false;
   }
 
-  WordId sBOS, sEOS, tBOS, tEOS;
-  if (add_bos_eos) {
-    sBOS = bitext.source_vocab->Convert("<s>");
-    sEOS = bitext.source_vocab->Convert("</s>");
-    tBOS = bitext.target_vocab->Convert("<s>");
-    tEOS = bitext.target_vocab->Convert("</s>");
-  }
+  WordId tBOS = target_vocab->Convert("<s>");
+  WordId tEOS = target_vocab->Convert("</s>");
 
   for (string line; getline(f, line);) {
     vector<string> parts = tokenize(line, "|||");
     assert (parts.size() == 2);
-    if (t2s) {
-      SyntaxTree source_tree(strip(parts[0]), bitext.source_vocab.get());
-      source_tree.AssignNodeIds();
-      bitext.source_trees.push_back(source_tree);
-    }
-    else {
-      vector<WordId> source = ReadSentence(strip(parts[0]), bitext.source_vocab.get());
-      if (add_bos_eos) {
-        source.insert(source.begin(), sBOS);
-        source.push_back(sEOS);
-      }
-      bitext.source_sentences.push_back(source);
-    }
 
-    vector<WordId> target = ReadSentence(strip(parts[1]), bitext.target_vocab.get());
-    if (add_bos_eos) {
-      target.insert(target.begin(), tBOS);
-      target.push_back(tEOS);
-    }
-    bitext.target_sentences.push_back(target);
+    SyntaxTree source(strip(parts[0]), source_vocab.get());
+    source.AssignNodeIds();
+
+    vector<WordId> target = ReadSentence(strip(parts[1]), target_vocab.get());
+    target.insert(target.begin(), tBOS);
+    target.push_back(tEOS);
+
+    data.push_back(make_pair(source, target));
   }
+
   return true;
+}
+
+const T2SBitext::SentencePair& T2SBitext::GetDatum(unsigned i) const {
+  assert (i < data.size());
+  return data[i];
 }
