@@ -114,7 +114,7 @@ vector<vector<WordId>> AttentionalDecoder::SampleTranslations(DecoderState& ds, 
 }
 
 KBestList<vector<WordId>> AttentionalDecoder::TranslateKBest(DecoderState& ds, unsigned K, unsigned beam_size, ComputationGraph& cg) const {
-  KBestList<vector<WordId> > completed_hyps(beam_size);
+  KBestList<vector<WordId> > completed_hyps(K);
   KBestList<vector<PartialHypothesis>> top_hyps(beam_size);
   const unsigned source_length = ds.model_annotations[0].size();
 
@@ -329,32 +329,42 @@ DecoderState AttentionalDecoder::Initialize(const SyntaxTree& source, Computatio
   return InitializeGivenAnnotations(model_annotations, model_zeroth_contexts, cg);
 }
 
+tuple<Dict, Dict, Model*, AttentionalModel*> LoadModel(const string& model_filename) {
+  Dict source_vocab;
+  Dict target_vocab;
+  ifstream model_file(model_filename);
+  if (!model_file.is_open()) {
+    cerr << "ERROR: Unable to open " << model_filename << endl;
+    exit(1);
+  }
+  boost::archive::text_iarchive ia(model_file);
+
+  ia & source_vocab;
+  ia & target_vocab;
+  source_vocab.Freeze();
+  target_vocab.Freeze();
+
+  Model* cnn_model = new Model();
+  AttentionalModel* attentional_model = new AttentionalModel(*cnn_model, source_vocab.size(), target_vocab.size());
+
+  ia & *attentional_model;
+  ia & *cnn_model;
+
+  return make_tuple(source_vocab, target_vocab, cnn_model, attentional_model);
+}
+
 tuple<Dict, Dict, vector<Model*>, vector<AttentionalModel*>> LoadModels(const vector<string>& model_filenames) {
   vector<Model*> cnn_models;
   vector<AttentionalModel*> attentional_models;
   // XXX: We just use the last set of dictionaries, assuming they're all the same
   Dict source_vocab;
   Dict target_vocab;
+  Model* cnn_model = nullptr;;
+  AttentionalModel* attentional_model = nullptr;
   for (const string& model_filename : model_filenames) {
-    ifstream model_file(model_filename);
-    if (!model_file.is_open()) {
-      cerr << "ERROR: Unable to open " << model_filename << endl;
-      exit(1);
-    }
-    boost::archive::text_iarchive ia(model_file);
-
-    ia & source_vocab;
-    ia & target_vocab;
-    source_vocab.Freeze();
-    target_vocab.Freeze();
-
-    Model* model = new Model();
-    AttentionalModel* attentional_model = new AttentionalModel(*model, source_vocab.size(), target_vocab.size());
-    cnn_models.push_back(model);
+    tie(source_vocab, target_vocab, cnn_model, attentional_model) = LoadModel(model_filename);
+    cnn_models.push_back(cnn_model);
     attentional_models.push_back(attentional_model);
-
-    ia & *attentional_model;
-    ia & *model;
   }
   return make_tuple(source_vocab, target_vocab, cnn_models, attentional_models);
 }
