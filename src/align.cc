@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
   po::options_description desc("description");
   desc.add_options()
   ("models", po::value<vector<string>>()->required()->composing(), "model file(s), as output by train")
-  ("show_eos", po::bool_switch()->default_value(false), "Show alignment links for the target word </s>") // XXX: Can't we infer this from the model somehow?
+  ("show_eos", po::bool_switch()->default_value(false), "Show alignment links for the target word </s>")
   ("t2s", po::bool_switch()->default_value(false), "Treat input as trees rather than normal sentences") // XXX: Can't we infer this from the model somehow?
   ("help", "Display this help message");
 
@@ -109,6 +109,7 @@ int main(int argc, char** argv) {
         cout << (i == 0 ? "" : " ") << v[i];
       }
       cout << endl;
+      ++j;
     }
     cout << endl;
     cout.flush();
