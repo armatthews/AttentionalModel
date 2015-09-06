@@ -34,7 +34,7 @@ public:
   void Shuffle(mt19937& rndeng);
   bool ReadCorpus(string filename);
   const SentencePair& GetDatum(unsigned i) const;
-private:
+
   vector<SentencePair> data;
 };
 
@@ -49,6 +49,6 @@ public:
   void Shuffle(mt19937& rndeng);
   bool ReadCorpus(string filename);
   const SentencePair& GetDatum(unsigned i) const;
-private:
+
   vector<SentencePair> data;
 };
