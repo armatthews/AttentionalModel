@@ -1,6 +1,7 @@
 #include "cnn/cnn.h"
 #include "cnn/training.h"
 
+#include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/program_options.hpp>
 
@@ -13,43 +14,11 @@
 
 #include "bitext.h"
 #include "attentional.h"
+#include "train.h"
 
 using namespace cnn;
 using namespace std;
 namespace po = boost::program_options;
-
-// This function lets us elegantly handle the user pressing ctrl-c.
-// We set a global flag, which causes the training loops to clean up
-// and break. In particular, this allows models to be saved to disk
-// before actually exiting the program.
-bool ctrlc_pressed = false;
-void ctrlc_handler(int signal) {
-  if (ctrlc_pressed) {
-    cerr << "Exiting..." << endl;
-    exit(1);
-  }
-  else {
-    cerr << "Ctrl-c pressed!" << endl;
-    ctrlc_pressed = true;
-  }
-}
-
-// Dump all information about the trained model that will be required
-// to decode with this model on a new set. This includes (at least)
-// the source and target dictioanries, the attentional_model's layer
-// sizes, and the CNN model's parameters.
-void Serialize(Bitext* bitext, AttentionalModel& attentional_model, Model& model) {
-  int r = ftruncate(fileno(stdout), 0);
-  fseek(stdout, 0, SEEK_SET);
-
-  boost::archive::text_oarchive oa(cout);
-  // TODO: Serialize the t2s flag as part of the model, so predict/align/etc
-  // can avoid having it as an argument.
-  oa & *bitext->source_vocab;
-  oa & *bitext->target_vocab;
-  oa & attentional_model;
-  oa & model;
-}
 
 // Builds the computation graph (according to attentional_model) of the i'th
 // sentence pair in bitext. Returns the length of the target sentence in words.
@@ -86,27 +55,6 @@ pair<cnn::real, unsigned> ComputeLoss(const Bitext* bitext, AttentionalModel& at
   return make_pair(loss, word_count);
 }
 
-// Reads in a bitext from a file. If parent is non-null, tie the dictionaries
-// of the newly read bitext with the parent's. E.g. a dev set's dictionaries
-// should be tied to the training set's so that they never differ.
-Bitext* ReadBitext(const string& filename, Bitext* parent, bool t2s) {
-  Bitext* bitext;
-  if (t2s) {
-    bitext = new T2SBitext(parent);
-  }
-  else {
-    bitext = new S2SBitext(parent);
-  }
-  bitext->ReadCorpus(filename);
-  cerr << "Read " << bitext->size() << " lines from " << filename << endl;
-  cerr << "Vocab size: " << bitext->source_vocab->size() << "/" << bitext->target_vocab->size() << endl;
-  return bitext;
-}
-
-Bitext* ReadBitext(const string& filename, bool t2s) {
-  return ReadBitext(filename, nullptr, t2s);
-}
-
 int main(int argc, char** argv) {
   if (argc < 2) {
     cerr << "Usage: " << argv[0] << " corpus.txt" << endl;
@@ -122,6 +70,24 @@ int main(int argc, char** argv) {
   ("num_iterations,i", po::value<unsigned>()->default_value(UINT_MAX), "Number of epochs to train for")
   ("random_seed,r", po::value<unsigned>()->default_value(0), "Random seed. If this value is 0 a seed will be chosen randomly.")
   ("t2s", po::bool_switch()->default_value(false), "Treat input as trees rather than normal sentences")
+  ("model", po::value<string>(), "Previously trained model to load and start with")
+  // Optimizer configuration
+  ("sgd", "Use SGD for optimization")
+  ("momentum", po::value<double>(), "Use SGD with this momentum value")
+  ("adagrad", "Use Adagrad for optimization")
+  ("adadelta", "Use Adadelta for optimization")
+  ("rmsprop", "Use RMSProp for optimization")
+  ("adam", "Use Adam for optimization")
+  ("learning_rate", po::value<double>(), "Learning rate for optimizer (SGD, Adagrad, Adadelta, and RMSProp only)")
+  ("alpha", po::value<double>(), "Alpha (Adam only)")
+  ("beta1", po::value<double>(), "Beta1 (Adam only)")
+  ("beta2", po::value<double>(), "Beta2 (Adam only)")
+  ("rho", po::value<double>(), "Moving average decay parameter (RMSProp and Adadelta only)")
+  ("epsilon", po::value<double>(), "Epsilon value for optimizer (Adagrad, Adadelta, RMSProp, and Adam only)")
+  ("regularization", po::value<double>()->default_value(0.0), "L2 Regularization strength")
+  ("eta_decay", po::value<double>()->default_value(0.05), "Learning rate decay rate (SGD only)")
+  ("no_clipping", "Disable clipping of gradients")
+  // End optimizer configuration
   ("help", "Display this help message");
 
   po::positional_options_description positional_options;
@@ -144,7 +110,23 @@ int main(int argc, char** argv) {
   const unsigned random_seed = vm["random_seed"].as<unsigned>();
   const bool t2s = vm["t2s"].as<bool>();
 
-  Bitext* train_bitext = ReadBitext(train_bitext_filename, t2s);
+  boost::archive::text_iarchive* ia = nullptr;
+  ifstream* model_file = nullptr;
+  Bitext* parent = nullptr;
+  if (vm.count("model")) {
+    const string model_filename = vm["model"].as<string>();
+    model_file = new ifstream(model_filename);
+    if (!model_file->is_open()) {
+      cerr << "ERROR: Unable to open " << model_filename << endl;
+      exit(1);
+    }
+    ia = new boost::archive::text_iarchive(*model_file);
+    parent = new S2SBitext(nullptr);
+    *ia & *parent->source_vocab.get();
+    *ia & *parent->target_vocab.get();
+  }
+
+  Bitext* train_bitext = ReadBitext(train_bitext_filename, parent, t2s);
   unsigned src_vocab_size = train_bitext->source_vocab->size();
   unsigned tgt_vocab_size = train_bitext->target_vocab->size();
   Bitext* dev_bitext = ReadBitext(dev_bitext_filename, train_bitext, t2s);
@@ -155,13 +137,19 @@ int main(int argc, char** argv) {
   std::mt19937 rndeng(42);
   Model model;
   AttentionalModel attentional_model(model, train_bitext->source_vocab->size(), train_bitext->target_vocab->size());
+  if (ia != nullptr) {
+    *ia & attentional_model;
+    *ia & model;
+    cerr << "Successfully loaded model from " << vm["model"].as<string>() << endl;
+  }
   //SimpleSGDTrainer sgd(&model, 0.0, 0.25);
   //AdagradTrainer sgd(&model, 0.0, 0.1);
   //AdadeltaTrainer sgd(&model, 0.0, 1e-6, 0.999);
   //RmsPropTrainer sgd(&model, 0.0, 1.0, 1e-20, 0.95);
-  AdamTrainer sgd(&model, 0.0, 0.001, 0.01, 0.9999, 1e-20); 
+  //AdamTrainer sgd(&model, 0.0, 0.001, 0.01, 0.9999, 1e-20); 
   //sgd.eta_decay = 0.01;
   //sgd.eta_decay = 0.5;
+  Trainer* sgd = CreateTrainer(model, vm);
 
   cerr << "Training model...\n";
   unsigned minibatch_count = 0;
@@ -197,7 +185,7 @@ int main(int argc, char** argv) {
         tword_count = 0;
       }
       if (++minibatch_count == minibatch_size) {
-        sgd.update(1.0 / minibatch_size);
+        sgd->update(1.0 / minibatch_size);
         minibatch_count = 0;
       }
       if (++dev_freq_count == dev_frequency) {
@@ -212,7 +200,7 @@ int main(int argc, char** argv) {
           best_dev_loss = dev_loss.first;
         }
         else {
-          sgd.update_epoch();
+          sgd->update_epoch();
         }
         dev_freq_count = 0;
       }
@@ -220,7 +208,7 @@ int main(int argc, char** argv) {
         break;
       }
     }
-    //sgd.update_epoch();
+    //sgd->update_epoch();
     if (ctrlc_pressed) {
       break;
     }

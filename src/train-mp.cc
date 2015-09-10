@@ -1,6 +1,7 @@
 #include "cnn/cnn.h"
 #include "cnn/training.h"
 #include "cnn/mp.h"
+#include "cnn/grad-check.h"
 
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/program_options.hpp>
@@ -14,65 +15,12 @@
 
 #include "bitext.h"
 #include "attentional.h"
+#include "train.h"
 
 using namespace cnn;
 using namespace cnn::mp;
 using namespace std;
 namespace po = boost::program_options;
-
-// This function lets us elegantly handle the user pressing ctrl-c.
-// We set a global flag, which causes the training loops to clean up
-// and break. In particular, this allows models to be saved to disk
-// before actually exiting the program.
-bool ctrlc_pressed = false;
-void ctrlc_handler(int signal) {
-  if (ctrlc_pressed) {
-    cerr << "Exiting..." << endl;
-    exit(1);
-  }
-  else {
-    cerr << "Ctrl-c pressed!" << endl;
-    ctrlc_pressed = true;
-  }
-}
-
-// Dump all information about the trained model that will be required
-// to decode with this model on a new set. This includes (at least)
-// the source and target dictioanries, the attentional_model's layer
-// sizes, and the CNN model's parameters.
-void Serialize(Bitext* bitext, AttentionalModel& attentional_model, Model& model) {
-  int r = ftruncate(fileno(stdout), 0);
-  fseek(stdout, 0, SEEK_SET);
-
-  boost::archive::text_oarchive oa(cout);
-  // TODO: Serialize the t2s flag as part of the model, so predict/align/etc
-  // can avoid having it as an argument.
-  oa & *bitext->source_vocab;
-  oa & *bitext->target_vocab;
-  oa & attentional_model;
-  oa & model;
-}
-
-// Reads in a bitext from a file. If parent is non-null, tie the dictionaries
-// of the newly read bitext with the parent's. E.g. a dev set's dictionaries
-// should be tied to the training set's so that they never differ.
-Bitext* ReadBitext(const string& filename, Bitext* parent, bool t2s) {
-  Bitext* bitext;
-  if (t2s) {
-    bitext = new T2SBitext(parent);
-  }
-  else {
-    bitext = new S2SBitext(parent);
-  }
-  bitext->ReadCorpus(filename);
-  cerr << "Read " << bitext->size() << " lines from " << filename << endl;
-  cerr << "Vocab size: " << bitext->source_vocab->size() << "/" << bitext->target_vocab->size() << endl;
-  return bitext;
-}
-
-Bitext* ReadBitext(const string& filename, bool t2s) {
-  return ReadBitext(filename, nullptr, t2s);
-}
 
 template<class D>
 class Learner : public ILearner<D> {
@@ -82,6 +30,7 @@ public:
   cnn::real LearnFromDatum(const D& datum, bool learn) {
     ComputationGraph cg;
     attentional_model.BuildGraph(datum.first, datum.second, cg);
+    //cnn::CheckGrad(model, cg);
     double loss = as_scalar(cg.forward());
     if (learn) {
       cg.backward();
@@ -90,7 +39,9 @@ public:
   }
 
   void SaveModel() {
+    cerr << "Saving model..." << endl;
     Serialize(bitext, attentional_model, model);
+    cerr << "Done saving model." << endl;
   }
 private:
   Bitext* bitext;
@@ -114,6 +65,23 @@ int main(int argc, char** argv) {
   ("random_seed,r", po::value<unsigned>()->default_value(0), "Random seed. If this value is 0 a seed will be chosen randomly.")
   ("cores,j", po::value<unsigned>()->default_value(1), "Number of CPU cores to use for training")
   ("t2s", po::bool_switch()->default_value(false), "Treat input as trees rather than normal sentences")
+  // Optimizer configuration
+  ("sgd", "Use SGD for optimization")
+  ("momentum", po::value<double>(), "Use SGD with this momentum value")
+  ("adagrad", "Use Adagrad for optimization")
+  ("adadelta", "Use Adadelta for optimization")
+  ("rmsprop", "Use RMSProp for optimization")
+  ("adam", "Use Adam for optimization")
+  ("learning_rate", po::value<double>(), "Learning rate for optimizer (SGD, Adagrad, Adadelta, and RMSProp only)")
+  ("alpha", po::value<double>(), "Alpha (Adam only)")
+  ("beta1", po::value<double>(), "Beta1 (Adam only)")
+  ("beta2", po::value<double>(), "Beta2 (Adam only)")
+  ("rho", po::value<double>(), "Moving average decay parameter (RMSProp and Adadelta only)")
+  ("epsilon", po::value<double>(), "Epsilon value for optimizer (Adagrad, Adadelta, RMSProp, and Adam only)")
+  ("regularization", po::value<double>()->default_value(0.0), "L2 Regularization strength")
+  ("eta_decay", po::value<double>()->default_value(0.05), "Learning rate decay rate (SGD only)")
+  ("no_clipping", "Disable clipping of gradients")
+  // End optimizer configuration
   ("help", "Display this help message");
 
   po::positional_options_description positional_options;
@@ -144,11 +112,12 @@ int main(int argc, char** argv) {
   assert (train_bitext->source_vocab->size() == src_vocab_size);
   assert (train_bitext->target_vocab->size() == tgt_vocab_size);
 
-  cnn::Initialize(argc, argv, random_seed);
+  cnn::Initialize(argc, argv, random_seed, true);
   std::mt19937 rndeng(42);
   Model model;
   AttentionalModel attentional_model(model, train_bitext->source_vocab->size(), train_bitext->target_vocab->size());
-  SimpleSGDTrainer sgd(&model, 1e-4, 0.25);
+  Trainer* sgd = CreateTrainer(model, vm);
+  //SimpleSGDTrainer sgd(&model, 1e-4, 0.25);
   //AdagradTrainer sgd(&model, 0.0, 1.0);
   //AdadeltaTrainer sgd(&model, 0.0, 1e-6, 0.999);
   //RmsPropTrainer sgd(&model, 0.0, 1.0, 1e-20, 0.95);
@@ -162,13 +131,13 @@ int main(int argc, char** argv) {
     Learner<T2SBitext::SentencePair> learner(train_bitext, attentional_model, model);
     const auto& train_data = dynamic_cast<T2SBitext*>(train_bitext)->data;
     const auto& dev_data = dynamic_cast<T2SBitext*>(dev_bitext)->data;
-    RunMultiProcess<T2SBitext::SentencePair>(num_children, &learner, &sgd, train_data, dev_data, num_iterations, dev_frequency, report_frequency);
+    RunMultiProcess<T2SBitext::SentencePair>(num_children, &learner, sgd, train_data, dev_data, num_iterations, dev_frequency, report_frequency);
   }
   else {
     Learner<S2SBitext::SentencePair> learner(train_bitext, attentional_model, model);
     const auto& train_data = dynamic_cast<S2SBitext*>(train_bitext)->data;
     const auto& dev_data = dynamic_cast<S2SBitext*>(dev_bitext)->data;
-    RunMultiProcess<S2SBitext::SentencePair>(num_children, &learner, &sgd, train_data, dev_data, num_iterations, dev_frequency, report_frequency);
+    RunMultiProcess<S2SBitext::SentencePair>(num_children, &learner, sgd, train_data, dev_data, num_iterations, dev_frequency, report_frequency);
   }
 
   return 0;
