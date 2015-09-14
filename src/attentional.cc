@@ -228,12 +228,22 @@ Expression AttentionalModel::BuildGraphGivenAnnotations(const vector<Expression>
   vector<Expression> contexts(target.size());
   contexts[0] = zeroth_context;
 
+  alignment_matrix_values.clear();
+  alignment_matrix_values.reserve(annotations.size() * (target.size() - 1));
+  ones = vector<cnn::real>(annotations.size(), 1);
   for (unsigned t = 1; t < target.size(); ++t) {
     Expression prev_target_word_embedding = lookup(cg, p_Et, target[t - 1]);
-    OutputState os = GetNextOutputState(t - 1, contexts[t - 1], prev_target_word_embedding, annotations, aligner, cg);
+    vector<float> a;
+    OutputState os = GetNextOutputState(t - 1, contexts[t - 1], prev_target_word_embedding, annotations, aligner, cg, &a);
     output_states[t] = os.state;
     contexts[t] = os.context;
+    alignment_matrix_values.insert(alignment_matrix_values.end(), a.begin(), a.end());
   }
+  assert (alignment_matrix_values.size() == annotations.size() * (target.size() - 1));
+  Expression alignment_matrix = input(cg, {annotations.size(), target.size() - 1}, &alignment_matrix_values);
+  Expression alignment_sums = sum_cols(alignment_matrix);
+  Expression one_vector = input(cg, {annotations.size()}, &ones);
+  Expression variance = sum_cols(reshape(square(alignment_sums - one_vector), {1, annotations.size()}));
 
   vector<Expression> output_distributions(target.size() - 1);
   for (unsigned t = 1; t < target.size(); ++t) {
@@ -247,7 +257,8 @@ Expression AttentionalModel::BuildGraphGivenAnnotations(const vector<Expression>
     Expression error = pickneglogsoftmax(output_distribution, target[t]);
     errors[t - 1] = error;
   }
-  Expression total_error = sum(errors);
+  double strength = 1e-4;
+  Expression total_error = sum(errors) + strength * variance;
   return total_error;
 }
 
