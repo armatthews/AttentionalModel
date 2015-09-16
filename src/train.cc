@@ -68,6 +68,7 @@ int main(int argc, char** argv) {
   ("train_bitext", po::value<string>()->required(), "Training bitext in source_tree ||| target format")
   ("dev_bitext", po::value<string>()->default_value(""), "(Optional) Dev bitext, used for early stopping")
   ("num_iterations,i", po::value<unsigned>()->default_value(UINT_MAX), "Number of epochs to train for")
+  ("batch_size,b", po::value<unsigned>()->default_value(1), "Size of minibatches")
   ("random_seed,r", po::value<unsigned>()->default_value(0), "Random seed. If this value is 0 a seed will be chosen randomly.")
   ("t2s", po::bool_switch()->default_value(false), "Treat input as trees rather than normal sentences") 
   // Optimizer configuration
@@ -107,6 +108,7 @@ int main(int argc, char** argv) {
   const string dev_bitext_filename = vm["dev_bitext"].as<string>();
   const unsigned num_iterations = vm["num_iterations"].as<unsigned>();
   const unsigned random_seed = vm["random_seed"].as<unsigned>();
+  const unsigned batch_size = vm["batch_size"].as<unsigned>();
   const bool t2s = vm["t2s"].as<bool>();
 
   Bitext* train_bitext = ReadBitext(train_bitext_filename, t2s);
@@ -125,7 +127,7 @@ int main(int argc, char** argv) {
   cerr << "Training model...\n";
   unsigned minibatch_count = 0;
   unsigned dev_freq_count = 0;
-  const unsigned minibatch_size = std::min(1U, train_bitext->size());
+  const unsigned minibatch_size = std::min(batch_size, train_bitext->size());
   const unsigned dev_frequency = std::min(5000U, train_bitext->size());
   cnn::real best_dev_loss = numeric_limits<cnn::real>::max();
   for (unsigned iteration = 0; iteration < num_iterations; iteration++) {
