@@ -69,8 +69,7 @@ int main(int argc, char** argv) {
   ("dev_bitext", po::value<string>()->default_value(""), "(Optional) Dev bitext, used for early stopping")
   ("num_iterations,i", po::value<unsigned>()->default_value(UINT_MAX), "Number of epochs to train for")
   ("random_seed,r", po::value<unsigned>()->default_value(0), "Random seed. If this value is 0 a seed will be chosen randomly.")
-  ("t2s", po::bool_switch()->default_value(false), "Treat input as trees rather than normal sentences")
-  ("model", po::value<string>(), "Previously trained model to load and start with")
+  ("t2s", po::bool_switch()->default_value(false), "Treat input as trees rather than normal sentences") 
   // Optimizer configuration
   ("sgd", "Use SGD for optimization")
   ("momentum", po::value<double>(), "Use SGD with this momentum value")
@@ -110,23 +109,7 @@ int main(int argc, char** argv) {
   const unsigned random_seed = vm["random_seed"].as<unsigned>();
   const bool t2s = vm["t2s"].as<bool>();
 
-  boost::archive::text_iarchive* ia = nullptr;
-  ifstream* model_file = nullptr;
-  Bitext* parent = nullptr;
-  if (vm.count("model")) {
-    const string model_filename = vm["model"].as<string>();
-    model_file = new ifstream(model_filename);
-    if (!model_file->is_open()) {
-      cerr << "ERROR: Unable to open " << model_filename << endl;
-      exit(1);
-    }
-    ia = new boost::archive::text_iarchive(*model_file);
-    parent = new S2SBitext(nullptr);
-    *ia & *parent->source_vocab.get();
-    *ia & *parent->target_vocab.get();
-  }
-
-  Bitext* train_bitext = ReadBitext(train_bitext_filename, parent, t2s);
+  Bitext* train_bitext = ReadBitext(train_bitext_filename, t2s);
   unsigned src_vocab_size = train_bitext->source_vocab->size();
   unsigned tgt_vocab_size = train_bitext->target_vocab->size();
   Bitext* dev_bitext = ReadBitext(dev_bitext_filename, train_bitext, t2s);
@@ -137,18 +120,6 @@ int main(int argc, char** argv) {
   std::mt19937 rndeng(42);
   Model model;
   AttentionalModel attentional_model(model, train_bitext->source_vocab->size(), train_bitext->target_vocab->size());
-  if (ia != nullptr) {
-    *ia & attentional_model;
-    *ia & model;
-    cerr << "Successfully loaded model from " << vm["model"].as<string>() << endl;
-  }
-  //SimpleSGDTrainer sgd(&model, 0.0, 0.25);
-  //AdagradTrainer sgd(&model, 0.0, 0.1);
-  //AdadeltaTrainer sgd(&model, 0.0, 1e-6, 0.999);
-  //RmsPropTrainer sgd(&model, 0.0, 1.0, 1e-20, 0.95);
-  //AdamTrainer sgd(&model, 0.0, 0.001, 0.01, 0.9999, 1e-20); 
-  //sgd.eta_decay = 0.01;
-  //sgd.eta_decay = 0.5;
   Trainer* sgd = CreateTrainer(model, vm);
 
   cerr << "Training model...\n";
