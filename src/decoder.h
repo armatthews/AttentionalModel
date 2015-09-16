@@ -5,7 +5,7 @@ struct DecoderState {
   vector<vector<Expression>> model_annotations;
   vector<MLP> model_aligners;
   vector<MLP> model_final_mlps;
-  vector<OutputState> model_output_states;
+  vector<Expression> model_output_states;
   vector<vector<vector<float>>> model_alignments;
 };
 
@@ -42,7 +42,7 @@ private:
   DecoderState Initialize(const SyntaxTree& source, ComputationGraph& cg) const;
   tuple<vector<vector<Expression>>, vector<Expression>> InitializeAnnotations(const vector<WordId>& source, ComputationGraph& cg) const;
   tuple<vector<vector<Expression>>, vector<Expression>> InitializeAnnotations(const SyntaxTree& source, ComputationGraph& cg) const;
-  DecoderState InitializeGivenAnnotations(const vector<vector<Expression>>& model_annotations, const vector<Expression> model_zeroth_contexts, ComputationGraph& cg) const;
+  DecoderState InitializeGivenAnnotations(const vector<vector<Expression>>& model_annotations, const vector<Expression> model_zeroth_states, ComputationGraph& cg) const;
 
   vector<AttentionalModel*> models;
   unsigned max_length;

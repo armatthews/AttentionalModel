@@ -27,7 +27,7 @@ void ctrlc_handler(int signal) {
 void Serialize(Bitext* bitext, AttentionalModel& attentional_model, Model& model) {
   int r = ftruncate(fileno(stdout), 0);
   if (r != 0) {
-    cerr << "WARNING: Unable to truncate stdout. Error " << errno << endl;
+    //cerr << "WARNING: Unable to truncate stdout. Error " << errno << endl;
   } 
   fseek(stdout, 0, SEEK_SET);
 

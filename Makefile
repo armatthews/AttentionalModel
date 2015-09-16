@@ -28,10 +28,10 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.cc
 $(BINDIR)/sandbox: $(addprefix $(OBJDIR)/, sandbox.o attentional.o bitext.o decoder.o utils.o syntax_tree.o treelstm.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
-$(BINDIR)/train: $(addprefix $(OBJDIR)/, train.o decoder.o attentional.o bitext.o utils.o syntax_tree.o treelstm.o)
+$(BINDIR)/train: $(addprefix $(OBJDIR)/, train.o attentional.o bitext.o utils.o syntax_tree.o treelstm.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
-$(BINDIR)/train-mp: $(addprefix $(OBJDIR)/, train-mp.o decoder.o attentional.o bitext.o utils.o syntax_tree.o treelstm.o)
+$(BINDIR)/train-mp: $(addprefix $(OBJDIR)/, train-mp.o attentional.o bitext.o utils.o syntax_tree.o treelstm.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
 $(BINDIR)/predict: $(addprefix $(OBJDIR)/, predict.o decoder.o bitext.o attentional.o syntax_tree.o kbestlist.o utils.o treelstm.o)

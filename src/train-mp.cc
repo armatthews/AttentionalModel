@@ -125,7 +125,7 @@ int main(int argc, char** argv) {
   //sgd.eta_decay = 0.01;
   //sgd.eta_decay = 0.5;
 
-  unsigned dev_frequency = 5000;
+  unsigned dev_frequency = 10000;
   unsigned report_frequency = 50;
   if (t2s) {
     Learner<T2SBitext::SentencePair> learner(train_bitext, attentional_model, model);

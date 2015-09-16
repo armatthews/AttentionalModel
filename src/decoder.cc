@@ -55,13 +55,13 @@ KBestList<vector<WordId>> AttentionalDecoder::TranslateKBest(const vector<WordId
   return TranslateKBest(ds, K, beam_size, cg);
 }
 
-vector<vector<float>> AttentionalDecoder::Align(const vector<WordId>& source, const vector<WordId>& target) const {
+vector<vector<cnn::real>> AttentionalDecoder::Align(const vector<WordId>& source, const vector<WordId>& target) const {
   ComputationGraph cg;
   DecoderState ds = Initialize(source, cg);
   return Align(ds, target, cg);
 }
 
-vector<vector<float>> AttentionalDecoder::Align(const SyntaxTree& source, const vector<WordId>& target) const {
+vector<vector<cnn::real>> AttentionalDecoder::Align(const SyntaxTree& source, const vector<WordId>& target) const {
   ComputationGraph cg;
   DecoderState ds = Initialize(source, cg);
   return Align(ds, target, cg);
@@ -83,16 +83,29 @@ vector<vector<WordId>> AttentionalDecoder::SampleTranslations(DecoderState& ds, 
   const unsigned source_length = ds.model_annotations[0].size();
   vector<vector<WordId>> outputs(n);
   for (unsigned j = 0; j < n; ++j) {
+    for (unsigned i = 0; i < models.size(); ++i) {
+      models[i]->output_builder.start_new_sequence();
+    }
     vector<WordId> output;
     WordId prev_word = kSOS;
     while (prev_word != kEOS && output.size() < max_length) {
+      unsigned t = output.size() + 1;
       vector<Expression> model_log_output_distributions(models.size());
       for (unsigned i = 0; i < models.size(); ++i) {
-        OutputState& os = ds.model_output_states[i];
-        Expression prev_target_word_embedding = lookup(cg, models[i]->p_Et, prev_word);
-        os = models[i]->GetNextOutputState(output.size(), os.context, prev_target_word_embedding, ds.model_annotations[i], ds.model_aligners[i], cg);
-        model_log_output_distributions[i] = models[i]->ComputeOutputDistribution(source_length, output.size(), prev_word, os.state, os.context, ds.model_final_mlps[i], cg);
+        AttentionalModel* model = models[i];
+        vector<Expression>& annotations = ds.model_annotations[i];
+        MLP& aligner = ds.model_aligners[i];
+        MLP& final_mlp = ds.model_final_mlps[i];
+        Expression prev_state = ds.model_output_states[i];
+
+        Expression prev_embedding = lookup(cg, model->p_Et, prev_word);
+        Expression alignment = model->GetAlignments(t, prev_state, annotations, aligner, cg);
+        Expression context = model->GetContext(alignment, annotations, cg);
+        Expression state = model->GetNextOutputState(context, prev_embedding, cg);
+        model_log_output_distributions[i] = model->ComputeNormalizedOutputDistribution(source_length, t, prev_embedding, state, context, final_mlp, cg);
+        ds.model_output_states[i] = state;
       }
+
       Expression total_log_output_distribution = sum(model_log_output_distributions);
       Expression output_distribution = softmax(total_log_output_distribution);
       vector<float> dist = as_vector(cg.incremental_forward());
@@ -121,34 +134,38 @@ KBestList<vector<WordId>> AttentionalDecoder::TranslateKBest(DecoderState& ds, u
   // XXX: We're storing the same word sequence N times
   vector<PartialHypothesis> initial_partial_hyps(models.size());
   for (unsigned i = 0; i < models.size(); ++i) {
-    initial_partial_hyps[i] = {{}, ds.model_output_states[i]};
+    initial_partial_hyps[i] = {{kSOS}, ds.model_output_states[i], models[i]->output_builder.state()};
   }
   top_hyps.add(0.0, initial_partial_hyps);
 
-  // Invariant: each element in top_hyps should have a length of "length"
-  for (unsigned length = 0; length < max_length; ++length) {
+  // Invariant: each element in top_hyps should have a length of "t"
+  for (unsigned t = 1; t <= max_length; ++t) {
     KBestList<vector<PartialHypothesis>> new_hyps(beam_size);
     for (auto scored_hyp : top_hyps.hypothesis_list()) {
       double score = scored_hyp.first;
       vector<PartialHypothesis>& hyp = scored_hyp.second;
-      assert (hyp[0].words.size() == length);
+      assert (hyp[0].words.size() == t);
+      WordId prev_word = hyp[0].words.back();
 
-      vector<Expression> model_log_distributions(models.size());
+      vector<Expression> model_log_output_distributions(models.size());
       for (unsigned i = 0; i < models.size(); ++i) {
-        OutputState& os = hyp[i].state;
+        AttentionalModel* model = models[i];
+        vector<Expression>& annotations = ds.model_annotations[i];
+        MLP& aligner = ds.model_aligners[i];
+        MLP& final_mlp = ds.model_final_mlps[i];
+        Expression prev_state = hyp[i].state;
 
-        // Compute, normalize, and log the output distribution
-        WordId prev_word = (length > 0) ? hyp[i].words[length - 1] : kSOS;
-        Expression unnormalized_output_distribution = models[i]->ComputeOutputDistribution(source_length, length, prev_word, os.state, os.context, ds.model_final_mlps[i], cg);
-        Expression output_distribution = softmax(unnormalized_output_distribution);
-        Expression log_output_distribution = log(output_distribution);
-        model_log_distributions[i] = log_output_distribution;
+        Expression prev_embedding = lookup(cg, model->p_Et, prev_word);
+        Expression alignment = model->GetAlignments(t, prev_state, annotations, aligner, cg);
+        Expression context = model->GetContext(alignment, annotations, cg);
+        Expression state = model->GetNextOutputState(hyp[i].rnn_pointer, context, prev_embedding, cg);
+        model_log_output_distributions[i] = model->ComputeNormalizedOutputDistribution(source_length, t, prev_embedding, state, context, final_mlp, cg);
+        ds.model_output_states[i] = state;
       }
 
-      Expression overall_distribution = model_log_distributions[0];
+      Expression overall_distribution = sum(model_log_output_distributions) / models.size();
 
       if (models.size() > 1) {
-        overall_distribution = sum(model_log_distributions) / models.size();
         overall_distribution = log(softmax(overall_distribution)); // Renormalize
       }
       vector<float> dist = as_vector(cg.incremental_forward());
@@ -168,15 +185,12 @@ KBestList<vector<WordId>> AttentionalDecoder::TranslateKBest(DecoderState& ds, u
         double new_score = score + word_score;
         vector<PartialHypothesis> new_model_hyps(models.size());
         for (unsigned i = 0; i < models.size(); ++i) {
-          OutputState& os = hyp[i].state;
-          Expression previous_target_word_embedding = lookup(cg, models[i]->p_Et, word);
-          OutputState new_state = models[i]->GetNextOutputState(hyp[i].words.size(), os.rnn_pointer, os.context, previous_target_word_embedding, ds.model_annotations[i], ds.model_aligners[i], cg);
-          PartialHypothesis new_hyp = {hyp[i].words, new_state};
+          PartialHypothesis new_hyp = {hyp[i].words, ds.model_output_states[i], models[i]->output_builder.state()};
           new_hyp.words.push_back(word);
           new_model_hyps[i] = new_hyp;
         }
 
-        if (length + 1 == max_length || word == kEOS) {
+        if (t + 1 == max_length || word == kEOS) {
           completed_hyps.add(new_score, new_model_hyps[0].words);
         }
         else {
@@ -189,38 +203,46 @@ KBestList<vector<WordId>> AttentionalDecoder::TranslateKBest(DecoderState& ds, u
   return completed_hyps;
 }
 
-vector<vector<float>> AttentionalDecoder::Align(DecoderState& ds, const vector<WordId>& target, ComputationGraph& cg) const {
+vector<vector<cnn::real>> AttentionalDecoder::Align(DecoderState& ds, const vector<WordId>& target, ComputationGraph& cg) const {
   assert (target.size() >= 2 && target[0] == 1 && target[target.size() - 1] == 2);
   assert (ds.model_annotations.size() == models.size());
-  assert (models.size() > 0);
-  assert (ds.model_alignments[0].size() == 1);
+  assert (models.size() > 0); 
   const unsigned source_size = ds.model_annotations[0].size();
 
-  for (unsigned t = 1; t < target.size(); ++t) {
-    for (unsigned i = 0; i < models.size(); ++i) {
-      vector<float> a;
-      Expression target_word_embedding = lookup(cg, models[i]->p_Et, target[t]);
-      ds.model_output_states[i] = models[i]->GetNextOutputState(t - 1, ds.model_output_states[i].context, target_word_embedding, ds.model_annotations[i], ds.model_aligners[i], cg, &a);
+  for (unsigned i = 0; i < models.size(); ++i) {
+    AttentionalModel* model = models[i];
+    vector<Expression>& annotations = ds.model_annotations[i];
+    MLP& aligner = ds.model_aligners[i]; 
+    Expression prev_state = ds.model_output_states[i];
+    for (unsigned t = 1; t < target.size(); ++t) {
+      vector<cnn::real> a;
+      WordId prev_word = target[t - 1];
+      Expression prev_embedding = lookup(cg, model->p_Et, prev_word);
+      Expression alignment = model->GetAlignments(t, prev_state, annotations, aligner, cg, &a);
+      Expression context = model->GetContext(alignment, annotations, cg);
+      Expression state = model->GetNextOutputState(context, prev_embedding, cg);
+      prev_state = state;
+
       assert (a.size() == source_size);
       ds.model_alignments[i].push_back(a);
     }
   }
 
-  vector<vector<float> > alignment(target.size());
+  vector<vector<cnn::real>> alignment(target.size());
   for (unsigned i = 0; i < target.size(); ++i) {
     alignment[i].resize(source_size);
   }
 
   for (unsigned i = 0; i < models.size(); ++i) {
-    for (unsigned j = 0; j < target.size(); ++j) {
+    for (unsigned j = 0; j < target.size() - 1; ++j) {
       for (unsigned k = 0; k < source_size; ++k) {
         alignment[j][k] += log(ds.model_alignments[i][j][k]) / models.size();
       }
     }
   }
 
-  for (unsigned j = 0; j < target.size(); ++j) {
-    float Z = logsumexp(alignment[j]);
+  for (unsigned j = 0; j < target.size() - 1; ++j) {
+    cnn::real Z = logsumexp(alignment[j]);
     for (unsigned k = 0; k < source_size; ++k) {
       alignment[j][k] = exp(alignment[j][k] - Z);
     }
@@ -231,20 +253,25 @@ vector<vector<float>> AttentionalDecoder::Align(DecoderState& ds, const vector<W
 
 vector<cnn::real> AttentionalDecoder::Loss(DecoderState& ds, const vector<WordId>& target, ComputationGraph& cg) const {
   assert (target.size() >= 2 && target[0] == 1 && target[target.size() - 1] == 2);
-  vector<cnn::real> losses(target.size());
+  vector<cnn::real> losses(target.size() - 1);
   const unsigned source_length = ds.model_annotations[0].size();
 
   for (unsigned i = 0; i < models.size(); ++i) {
+    AttentionalModel* model = models[i];
+    vector<Expression>& annotations = ds.model_annotations[i];
+    MLP& aligner = ds.model_aligners[i];
+    MLP& final_mlp = ds.model_final_mlps[i];
+    Expression prev_state = ds.model_output_states[i];
     for (unsigned t = 1; t < target.size(); ++t) {
-      OutputState& os = ds.model_output_states[i];
       WordId prev_word = target[t - 1];
-      Expression prev_target_word_embedding = lookup(cg, models[i]->p_Et, prev_word);
-      Expression output_distribution = models[i]->ComputeOutputDistribution(source_length, t - 1, prev_word, os.state, os.context, ds.model_final_mlps[i], cg);
-      Expression error = pickneglogsoftmax(output_distribution, target[t]);
-      losses[t] += as_scalar(cg.incremental_forward());
-
-      os = models[i]->GetNextOutputState(t - 1, ds.model_output_states[i].context, prev_target_word_embedding, ds.model_annotations[i], ds.model_aligners[i], cg);
-      ds.model_output_states[i] = os;
+      Expression prev_embedding = lookup(cg, model->p_Et, prev_word);
+      Expression alignment = model->GetAlignments(t, prev_state, annotations, aligner, cg);
+      Expression context = model->GetContext(alignment, annotations, cg);
+      Expression state = model->GetNextOutputState(context, prev_embedding, cg);
+      Expression distribution = model->ComputeOutputDistribution(source_length, t, prev_embedding, state, context, final_mlp, cg);
+      Expression error = pickneglogsoftmax(distribution, target[t]);
+      losses[t - 1] += as_scalar(cg.incremental_forward());
+      prev_state = state;
     }
   }
 
@@ -252,64 +279,57 @@ vector<cnn::real> AttentionalDecoder::Loss(DecoderState& ds, const vector<WordId
     losses[i] /= models.size();
   }
 
-  losses.erase(losses.begin());
   return losses;
 }
 
 tuple<vector<vector<Expression>>, vector<Expression>> AttentionalDecoder::InitializeAnnotations(const vector<WordId>& source, ComputationGraph& cg) const {
   vector<vector<Expression>> model_annotations;
-  vector<Expression> model_zeroth_contexts;
+  vector<Expression> model_zeroth_states;
   for (AttentionalModel* model : models) {
     vector<Expression> annotations;
-    Expression zeroth_context;
-    tie(annotations, zeroth_context) = model->BuildAnnotationVectors(source, cg);
+    Expression zeroth_state;
+    tie(annotations, zeroth_state) = model->BuildAnnotationVectors(source, cg);
     model_annotations.push_back(annotations);
-    model_zeroth_contexts.push_back(zeroth_context);
+    model_zeroth_states.push_back(zeroth_state);
   }
-  return make_tuple(model_annotations, model_zeroth_contexts);
+  return make_tuple(model_annotations, model_zeroth_states);
 }
 
 tuple<vector<vector<Expression>>, vector<Expression>> AttentionalDecoder::InitializeAnnotations(const SyntaxTree& source, ComputationGraph& cg) const {
   vector<vector<Expression>> model_annotations;
-  vector<Expression> model_zeroth_contexts;
+  vector<Expression> model_zeroth_states;
   for (AttentionalModel* model : models) {
     vector<Expression> annotations;
-    Expression zeroth_context;
-    tie(annotations, zeroth_context) = model->BuildAnnotationVectors(source, cg);
+    Expression zeroth_state;
+    tie(annotations, zeroth_state) = model->BuildAnnotationVectors(source, cg);
     model_annotations.push_back(annotations);
-    model_zeroth_contexts.push_back(zeroth_context);
+    model_zeroth_states.push_back(zeroth_state);
   }
-  return make_tuple(model_annotations, model_zeroth_contexts);
+  return make_tuple(model_annotations, model_zeroth_states);
 }
 
-DecoderState AttentionalDecoder::InitializeGivenAnnotations(const vector<vector<Expression>>& model_annotations, const vector<Expression> model_zeroth_contexts, ComputationGraph& cg) const {
+DecoderState AttentionalDecoder::InitializeGivenAnnotations(const vector<vector<Expression>>& model_annotations, const vector<Expression> model_zeroth_states, ComputationGraph& cg) const {
   assert (model_annotations.size() == models.size());
-  assert (model_zeroth_contexts.size() == models.size());
+  assert (model_zeroth_states.size() == models.size());
 
   vector<MLP> model_aligners;
   vector<MLP> model_final_mlps;
-  vector<OutputState> model_output_states;
-  vector<vector<vector<float>>> model_alignments;
+  vector<Expression> model_output_states;
+  vector<vector<vector<cnn::real>>> model_alignments(models.size());
 
   for (unsigned i = 0; i < models.size(); ++i) {
     AttentionalModel* model = models[i];
     model->output_builder.new_graph(cg);
     model->output_builder.start_new_sequence();
 
-    const vector<Expression>& annotations = model_annotations[i];
-    const Expression& zeroth_context = model_zeroth_contexts[i];
+    const Expression& zeroth_state = model_zeroth_states[i];
 
     MLP aligner = model->GetAligner(cg);
     MLP final_mlp = model->GetFinalMLP(cg);
 
-    vector<float> a;
-    OutputState os0 = model->GetInitialOutputState(zeroth_context, annotations, aligner, kSOS, cg, &a);
-
     model_aligners.push_back(aligner);
     model_final_mlps.push_back(final_mlp);
-    model_output_states.push_back(os0);
-    assert (a.size() == annotations.size());
-    model_alignments.push_back({a});
+    model_output_states.push_back(zeroth_state);
   }
   return { model_annotations, model_aligners, model_final_mlps, model_output_states, model_alignments };
 }
@@ -317,16 +337,16 @@ DecoderState AttentionalDecoder::InitializeGivenAnnotations(const vector<vector<
 DecoderState AttentionalDecoder::Initialize(const vector<WordId>& source, ComputationGraph& cg) const {
   assert (source.size() >= 2 && source[0] == 1 && source[source.size() - 1] == 2);
   vector<vector<Expression>> model_annotations;
-  vector<Expression> model_zeroth_contexts;
-  tie(model_annotations, model_zeroth_contexts) = InitializeAnnotations(source, cg);
-  return InitializeGivenAnnotations(model_annotations, model_zeroth_contexts, cg);
+  vector<Expression> model_zeroth_states;
+  tie(model_annotations, model_zeroth_states) = InitializeAnnotations(source, cg);
+  return InitializeGivenAnnotations(model_annotations, model_zeroth_states, cg);
 }
 
 DecoderState AttentionalDecoder::Initialize(const SyntaxTree& source, ComputationGraph& cg) const {
   vector<vector<Expression>> model_annotations;
-  vector<Expression> model_zeroth_contexts;
-  tie(model_annotations, model_zeroth_contexts) = InitializeAnnotations(source, cg);
-  return InitializeGivenAnnotations(model_annotations, model_zeroth_contexts, cg);
+  vector<Expression> model_zeroth_states;
+  tie(model_annotations, model_zeroth_states) = InitializeAnnotations(source, cg);
+  return InitializeGivenAnnotations(model_annotations, model_zeroth_states, cg);
 }
 
 tuple<Dict, Dict, Model*, AttentionalModel*> LoadModel(const string& model_filename) {
