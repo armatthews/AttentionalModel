@@ -22,16 +22,48 @@ using namespace cnn::mp;
 using namespace std;
 namespace po = boost::program_options;
 
+class SufficientStats {
+public:
+  cnn::real loss;
+  unsigned word_count;
+  unsigned sentence_count;
+
+  SufficientStats() : loss(), word_count(), sentence_count() {}
+
+  SufficientStats(cnn::real loss, unsigned word_count, unsigned sentence_count) : loss(loss), word_count(word_count), sentence_count(sentence_count) {}
+
+  SufficientStats& operator+=(const SufficientStats& rhs) {
+    loss += rhs.loss;
+    word_count += rhs.word_count;
+    sentence_count += rhs.sentence_count;
+    return *this;
+  }
+
+  friend SufficientStats operator+(SufficientStats lhs, const SufficientStats& rhs) {
+    lhs += rhs;
+    return lhs;
+  }
+
+  bool operator<(const SufficientStats& rhs) {
+    return loss < rhs.loss;
+  }
+
+  friend std::ostream& operator<< (std::ostream& stream, const SufficientStats& stats) {
+    //return stream << "SufficientStats(" << stats.loss << ", " << stats.word_count << ", " << stats.sentence_count << ") = " << exp(stats.loss / stats.word_count);
+    return stream << exp(stats.loss / stats.word_count);
+  }
+};
+
 template<class D>
-class Learner : public ILearner<D> {
+class Learner : public ILearner<D, SufficientStats> {
 public:
   explicit Learner(Bitext* bitext, AttentionalModel& attentional_model, Model& model) : bitext(bitext), attentional_model(attentional_model), model(model) {}
   ~Learner() {}
-  cnn::real LearnFromDatum(const D& datum, bool learn) {
+  SufficientStats LearnFromDatum(const D& datum, bool learn) {
     ComputationGraph cg;
     attentional_model.BuildGraph(datum.first, datum.second, cg);
     //cnn::CheckGrad(model, cg);
-    double loss = as_scalar(cg.forward());
+    SufficientStats loss(as_scalar(cg.forward()), datum.second.size() - 1, 1);
     if (learn) {
       cg.backward();
     }
@@ -117,13 +149,6 @@ int main(int argc, char** argv) {
   Model model;
   AttentionalModel attentional_model(model, train_bitext->source_vocab->size(), train_bitext->target_vocab->size());
   Trainer* sgd = CreateTrainer(model, vm);
-  //SimpleSGDTrainer sgd(&model, 1e-4, 0.25);
-  //AdagradTrainer sgd(&model, 0.0, 1.0);
-  //AdadeltaTrainer sgd(&model, 0.0, 1e-6, 0.999);
-  //RmsPropTrainer sgd(&model, 0.0, 1.0, 1e-20, 0.95);
-  //AdamTrainer sgd(&model, 0.0, 0.001, 0.01, 0.9999, 1e-20); 
-  //sgd.eta_decay = 0.01;
-  //sgd.eta_decay = 0.5;
 
   unsigned dev_frequency = 10000;
   unsigned report_frequency = 50;
