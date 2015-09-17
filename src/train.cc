@@ -129,6 +129,7 @@ int main(int argc, char** argv) {
   unsigned dev_freq_count = 0;
   const unsigned minibatch_size = std::min(batch_size, train_bitext->size());
   const unsigned dev_frequency = std::min(5000U, train_bitext->size());
+  const unsigned report_frequency = 50;
   cnn::real best_dev_loss = numeric_limits<cnn::real>::max();
   for (unsigned iteration = 0; iteration < num_iterations; iteration++) {
     unsigned word_count = 0;
@@ -150,7 +151,7 @@ int main(int argc, char** argv) {
         tloss += sent_loss;
         cg.backward();
       }
-      if (i % 50 == 49) {
+      if (i % report_frequency == report_frequency - 1) {
         float fractional_iteration = (float)iteration + ((float)(i + 1) / train_bitext->size());
         cerr << "--" << fractional_iteration << "     perp=" << exp(tloss/tword_count) << endl;
         cerr.flush();
@@ -173,7 +174,7 @@ int main(int argc, char** argv) {
           best_dev_loss = dev_loss.first;
         }
         else {
-          sgd->update_epoch();
+          //sgd->update_epoch();
         }
         dev_freq_count = 0;
       }
@@ -182,6 +183,7 @@ int main(int argc, char** argv) {
       }
     }
     //sgd->update_epoch();
+    cerr << "##" << (float)(iteration + 1) << "     perp=" << exp(loss / word_count) << endl;
     if (ctrlc_pressed) {
       break;
     }
