@@ -80,6 +80,7 @@ public:
   Parameters* p_aOb; // Alignment NN output layer bias;
   Parameters* p_Ws; // Used to compute p_0 from h_backwards_0
   Parameters* p_bs; // Used to compute p_0 from h_backwars_0
+  Parameters* p_Ls; // Used to map source label embeddings into the annotation space
 
   // "Final" NN (from the tuple (y_{i-1}, s_i, c_i) to the distribution over output words y_i)
   Parameters* p_fIH1; // input prev embedding->hidden weights

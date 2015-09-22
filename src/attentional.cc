@@ -41,6 +41,7 @@ AttentionalModel::AttentionalModel(Model& model, unsigned src_vocab_size, unsign
   // The paper says s_0 = tanh(Ws * h1_reverse), and that Ws is an N x N matrix, but my calculations show that the dimensionality must be as below.
   p_Ws = model.add_parameters({output_state_dim, half_annotation_dim});
   p_bs = model.add_parameters({output_state_dim});
+  p_Ls = model.add_parameters({2 * half_annotation_dim, embedding_dim});
 
   p_fIH1 = model.add_parameters({final_hidden_dim, embedding_dim});
   p_fIH2 = model.add_parameters({final_hidden_dim, output_state_dim});
@@ -141,7 +142,8 @@ vector<Expression> AttentionalModel::BuildTreeAnnotationVectors(const SyntaxTree
         terminal_index++;
       }
       else {
-        input_expr = input(cg, {(long)zero_annotation.size()}, &zero_annotation);
+        input_expr = lookup(cg, p_Es, node->label()) * parameter(cg, p_Ls);
+        //input_expr = input(cg, {(long)zero_annotation.size()}, &zero_annotation);
       }
       Expression node_annotation = tree_builder.add_input(children, input_expr);
       tree_annotations.push_back(node_annotation);
