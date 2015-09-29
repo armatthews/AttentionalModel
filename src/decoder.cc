@@ -206,13 +206,13 @@ KBestList<vector<WordId>> AttentionalDecoder::TranslateKBest(DecoderState& ds, u
 vector<vector<cnn::real>> AttentionalDecoder::Align(DecoderState& ds, const vector<WordId>& target, ComputationGraph& cg) const {
   assert (target.size() >= 2 && target[0] == 1 && target[target.size() - 1] == 2);
   assert (ds.model_annotations.size() == models.size());
-  assert (models.size() > 0); 
+  assert (models.size() > 0);
   const unsigned source_size = ds.model_annotations[0].size();
 
   for (unsigned i = 0; i < models.size(); ++i) {
     AttentionalModel* model = models[i];
     vector<Expression>& annotations = ds.model_annotations[i];
-    MLP& aligner = ds.model_aligners[i]; 
+    MLP& aligner = ds.model_aligners[i];
     Expression prev_state = ds.model_output_states[i];
     for (unsigned t = 1; t < target.size(); ++t) {
       vector<cnn::real> a;
@@ -365,9 +365,12 @@ tuple<Dict, Dict, Model*, AttentionalModel*> LoadModel(const string& model_filen
   target_vocab.Freeze();
 
   Model* cnn_model = new Model();
-  AttentionalModel* attentional_model = new AttentionalModel(*cnn_model, source_vocab.size(), target_vocab.size());
+  //AttentionalModel* attentional_model = new AttentionalModel(*cnn_model, source_vocab.size(), target_vocab.size());
+  AttentionalModel* attentional_model = new AttentionalModel();
 
   ia & *attentional_model;
+  attentional_model->InitializeParameters(*cnn_model, source_vocab.size(), target_vocab.size());
+
   ia & *cnn_model;
 
   return make_tuple(source_vocab, target_vocab, cnn_model, attentional_model);
@@ -439,7 +442,7 @@ tuple<SyntaxTree, vector<WordId>> ReadT2SInputLine(const string& line, Dict& sou
     target = ReadSentence(parts[1], &target_vocab);
     target.insert(target.begin(), ktSOS);
     target.push_back(ktEOS);
-  } 
+  }
 
   cerr << "Read tree input:";
   for (WordId w: source_tree.GetTerminals()) {

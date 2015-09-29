@@ -59,5 +59,4 @@ for line in open(args.kbest):
 
 	bp = exp(1.0 - len(ref) / len(hyp)) if len(hyp) < len(ref) else 1.0
 	score = reduce(lambda x, y: x*y, p) ** (1.0 / N) * bp
-	if score > 0.01:
-		print line.strip(), '|||', score
+	print line.strip(), '|||', score
