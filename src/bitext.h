@@ -13,6 +13,7 @@ using namespace cnn;
 
 class Bitext {
 public:
+  Bitext();
   shared_ptr<Dict> source_vocab;
   shared_ptr<Dict> target_vocab;
 

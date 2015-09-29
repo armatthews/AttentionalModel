@@ -147,8 +147,10 @@ int main(int argc, char** argv) {
   Bitext* loaded_bitext = nullptr;
 
   if (vm.count("model")) {
+    string model_filename = vm["model"].as<string>();
+    cerr << "Resuming training from model " << model_filename << endl;
     loaded_bitext = new Bitext();
-    tie(*loaded_bitext->source_vocab, *loaded_bitext->target_vocab, cnn_model, attentional_model) = LoadModel(vm["model"].as<string>());
+    tie(*loaded_bitext->source_vocab, *loaded_bitext->target_vocab, cnn_model, attentional_model) = LoadModel(model_filename);
   }
 
   Bitext* train_bitext = ReadBitext(train_bitext_filename, loaded_bitext, t2s);

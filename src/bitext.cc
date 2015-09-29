@@ -4,6 +4,10 @@
 
 using namespace std;
 
+Bitext::Bitext() {
+  InitializeVocabularies();
+}
+
 unsigned Bitext::size() const {
   return 0;
 }
