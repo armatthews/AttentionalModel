@@ -143,7 +143,6 @@ int main(int argc, char** argv) {
   std::mt19937 rndeng(42);
   Model* cnn_model = new Model();
   AttentionalModel* attentional_model = new AttentionalModel();
-  Trainer* sgd = CreateTrainer(*cnn_model, vm);
   Bitext* loaded_bitext = nullptr;
 
   if (vm.count("model")) {
@@ -165,6 +164,7 @@ int main(int argc, char** argv) {
   if (!vm.count("model")) {
     attentional_model->InitializeParameters(*cnn_model, train_bitext->source_vocab->size(), train_bitext->target_vocab->size());
   }
+  Trainer* sgd = CreateTrainer(*cnn_model, vm);
 
   unsigned dev_frequency = 10000;
   unsigned report_frequency = 50;

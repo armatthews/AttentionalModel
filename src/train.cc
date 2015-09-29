@@ -117,8 +117,7 @@ int main(int argc, char** argv) {
   std::mt19937 rndeng(42);
   Bitext* loaded_bitext = nullptr;
   AttentionalModel* attentional_model = new AttentionalModel();
-  Model* cnn_model = new Model();
-  Trainer* sgd = CreateTrainer(*cnn_model, vm);
+  Model* cnn_model = new Model(); 
 
   if (vm.count("model")) {
     string model_filename = vm["model"].as<string>();
@@ -139,6 +138,7 @@ int main(int argc, char** argv) {
   if (!vm.count("model")) {
     attentional_model->InitializeParameters(*cnn_model, train_bitext->source_vocab->size(), train_bitext->target_vocab->size());
   }
+  Trainer* sgd = CreateTrainer(*cnn_model, vm);
 
   cerr << "Training model...\n";
   unsigned minibatch_count = 0;
