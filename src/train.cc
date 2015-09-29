@@ -66,7 +66,7 @@ int main(int argc, char** argv) {
   po::options_description desc("description");
   desc.add_options()
   ("train_bitext", po::value<string>()->required(), "Training bitext in source_tree ||| target format")
-  ("dev_bitext", po::value<string>()->default_value(""), "(Optional) Dev bitext, used for early stopping")
+  ("dev_bitext", po::value<string>()->required(), "Dev bitext, used for early stopping")
   ("num_iterations,i", po::value<unsigned>()->default_value(UINT_MAX), "Number of epochs to train for")
   ("batch_size,b", po::value<unsigned>()->default_value(1), "Size of minibatches")
   ("random_seed,r", po::value<unsigned>()->default_value(0), "Random seed. If this value is 0 a seed will be chosen randomly.")
@@ -111,18 +111,23 @@ int main(int argc, char** argv) {
   const unsigned batch_size = vm["batch_size"].as<unsigned>();
   const bool t2s = vm["t2s"].as<bool>();
 
-  Bitext* train_bitext = ReadBitext(train_bitext_filename, t2s);
-  unsigned src_vocab_size = train_bitext->source_vocab->size();
-  unsigned tgt_vocab_size = train_bitext->target_vocab->size();
-  Bitext* dev_bitext = ReadBitext(dev_bitext_filename, train_bitext, t2s);
-  assert (train_bitext->source_vocab->size() == src_vocab_size);
-  assert (train_bitext->target_vocab->size() == tgt_vocab_size);
-
   cnn::Initialize(argc, argv, random_seed);
   std::mt19937 rndeng(42);
-  Model model;
-  AttentionalModel attentional_model(model, train_bitext->source_vocab->size(), train_bitext->target_vocab->size());
-  Trainer* sgd = CreateTrainer(model, vm);
+  Bitext* loaded_bitext = nullptr;
+  AttentionalModel* attentional_model = new AttentionalModel();
+  Model* cnn_model = new Model();
+  Trainer* sgd = CreateTrainer(*cnn_model, vm);
+
+  Bitext* train_bitext = ReadBitext(train_bitext_filename, loaded_bitext, t2s);
+  if (train_bitext == nullptr) {
+    return 1;
+  }
+  Bitext* dev_bitext = ReadBitext(dev_bitext_filename, train_bitext, t2s);
+  if (dev_bitext == nullptr) {
+    return 1;
+  }
+
+  attentional_model->InitializeParameters(*cnn_model, train_bitext->source_vocab->size(), train_bitext->target_vocab->size());
 
   cerr << "Training model...\n";
   unsigned minibatch_count = 0;
@@ -143,7 +148,7 @@ int main(int argc, char** argv) {
       // create a second ComputationGraph, which makes CNN quite unhappy.
       {
         ComputationGraph cg; 
-        unsigned sent_word_count = BuildGraph(i, train_bitext, attentional_model, t2s, cg) - 1; // Minus one for <s>
+        unsigned sent_word_count = BuildGraph(i, train_bitext, *attentional_model, t2s, cg) - 1; // Minus one for <s>
         word_count += sent_word_count;
         tword_count += sent_word_count; 
         double sent_loss = as_scalar(cg.forward());
@@ -164,13 +169,13 @@ int main(int argc, char** argv) {
       }
       if (++dev_freq_count == dev_frequency) {
         float fractional_iteration = (float)iteration + ((float)(i + 1) / train_bitext->size());
-        auto dev_loss = ComputeLoss(dev_bitext, attentional_model, t2s);
+        auto dev_loss = ComputeLoss(dev_bitext, *attentional_model, t2s);
         cnn::real dev_perp = exp(dev_loss.first / dev_loss.second);
         bool new_best = dev_loss.first <= best_dev_loss;
         cerr << "**" << fractional_iteration << " dev perp: " << dev_perp << (new_best ? " (New best!)" : "") << endl;
         cerr.flush();
         if (new_best) {
-          Serialize(train_bitext, attentional_model, model);
+          Serialize(train_bitext, *attentional_model, *cnn_model);
           best_dev_loss = dev_loss.first;
         }
         else {

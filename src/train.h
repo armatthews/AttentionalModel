@@ -51,9 +51,19 @@ Bitext* ReadBitext(const string& filename, Bitext* parent, bool t2s) {
   else {
     bitext = new S2SBitext(parent);
   }
-  bitext->ReadCorpus(filename);
+  unsigned initial_source_vocab_size = bitext->source_vocab->size();
+  unsigned initial_target_vocab_size = bitext->target_vocab->size();
+  bool success = bitext->ReadCorpus(filename);
+  if (!success) {
+    cerr << "Unable to read corpus \"" << filename << "\"" << endl;
+    return nullptr;
+  }
   cerr << "Read " << bitext->size() << " lines from " << filename << endl;
   cerr << "Vocab size: " << bitext->source_vocab->size() << "/" << bitext->target_vocab->size() << endl;
+  if (parent != nullptr) {
+    assert (bitext->source_vocab->size() == initial_source_vocab_size);
+    assert (bitext->target_vocab->size() == initial_target_vocab_size);
+  }
   return bitext;
 }
 

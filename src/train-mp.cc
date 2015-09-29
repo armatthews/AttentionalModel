@@ -92,7 +92,7 @@ int main(int argc, char** argv) {
   po::options_description desc("description");
   desc.add_options()
   ("train_bitext", po::value<string>()->required(), "Training bitext in source_tree ||| target format")
-  ("dev_bitext", po::value<string>()->default_value(""), "(Optional) Dev bitext, used for early stopping")
+  ("dev_bitext", po::value<string>()->required(), "Dev bitext, used for early stopping")
   ("num_iterations,i", po::value<unsigned>()->default_value(UINT_MAX), "Number of epochs to train for")
   ("random_seed,r", po::value<unsigned>()->default_value(0), "Random seed. If this value is 0 a seed will be chosen randomly.")
   ("cores,j", po::value<unsigned>()->default_value(1), "Number of CPU cores to use for training")
@@ -137,29 +137,34 @@ int main(int argc, char** argv) {
   const bool t2s = vm["t2s"].as<bool>();
   const unsigned num_children = vm["cores"].as<unsigned>();
 
-  Bitext* train_bitext = ReadBitext(train_bitext_filename, t2s);
-  unsigned src_vocab_size = train_bitext->source_vocab->size();
-  unsigned tgt_vocab_size = train_bitext->target_vocab->size();
-  Bitext* dev_bitext = ReadBitext(dev_bitext_filename, train_bitext, t2s);
-  assert (train_bitext->source_vocab->size() == src_vocab_size);
-  assert (train_bitext->target_vocab->size() == tgt_vocab_size);
-
   cnn::Initialize(argc, argv, random_seed, true);
   std::mt19937 rndeng(42);
-  Model model;
-  AttentionalModel attentional_model(model, train_bitext->source_vocab->size(), train_bitext->target_vocab->size());
-  Trainer* sgd = CreateTrainer(model, vm);
+  Model* cnn_model = new Model();
+  AttentionalModel* attentional_model = new AttentionalModel();
+  Trainer* sgd = CreateTrainer(*cnn_model, vm);
+  Bitext* loaded_bitext = nullptr;
+
+  Bitext* train_bitext = ReadBitext(train_bitext_filename, t2s);
+  if (train_bitext == nullptr) {
+    return 1;
+  }
+  Bitext* dev_bitext = ReadBitext(dev_bitext_filename, train_bitext, t2s);
+  if (dev_bitext == nullptr) {
+    return 1;
+  }
+
+  attentional_model->InitializeParameters(*cnn_model, train_bitext->source_vocab->size(), train_bitext->target_vocab->size());
 
   unsigned dev_frequency = 10000;
   unsigned report_frequency = 50;
   if (t2s) {
-    Learner<T2SBitext::SentencePair> learner(train_bitext, attentional_model, model);
+    Learner<T2SBitext::SentencePair> learner(train_bitext, *attentional_model, *cnn_model);
     const auto& train_data = dynamic_cast<T2SBitext*>(train_bitext)->data;
     const auto& dev_data = dynamic_cast<T2SBitext*>(dev_bitext)->data;
     RunMultiProcess<T2SBitext::SentencePair>(num_children, &learner, sgd, train_data, dev_data, num_iterations, dev_frequency, report_frequency);
   }
   else {
-    Learner<S2SBitext::SentencePair> learner(train_bitext, attentional_model, model);
+    Learner<S2SBitext::SentencePair> learner(train_bitext, *attentional_model, *cnn_model);
     const auto& train_data = dynamic_cast<S2SBitext*>(train_bitext)->data;
     const auto& dev_data = dynamic_cast<S2SBitext*>(dev_bitext)->data;
     RunMultiProcess<S2SBitext::SentencePair>(num_children, &learner, sgd, train_data, dev_data, num_iterations, dev_frequency, report_frequency);
