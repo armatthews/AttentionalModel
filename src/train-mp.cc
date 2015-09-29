@@ -162,7 +162,9 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  attentional_model->InitializeParameters(*cnn_model, train_bitext->source_vocab->size(), train_bitext->target_vocab->size());
+  if (!vm.count("model")) {
+    attentional_model->InitializeParameters(*cnn_model, train_bitext->source_vocab->size(), train_bitext->target_vocab->size());
+  }
 
   unsigned dev_frequency = 10000;
   unsigned report_frequency = 50;
