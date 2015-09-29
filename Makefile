@@ -25,25 +25,25 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.cc
 	$(CC) $(CFLAGS) $(INCS) -c $< -o $@
 	$(CC) -MM -MP -MT "$@" $(CFLAGS) $(INCS) $< > $(OBJDIR)/$*.d
 
-$(BINDIR)/sandbox: $(addprefix $(OBJDIR)/, sandbox.o attentional.o bitext.o decoder.o utils.o syntax_tree.o treelstm.o)
+$(BINDIR)/sandbox: $(addprefix $(OBJDIR)/, sandbox.o attentional.o bitext.o decoder.o io.o utils.o syntax_tree.o treelstm.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
-$(BINDIR)/train: $(addprefix $(OBJDIR)/, train.o attentional.o bitext.o utils.o syntax_tree.o treelstm.o)
+$(BINDIR)/train: $(addprefix $(OBJDIR)/, train.o attentional.o bitext.o utils.o syntax_tree.o treelstm.o io.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
-$(BINDIR)/train-mp: $(addprefix $(OBJDIR)/, train-mp.o attentional.o bitext.o utils.o syntax_tree.o treelstm.o)
+$(BINDIR)/train-mp: $(addprefix $(OBJDIR)/, train-mp.o attentional.o bitext.o utils.o syntax_tree.o treelstm.o io.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
-$(BINDIR)/predict: $(addprefix $(OBJDIR)/, predict.o decoder.o bitext.o attentional.o syntax_tree.o kbestlist.o utils.o treelstm.o)
+$(BINDIR)/predict: $(addprefix $(OBJDIR)/, predict.o decoder.o io.o bitext.o attentional.o syntax_tree.o kbestlist.o utils.o treelstm.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
-$(BINDIR)/align: $(addprefix $(OBJDIR)/, align.o decoder.o bitext.o attentional.o syntax_tree.o utils.o treelstm.o)
+$(BINDIR)/align: $(addprefix $(OBJDIR)/, align.o decoder.o io.o bitext.o attentional.o syntax_tree.o utils.o treelstm.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
-$(BINDIR)/sample: $(addprefix $(OBJDIR)/, sample.o attentional.o bitext.o decoder.o utils.o syntax_tree.o treelstm.o)
+$(BINDIR)/sample: $(addprefix $(OBJDIR)/, sample.o attentional.o bitext.o decoder.o io.o utils.o syntax_tree.o treelstm.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
-$(BINDIR)/loss: $(addprefix $(OBJDIR)/, loss.o attentional.o bitext.o decoder.o utils.o syntax_tree.o treelstm.o)
+$(BINDIR)/loss: $(addprefix $(OBJDIR)/, loss.o attentional.o bitext.o decoder.o io.o utils.o syntax_tree.o treelstm.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
 clean:

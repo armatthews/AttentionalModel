@@ -16,9 +16,9 @@ public:
   shared_ptr<Dict> source_vocab;
   shared_ptr<Dict> target_vocab;
 
-  virtual unsigned size() const = 0;
-  virtual void Shuffle(mt19937& rndeng) = 0;
-  virtual bool ReadCorpus(string filename) = 0;
+  virtual unsigned size() const;
+  virtual void Shuffle(mt19937& rndeng);
+  virtual bool ReadCorpus(const string& filename);
 protected:
   void InitializeVocabularies();
 };
@@ -32,7 +32,7 @@ public:
   S2SBitext(Bitext* parent = nullptr);
   unsigned size() const;
   void Shuffle(mt19937& rndeng);
-  bool ReadCorpus(string filename);
+  bool ReadCorpus(const string& filename);
   const SentencePair& GetDatum(unsigned i) const;
 
   vector<SentencePair> data;
@@ -47,7 +47,7 @@ public:
   T2SBitext(Bitext* parent = nullptr);
   unsigned size() const;
   void Shuffle(mt19937& rndeng);
-  bool ReadCorpus(string filename);
+  bool ReadCorpus(const string& filename);
   const SentencePair& GetDatum(unsigned i) const;
 
   vector<SentencePair> data;

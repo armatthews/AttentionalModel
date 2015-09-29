@@ -4,6 +4,17 @@
 
 using namespace std;
 
+unsigned Bitext::size() const {
+  return 0;
+}
+
+void Bitext::Shuffle(mt19937& rndeng) {
+}
+
+bool Bitext::ReadCorpus(const string& filename) {
+  return true;
+}
+
 void Bitext::InitializeVocabularies() {
   source_vocab = make_shared<Dict>();
   source_vocab->Convert("UNK");
@@ -34,7 +45,7 @@ void S2SBitext::Shuffle(mt19937& rndeng) {
   shuffle(data.begin(), data.end(), rndeng);
 }
 
-bool S2SBitext::ReadCorpus(string filename) {
+bool S2SBitext::ReadCorpus(const string& filename) {
   ifstream f(filename);
   if (!f.is_open()) {
     return false;
@@ -86,7 +97,7 @@ void T2SBitext::Shuffle(mt19937& rndeng) {
   shuffle(data.begin(), data.end(), rndeng);
 }
 
-bool T2SBitext::ReadCorpus(string filename) {
+bool T2SBitext::ReadCorpus(const string& filename) {
   ifstream f(filename);
   if (!f.is_open()) {
     return false;

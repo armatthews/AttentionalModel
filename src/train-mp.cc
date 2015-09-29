@@ -16,6 +16,7 @@
 #include "bitext.h"
 #include "attentional.h"
 #include "train.h"
+#include "io.h"
 
 using namespace cnn;
 using namespace cnn::mp;
@@ -113,6 +114,7 @@ int main(int argc, char** argv) {
   ("regularization", po::value<double>()->default_value(0.0), "L2 Regularization strength")
   ("eta_decay", po::value<double>()->default_value(0.05), "Learning rate decay rate (SGD only)")
   ("no_clipping", "Disable clipping of gradients")
+  ("model", po::value<string>(), "Reload this model and continue learning")
   // End optimizer configuration
   ("help", "Display this help message");
 
@@ -144,7 +146,12 @@ int main(int argc, char** argv) {
   Trainer* sgd = CreateTrainer(*cnn_model, vm);
   Bitext* loaded_bitext = nullptr;
 
-  Bitext* train_bitext = ReadBitext(train_bitext_filename, t2s);
+  if (vm.count("model")) {
+    loaded_bitext = new Bitext();
+    tie(*loaded_bitext->source_vocab, *loaded_bitext->target_vocab, cnn_model, attentional_model) = LoadModel(vm["model"].as<string>());
+  }
+
+  Bitext* train_bitext = ReadBitext(train_bitext_filename, loaded_bitext, t2s);
   if (train_bitext == nullptr) {
     return 1;
   }

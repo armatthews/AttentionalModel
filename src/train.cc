@@ -15,6 +15,7 @@
 #include "bitext.h"
 #include "attentional.h"
 #include "train.h"
+#include "io.h"
 
 using namespace cnn;
 using namespace std;
@@ -70,7 +71,7 @@ int main(int argc, char** argv) {
   ("num_iterations,i", po::value<unsigned>()->default_value(UINT_MAX), "Number of epochs to train for")
   ("batch_size,b", po::value<unsigned>()->default_value(1), "Size of minibatches")
   ("random_seed,r", po::value<unsigned>()->default_value(0), "Random seed. If this value is 0 a seed will be chosen randomly.")
-  ("t2s", po::bool_switch()->default_value(false), "Treat input as trees rather than normal sentences") 
+  ("t2s", po::bool_switch()->default_value(false), "Treat input as trees rather than normal sentences")
   // Optimizer configuration
   ("sgd", "Use SGD for optimization")
   ("momentum", po::value<double>(), "Use SGD with this momentum value")
@@ -87,6 +88,7 @@ int main(int argc, char** argv) {
   ("regularization", po::value<double>()->default_value(0.0), "L2 Regularization strength")
   ("eta_decay", po::value<double>()->default_value(0.05), "Learning rate decay rate (SGD only)")
   ("no_clipping", "Disable clipping of gradients")
+  ("model", po::value<string>(), "Reload this model and continue learning")
   // End optimizer configuration
   ("help", "Display this help message");
 
@@ -118,6 +120,11 @@ int main(int argc, char** argv) {
   Model* cnn_model = new Model();
   Trainer* sgd = CreateTrainer(*cnn_model, vm);
 
+  if (vm.count("model")) {
+    loaded_bitext = new Bitext();
+    tie(*loaded_bitext->source_vocab, *loaded_bitext->target_vocab, cnn_model, attentional_model) = LoadModel(vm["model"].as<string>());
+  }
+
   Bitext* train_bitext = ReadBitext(train_bitext_filename, loaded_bitext, t2s);
   if (train_bitext == nullptr) {
     return 1;
@@ -147,10 +154,10 @@ int main(int argc, char** argv) {
       // ComputeLoss() on the dev set. Without them, ComputeLoss() tries to
       // create a second ComputationGraph, which makes CNN quite unhappy.
       {
-        ComputationGraph cg; 
+        ComputationGraph cg;
         unsigned sent_word_count = BuildGraph(i, train_bitext, *attentional_model, t2s, cg) - 1; // Minus one for <s>
         word_count += sent_word_count;
-        tword_count += sent_word_count; 
+        tword_count += sent_word_count;
         double sent_loss = as_scalar(cg.forward());
         loss += sent_loss;
         tloss += sent_loss;
