@@ -91,7 +91,7 @@ int main(int argc, char** argv) {
       vector<WordId> source;
       vector<WordId> target;
       tie(source, target) = ReadInputLine(line, source_vocab, target_vocab);
-      losses = decoder.Loss(source, target); 
+      losses = decoder.Loss(source, target);
     }
 
     cnn::real total_loss = 0;

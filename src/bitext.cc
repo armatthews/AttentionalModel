@@ -39,7 +39,7 @@ bool S2SBitext::ReadCorpus(string filename) {
   if (!f.is_open()) {
     return false;
   }
- 
+
   WordId sBOS = source_vocab->Convert("<s>");
   WordId sEOS = source_vocab->Convert("</s>");
   WordId tBOS = target_vocab->Convert("<s>");

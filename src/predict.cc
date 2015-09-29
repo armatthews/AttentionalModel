@@ -91,13 +91,13 @@ int main(int argc, char** argv) {
       SyntaxTree source_tree;
       vector<WordId> target;
       tie(source_tree, target) = ReadT2SInputLine(line, source_vocab, target_vocab);
-      kbest = decoder.TranslateKBest(source_tree, kbest_size, beam_size); 
+      kbest = decoder.TranslateKBest(source_tree, kbest_size, beam_size);
     }
     else {
       vector<WordId> source;
       vector<WordId> target;
       tie(source, target) = ReadInputLine(line, source_vocab, target_vocab);
-      kbest = decoder.TranslateKBest(source, kbest_size, beam_size); 
+      kbest = decoder.TranslateKBest(source, kbest_size, beam_size);
     }
     OutputKBestList(sentence_number, kbest, target_vocab);
     sentence_number++;

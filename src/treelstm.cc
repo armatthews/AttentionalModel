@@ -92,7 +92,7 @@ void TreeLSTMBuilder::new_graph_impl(ComputationGraph& cg) {
         vals[k].i = 0;
       }
       lvars[p_type] = vals;
-    } 
+    }
     lparam_vars.push_back(lvars);
   }
 }
@@ -183,7 +183,7 @@ Expression TreeLSTMBuilder::add_input(vector<int> children, const Expression& x)
         vector<Expression> xs = {vars[BF], vars[X2F], in};
         xs.reserve(4 * children.size() + 3);
         for (unsigned j = 0; j < children.size(); ++j) {
-          unsigned ej = (j < N) ? j : N - 1; 
+          unsigned ej = (j < N) ? j : N - 1;
           xs.push_back(LookupParameter(i, H2F, ej * N + ek));
           xs.push_back(i_h_children[j]);
           xs.push_back(LookupParameter(i, C2F, ej * N + ek));

@@ -382,7 +382,7 @@ tuple<Dict, Dict, vector<Model*>, vector<AttentionalModel*>> LoadModels(const ve
   // XXX: We just use the last set of dictionaries, assuming they're all the same
   Dict source_vocab;
   Dict target_vocab;
-  Model* cnn_model = nullptr;;
+  Model* cnn_model = nullptr;
   AttentionalModel* attentional_model = nullptr;
   for (const string& model_filename : model_filenames) {
     tie(source_vocab, target_vocab, cnn_model, attentional_model) = LoadModel(model_filename);

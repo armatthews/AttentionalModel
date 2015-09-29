@@ -59,7 +59,7 @@ void AttentionalModel::InitializeParameters(Model& model, unsigned src_vocab_siz
 
   p_fIH1 = model.add_parameters({final_hidden_dim, embedding_dim});
   p_fIH2 = model.add_parameters({final_hidden_dim, output_state_dim});
-  p_fIH3 = model.add_parameters({final_hidden_dim, 2 * half_annotation_dim}); 
+  p_fIH3 = model.add_parameters({final_hidden_dim, 2 * half_annotation_dim});
   p_fHb = model.add_parameters({final_hidden_dim});
   p_fHO = model.add_parameters({tgt_vocab_size, final_hidden_dim});
   p_fOb = model.add_parameters({tgt_vocab_size});
@@ -212,7 +212,7 @@ Expression AttentionalModel::GetAlignments(unsigned t, Expression& prev_state,
   }
   Expression unnormalized_alignment_vector = concatenate(unnormalized_alignments);// + log(alignment_prior(t, source_size, cg));*/
 
-  // Implementation two: Slightly faster 
+  // Implementation two: Slightly faster
   /*vector<Expression> unnormalized_alignments(source_size); // e_ij
   Expression new_bias = affine_transform({aligner.i_Hb, aligner.i_IH[0], prev_state});
   for (unsigned s = 0; s < source_size; ++s) {
