@@ -26,7 +26,21 @@ Expression MLP::Feed(vector<Expression> inputs) const {
   return output;
 }
 
-AttentionalModel::AttentionalModel(Model& model, unsigned src_vocab_size, unsigned tgt_vocab_size) : verbose(false) {
+AttentionalModel::AttentionalModel() {
+  p_Es = p_Et = nullptr;
+  p_aIH1 = p_aIH2 = p_aHb = nullptr;
+  p_aHO = p_aOb = nullptr;
+  p_Ws = p_bs = p_Ls = nullptr;
+  p_fIH1 = p_fIH2 = p_fIH3 = p_fHb = nullptr;
+  p_fHO = p_fOb = nullptr;
+  p_tension = p_length_multiplier = nullptr;
+}
+
+AttentionalModel::AttentionalModel(Model& model, unsigned src_vocab_size, unsigned tgt_vocab_size) {
+  InitializeParameters(model, src_vocab_size, tgt_vocab_size);
+}
+
+void AttentionalModel::InitializeParameters(Model& model, unsigned src_vocab_size, unsigned tgt_vocab_size) {
   forward_builder = LSTMBuilder(lstm_layer_count, embedding_dim, half_annotation_dim, &model);
   reverse_builder = LSTMBuilder(lstm_layer_count, embedding_dim, half_annotation_dim, &model);
   output_builder = LSTMBuilder(lstm_layer_count, embedding_dim + 2 * half_annotation_dim, output_state_dim, &model);
@@ -142,7 +156,7 @@ vector<Expression> AttentionalModel::BuildTreeAnnotationVectors(const SyntaxTree
         terminal_index++;
       }
       else {
-        input_expr = lookup(cg, p_Es, node->label()) * parameter(cg, p_Ls);
+        input_expr = parameter(cg, p_Ls) * lookup(cg, p_Es, node->label());
         //input_expr = input(cg, {(long)zero_annotation.size()}, &zero_annotation);
       }
       Expression node_annotation = tree_builder.add_input(children, input_expr);
