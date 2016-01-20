@@ -22,7 +22,7 @@ void ctrlc_handler(int signal) {
 
 // Dump all information about the trained model that will be required
 // to decode with this model on a new set. This includes (at least)
-// the source and target dictioanries, the attentional_model's layer
+// the source and target dictionaries, the attentional_model's layer
 // sizes, and the CNN model's parameters.
 void Serialize(Bitext* bitext, AttentionalModel& attentional_model, Model& model) {
   int r = ftruncate(fileno(stdout), 0);
