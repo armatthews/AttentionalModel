@@ -44,7 +44,7 @@ void AttentionalModel::InitializeParameters(Model& model, unsigned src_vocab_siz
   forward_builder = LSTMBuilder(lstm_layer_count, embedding_dim, half_annotation_dim, &model);
   reverse_builder = LSTMBuilder(lstm_layer_count, embedding_dim, half_annotation_dim, &model);
   output_builder = LSTMBuilder(lstm_layer_count, embedding_dim + 2 * half_annotation_dim, output_state_dim, &model);
-  tree_builder = TreeLSTMBuilder(5, lstm_layer_count, 2 * half_annotation_dim, 2 * half_annotation_dim, &model);
+  tree_builder = new SocherTreeLSTMBuilder(5, lstm_layer_count, 2 * half_annotation_dim, 2 * half_annotation_dim, &model);
   p_Es = model.add_lookup_parameters(src_vocab_size, {embedding_dim});
   p_Et = model.add_lookup_parameters(tgt_vocab_size, {embedding_dim});
   p_aIH1 = model.add_parameters({alignment_hidden_dim, output_state_dim});
@@ -127,8 +127,8 @@ vector<Expression> AttentionalModel::BuildAnnotationVectors(const vector<Express
 }
 
 vector<Expression> AttentionalModel::BuildTreeAnnotationVectors(const SyntaxTree& source_tree, const vector<Expression>& linear_annotations, ComputationGraph& cg) {
-  tree_builder.new_graph(cg);
-  tree_builder.start_new_sequence();
+  tree_builder->new_graph(cg);
+  tree_builder->start_new_sequence();
   vector<Expression> annotations;
   vector<Expression> tree_annotations;
   vector<const SyntaxTree*> node_stack = {&source_tree};
@@ -159,7 +159,7 @@ vector<Expression> AttentionalModel::BuildTreeAnnotationVectors(const SyntaxTree
         input_expr = parameter(cg, p_Ls) * lookup(cg, p_Es, node->label());
         //input_expr = input(cg, {(long)zero_annotation.size()}, &zero_annotation);
       }
-      Expression node_annotation = tree_builder.add_input(children, input_expr);
+      Expression node_annotation = tree_builder->add_input((int)node->id(), children, input_expr);
       tree_annotations.push_back(node_annotation);
       //tree_annotations.push_back(lookup(cg, p_Es, node->label()));
       index_stack.pop_back();

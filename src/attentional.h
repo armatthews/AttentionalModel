@@ -70,7 +70,7 @@ public:
 //private:
 public:
   LSTMBuilder forward_builder, reverse_builder, output_builder;
-  TreeLSTMBuilder tree_builder;
+  TreeLSTMBuilder* tree_builder;
   LookupParameters* p_Es; // source language word embedding matrix
   LookupParameters* p_Et; // target language word embedding matrix
 
