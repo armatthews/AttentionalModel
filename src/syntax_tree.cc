@@ -24,6 +24,7 @@ SyntaxTree::SyntaxTree(string tree, Dict* dict) : dict(dict), id_(-1) {
     assert (tree[tree.length() - 1] == ')');
     unsigned first_space = tree.find(" ");
     assert (first_space != string::npos);
+    assert (first_space != 1);
     label_ = dict->Convert(tree.substr(1, first_space - 1));
 
     vector<string> child_strings;
