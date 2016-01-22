@@ -144,7 +144,7 @@ int main(int argc, char** argv) {
   unsigned minibatch_count = 0;
   unsigned dev_freq_count = 0;
   const unsigned minibatch_size = std::min(batch_size, train_bitext->size());
-  const unsigned dev_frequency = std::min(5000U, train_bitext->size());
+  const unsigned dev_frequency = std::min(10000U, train_bitext->size());
   const unsigned report_frequency = 50;
   cnn::real best_dev_loss = numeric_limits<cnn::real>::max();
   for (unsigned iteration = 0; iteration < num_iterations; iteration++) {
