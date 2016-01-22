@@ -38,6 +38,8 @@ S2SBitext::S2SBitext(Bitext* parent) {
   else {
     source_vocab = parent->source_vocab;
     target_vocab = parent->target_vocab;
+    source_vocab->Freeze();
+    target_vocab->Freeze();
   }
 }
 
@@ -90,6 +92,8 @@ T2SBitext::T2SBitext(Bitext* parent) {
   else {
     source_vocab = parent->source_vocab;
     target_vocab = parent->target_vocab;
+    source_vocab->Freeze();
+    target_vocab->Freeze();
   }
 }
 
