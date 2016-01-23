@@ -66,10 +66,6 @@ void AttentionalModel::InitializeParameters(Model& model, unsigned src_vocab_siz
 
   p_tension = model.add_parameters({1,1});
   p_length_multiplier = model.add_parameters({1,1});
-
-  zero_annotation.resize(2 * half_annotation_dim);
-  eos_onehot.resize(tgt_vocab_size);
-  eos_onehot[2] = 1.0; // XXX: Hard coded 2 = </s>
 }
 
 Expression AttentionalModel::BuildGraph(const vector<WordId>& source, const vector<WordId>& target, ComputationGraph& cg) {
@@ -157,11 +153,9 @@ vector<Expression> AttentionalModel::BuildTreeAnnotationVectors(const SyntaxTree
       }
       else {
         input_expr = parameter(cg, p_Ls) * lookup(cg, p_Es, node->label());
-        //input_expr = input(cg, {(long)zero_annotation.size()}, &zero_annotation);
       }
       Expression node_annotation = tree_builder->add_input((int)node->id(), children, input_expr);
       tree_annotations.push_back(node_annotation);
-      //tree_annotations.push_back(lookup(cg, p_Es, node->label()));
       index_stack.pop_back();
       node_stack.pop_back();
     }
@@ -259,14 +253,6 @@ Expression AttentionalModel::GetNextOutputState(const RNNPointer& rnn_pointer,
 
 Expression AttentionalModel::ComputeOutputDistribution(unsigned source_length, unsigned t, const Expression prev_target_embedding, const Expression state, const Expression context, const MLP& final_mlp, ComputationGraph& cg) {
   Expression output_distribution = final_mlp.Feed({prev_target_embedding, state, context});
-
-  // Here we add a poisson prior over the sentence length by modifying the probability of outputting </s>
-  // According to train.zhen the length ratio has mean=1.1493084919 and variance=0.104629 (stddev=0.323465)
-  /*Expression eos = input(cg, {(long)eos_onehot.size()}, &eos_onehot);
-  double lambda = 1.1493084919 * source_length;
-  double stop_prior = t * log(lambda) - lgamma(t + 1) - lambda;
-  output_distribution = output_distribution + stop_prior * eos;*/
-
   return output_distribution;
 }
 

@@ -4,6 +4,7 @@
 #include "cnn/cnn.h"
 #include "cnn/expr.h"
 #include "cnn/lstm.h"
+#include "cnn/cfsm-builder.h"
 #include "treelstm.h"
 #include "bitext.h"
 #include "kbestlist.h"
@@ -33,6 +34,7 @@ class AttentionalModel {
 public:
   AttentionalModel();
   AttentionalModel(Model& model, unsigned src_vocab_size, unsigned tgt_vocab_size);
+  AttentionalModel(Model& model, unsigned src_vocab_size, FactoredSoftmaxBuilder* fsm_builder);
   void InitializeParameters(Model& model, unsigned src_vocab_size, unsigned tgt_vocab_size);
   Expression BuildGraph(const vector<WordId>& source, const vector<WordId>& target, ComputationGraph& hg);
   Expression BuildGraph(const SyntaxTree& source, const vector<WordId>& target, ComputationGraph& hg);
@@ -94,17 +96,14 @@ public:
 
   Parameters* p_tension; // diagonal tension for prior on alignments
   Parameters* p_length_multiplier; // |t| \approx this times |s|
-  vector<cnn::real> zero_annotation; // Just a vector of zeros, the same size as an annotation vector
-  vector<cnn::real> eos_onehot; // A one-hot vector the size of the vocabulary, with a 1 in the spot of </s>
   vector<cnn::real> alignment_matrix_values;
-  vector<cnn::real> ones;
 
   unsigned lstm_layer_count = 2;
-  unsigned embedding_dim = 256; // Dimensionality of both source and target word embeddings. For now these are the same.
-  unsigned half_annotation_dim = 256; // Dimensionality of h_forward and h_backward. The full h has twice this dimension.
-  unsigned output_state_dim = 256; // Dimensionality of s_j, the state just before outputing target word y_j
-  unsigned alignment_hidden_dim = 256; // Dimensionality of the hidden layer in the alignment FFNN
-  unsigned final_hidden_dim = 256; // Dimensionality of the hidden layer in the "final" FFNN
+  unsigned embedding_dim = 32; // Dimensionality of both source and target word embeddings. For now these are the same.
+  unsigned half_annotation_dim = 32; // Dimensionality of h_forward and h_backward. The full h has twice this dimension.
+  unsigned output_state_dim = 32; // Dimensionality of s_j, the state just before outputing target word y_j
+  unsigned alignment_hidden_dim = 32; // Dimensionality of the hidden layer in the alignment FFNN
+  unsigned final_hidden_dim = 32; // Dimensionality of the hidden layer in the "final" FFNN
 
   friend class boost::serialization::access;
   template<class Archive> void serialize(Archive& ar, const unsigned int) {
