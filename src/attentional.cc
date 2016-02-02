@@ -125,7 +125,6 @@ vector<Expression> AttentionalModel::BuildAnnotationVectors(const vector<Express
 vector<Expression> AttentionalModel::BuildTreeAnnotationVectors(const SyntaxTree& source_tree, const vector<Expression>& linear_annotations, ComputationGraph& cg) {
   tree_builder->new_graph(cg);
   tree_builder->start_new_sequence();
-  vector<Expression> annotations;
   vector<Expression> tree_annotations;
   vector<const SyntaxTree*> node_stack = {&source_tree};
   vector<unsigned> index_stack = {0};

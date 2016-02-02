@@ -1,3 +1,4 @@
+#include "translator.h"
 #include "cnn/mp.h"
 using namespace cnn;
 using namespace std;
@@ -22,53 +23,63 @@ void ctrlc_handler(int signal) {
 
 // Dump all information about the trained model that will be required
 // to decode with this model on a new set. This includes (at least)
-// the source and target dictionaries, the attentional_model's layer
+// the source and target dictionaries, the translator's layer
 // sizes, and the CNN model's parameters.
-void Serialize(Bitext* bitext, AttentionalModel& attentional_model, Model& model) {
+template <class Input>
+void Serialize(vector<Dict*> dicts, Translator<Input>& translator, Model& model) {
   int r = ftruncate(fileno(stdout), 0);
-  if (r != 0) {
-    //cerr << "WARNING: Unable to truncate stdout. Error " << errno << endl;
-  }
+  if (r != 0) {}
   fseek(stdout, 0, SEEK_SET);
 
   boost::archive::text_oarchive oa(cout);
-  // TODO: Serialize the t2s flag as part of the model, so predict/align/etc
-  // can avoid having it as an argument.
-  oa & *bitext->source_vocab;
-  oa & *bitext->target_vocab;
-  oa & attentional_model;
+  for (Dict* dict : dicts) {
+    oa & *dict;
+  }
+  oa & translator;
   oa & model;
 }
 
-// Reads in a bitext from a file. If parent is non-null, tie the dictionaries
-// of the newly read bitext with the parent's. E.g. a dev set's dictionaries
-// should be tied to the training set's so that they never differ.
-Bitext* ReadBitext(const string& filename, Bitext* parent, bool t2s) {
-  Bitext* bitext;
-  if (t2s) {
-    bitext = new T2SBitext(parent);
+template <class Input>
+void Deserialize(const string& filename, vector<Dict*> dicts, Translator<Input>& translator, Model& model) {
+  ifstream f(filename);
+  boost::archive::text_iarchive oa(f);
+  for (Dict* dict : dicts) {
+    oa & *dict;
   }
-  else {
-    bitext = new S2SBitext(parent);
-  }
-  unsigned initial_source_vocab_size = bitext->source_vocab->size();
-  unsigned initial_target_vocab_size = bitext->target_vocab->size();
-  bool success = bitext->ReadCorpus(filename);
-  if (!success) {
-    cerr << "Unable to read corpus \"" << filename << "\"" << endl;
-    return nullptr;
-  }
-  cerr << "Read " << bitext->size() << " lines from " << filename << endl;
-  cerr << "Vocab size: " << bitext->source_vocab->size() << "/" << bitext->target_vocab->size() << endl;
-  if (parent != nullptr) {
-    assert (bitext->source_vocab->size() == initial_source_vocab_size);
-    assert (bitext->target_vocab->size() == initial_target_vocab_size);
-  }
-  return bitext;
+  oa & translator;
+  translator.InitializeParameters(model);
+  oa & model;
 }
 
-Bitext* ReadBitext(const string& filename, bool t2s) {
-  return ReadBitext(filename, nullptr, t2s);
+Bitext* ReadBitext(const string& filename, Dict* source_vocab, Dict* target_vocab) {
+  ifstream f(filename);
+  if (!f.is_open()) {
+    return nullptr;
+  }
+
+  WordId sBOS = source_vocab->Convert("<s>");
+  WordId sEOS = source_vocab->Convert("</s>");
+  WordId tBOS = target_vocab->Convert("<s>");
+  WordId tEOS = target_vocab->Convert("</s>");
+
+  Bitext* bitext = new Bitext();
+  for (string line; getline(f, line);) {
+    vector<string> parts = tokenize(line, "|||");
+    assert (parts.size() == 2);
+
+    Sentence source = ReadSentence(strip(parts[0]), source_vocab);
+    source.insert(source.begin(), sBOS);
+    source.push_back(sEOS);
+
+    Sentence target = ReadSentence(strip(parts[1]), target_vocab);
+    target.insert(target.begin(), tBOS);
+    target.push_back(tEOS);
+
+    bitext->push_back(make_pair(source, target));
+  }
+
+  cerr << "Read " << bitext->size() << " lines from " << filename << endl;
+  return bitext;
 }
 
 Trainer* CreateTrainer(Model& model, const po::variables_map& vm) {
@@ -121,3 +132,33 @@ Trainer* CreateTrainer(Model& model, const po::variables_map& vm) {
   return trainer;
 }
 
+class SufficientStats {
+public:
+  cnn::real loss;
+  unsigned word_count;
+  unsigned sentence_count;
+
+  SufficientStats() : loss(), word_count(), sentence_count() {}
+
+  SufficientStats(cnn::real loss, unsigned word_count, unsigned sentence_count) : loss(loss), word_count(word_count), sentence_count(sentence_count) {}
+
+  SufficientStats& operator+=(const SufficientStats& rhs) {
+    loss += rhs.loss;
+    word_count += rhs.word_count;
+    sentence_count += rhs.sentence_count;
+    return *this;
+  }
+
+  friend SufficientStats operator+(SufficientStats lhs, const SufficientStats& rhs) {
+    lhs += rhs;
+    return lhs;
+  }
+
+  bool operator<(const SufficientStats& rhs) {
+    return loss < rhs.loss;
+  }
+
+  friend std::ostream& operator<< (std::ostream& stream, const SufficientStats& stats) {
+    return stream << exp(stats.loss / stats.word_count);
+  }
+};

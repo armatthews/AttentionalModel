@@ -16,19 +16,24 @@
 
 #include "translator.h"
 #include "train.h"
+#include "syntax_tree.h"
+#include "tree_encoder.h"
 
 using namespace cnn;
 using namespace cnn::mp;
 using namespace std;
 namespace po = boost::program_options;
 
-class Learner : public ILearner<SentencePair, SufficientStats> {
+typedef pair<SyntaxTree, Sentence> TreeSentencePair;
+typedef vector<TreeSentencePair> T2SBitext;
+
+class Learner : public ILearner<TreeSentencePair, SufficientStats> {
 public:
-  explicit Learner(const vector<Dict*>& dicts, Bitext& bitext, Translator<Sentence>& translator, Model& model) : dicts(dicts), bitext(bitext), translator(translator), model(model) {}
+  explicit Learner(T2SBitext& bitext, Translator<SyntaxTree>& translator, Model& model) : bitext(bitext), translator(translator), model(model) {}
   ~Learner() {}
-  SufficientStats LearnFromDatum(const SentencePair& datum, bool learn) {
+  SufficientStats LearnFromDatum(const TreeSentencePair& datum, bool learn) {
     ComputationGraph cg;
-    const Sentence& source = get<0>(datum);
+    const SyntaxTree& source = get<0>(datum);
     const Sentence& target = get<1>(datum);
     translator.BuildGraph(source, target, cg);
 
@@ -42,15 +47,45 @@ public:
 
   void SaveModel() {
     cerr << "Saving model..." << endl;
-    Serialize(dicts, translator, model);
+    //Serialize(bitext, attentional_model, model);
     cerr << "Done saving model." << endl;
   }
 private:
-  vector<Dict*> dicts;
-  Bitext& bitext;
-  Translator<Sentence>& translator;
+  T2SBitext& bitext;
+  Translator<SyntaxTree>& translator;
   Model& model;
 };
+
+T2SBitext* ReadT2SBitext(const string& filename, Dict* source_vocab, Dict* target_vocab, Dict* label_vocab) {
+  ifstream f(filename);
+  if (!f.is_open()) {
+    return nullptr;
+  }
+
+  source_vocab->Convert("<s>");
+  source_vocab->Convert("</s>");
+  WordId tBOS = target_vocab->Convert("<s>");
+  WordId tEOS = target_vocab->Convert("</s>");
+
+  T2SBitext* bitext = new T2SBitext();
+  for (string line; getline(f, line);) {
+    vector<string> parts = tokenize(line, "|||");
+    assert (parts.size() == 2);
+
+    SyntaxTree source(strip(parts[0]), source_vocab, label_vocab);
+    source.AssignNodeIds();
+
+    Sentence target = ReadSentence(strip(parts[1]), target_vocab);
+    target.insert(target.begin(), tBOS);
+    target.push_back(tEOS);
+
+    bitext->push_back(make_pair(source, target));
+  }
+
+  cerr << "Read " << bitext->size() << " lines from " << filename << endl;
+  return bitext;
+}
+
 
 int main(int argc, char** argv) {
   if (argc < 2) {
@@ -110,60 +145,61 @@ int main(int argc, char** argv) {
 
   Dict source_vocab;
   Dict target_vocab;
+  Dict label_vocab;
   Model cnn_model;
-  Translator<Sentence>* translator = nullptr;
 
-  if (vm.count("model")) {
-    translator = new Translator<Sentence>();
-    string filename = vm["model"].as<string>();
-    vector<Dict*> dicts = {&source_vocab, &target_vocab};
-    Deserialize(filename, dicts, *translator, cnn_model);
-    assert (source_vocab.is_frozen());
-    assert (target_vocab.is_frozen());
-  }
+  // Load model if vm.count("model")
 
   source_vocab.Convert("UNK");
   target_vocab.Convert("UNK");
-  Bitext* train_bitext = ReadBitext(train_bitext_filename, &source_vocab, &target_vocab);
+  label_vocab.Convert("UNK");
+  T2SBitext* train_bitext = ReadT2SBitext(train_bitext_filename, &source_vocab, &target_vocab, &label_vocab);
   if (train_bitext == nullptr) {
     return 1;
   }
-  if (!source_vocab.is_frozen()) {
-    source_vocab.Freeze();
-    target_vocab.Freeze();
-    source_vocab.SetUnk("UNK");
-    target_vocab.SetUnk("UNK");
-  }
+  source_vocab.Freeze();
+  target_vocab.Freeze();
+  label_vocab.Freeze();
+  source_vocab.SetUnk("UNK");
+  target_vocab.SetUnk("UNK");
+  label_vocab.SetUnk("UNK");
 
-  Bitext* dev_bitext = ReadBitext(dev_bitext_filename, &source_vocab, &target_vocab);
+  T2SBitext* dev_bitext = ReadT2SBitext(dev_bitext_filename, &source_vocab, &target_vocab, &label_vocab);
   if (dev_bitext == nullptr) {
     return 1;
   }
 
-  if (!vm.count("model")) {
-    unsigned embedding_dim = 3;
-    unsigned annotation_dim = 10;
-    unsigned alignment_hidden_dim = 7;
-    unsigned output_state_dim = 11;
+  unsigned embedding_dim = 3;
+  unsigned annotation_dim = 10;
+  unsigned alignment_hidden_dim = 7;
+  unsigned output_state_dim = 11;
 
-    EncoderModel<Sentence>* encoder_model = new BidirectionalSentenceEncoder(cnn_model, source_vocab.size(), embedding_dim, annotation_dim);
-    AttentionModel* attention_model = new StandardAttentionModel(cnn_model, annotation_dim, output_state_dim, alignment_hidden_dim);
-    OutputModel* output_model = new SoftmaxOutputModel(cnn_model, embedding_dim, annotation_dim, output_state_dim, &target_vocab, clusters_filename);
-    translator = new Translator<Sentence>(encoder_model, attention_model, output_model);
-    cerr << "Vocabulary sizes: " << source_vocab.size() << " / " << target_vocab.size() << endl;
+  FactoredSoftmaxBuilder* fsb;
+  if (clusters_filename.length() > 0) {
+    fsb = new ClassFactoredSoftmaxBuilder(output_state_dim, clusters_filename, &target_vocab, &cnn_model);
   }
+  else {
+    fsb = new NonFactoredSoftmaxBuilder(output_state_dim, target_vocab.size(), &cnn_model);
+  }
+
+  cerr << "Vocabulary sizes: " << source_vocab.size() << " / " << target_vocab.size() << endl;
+
+  EncoderModel<SyntaxTree>* encoder_model = new TreeEncoder(cnn_model, source_vocab.size(), label_vocab.size(), embedding_dim, annotation_dim);
+  AttentionModel* attention_model = new StandardAttentionModel(cnn_model, annotation_dim, output_state_dim, alignment_hidden_dim);
+  OutputModel* output_model = new ClassFactoredOutputModel(cnn_model, embedding_dim, annotation_dim, output_state_dim, target_vocab.size(), fsb);
+  Translator<SyntaxTree> translator(encoder_model, attention_model, output_model);
 
   // if we didn't load a model, then initialize parameters here
 
   unsigned dev_frequency = 500;
   unsigned report_frequency = 50;
-  Learner learner({&source_vocab, &target_vocab}, *train_bitext, *translator, cnn_model);
+  Learner learner(*train_bitext, translator, cnn_model);
   Trainer* sgd = CreateTrainer(cnn_model, vm);
   if (num_children > 1) {
-    RunMultiProcess<SentencePair>(num_children, &learner, sgd, *train_bitext, *dev_bitext, num_iterations, dev_frequency, report_frequency);
+    RunMultiProcess<TreeSentencePair>(num_children, &learner, sgd, *train_bitext, *dev_bitext, num_iterations, dev_frequency, report_frequency);
   }
   else {
-    RunSingleProcess<SentencePair>(&learner, sgd, *train_bitext, *dev_bitext, num_iterations, dev_frequency, report_frequency);
+    RunSingleProcess<TreeSentencePair>(&learner, sgd, *train_bitext, *dev_bitext, num_iterations, dev_frequency, report_frequency);
   }
 
   return 0;

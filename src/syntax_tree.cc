@@ -3,9 +3,9 @@
 #include <sstream>
 #include "syntax_tree.h"
 
-SyntaxTree::SyntaxTree() : dict(nullptr), label_(-1), id_(-1) {}
+SyntaxTree::SyntaxTree() : word_dict(nullptr), label_dict(nullptr), label_(-1), id_(-1) {}
 
-SyntaxTree::SyntaxTree(string tree, Dict* dict) : dict(dict), id_(-1) {
+SyntaxTree::SyntaxTree(string tree, Dict* word_dict, Dict* label_dict) : word_dict(word_dict), label_dict(label_dict), id_(-1) {
   // Sometimes Berkeley parser fails to parse a sentence and just outputs ()
   if (tree == "()") {
     return;
@@ -18,14 +18,14 @@ SyntaxTree::SyntaxTree(string tree, Dict* dict) : dict(dict), id_(-1) {
     assert (tree.find("(") == string::npos);
     assert (tree.find(")") == string::npos);
     assert (tree.find(" ") == string::npos);
-    label_ = dict->Convert(tree);
+    label_ = word_dict->Convert(tree);
   }
   else {
     assert (tree[tree.length() - 1] == ')');
     unsigned first_space = tree.find(" ");
     assert (first_space != string::npos);
     assert (first_space != 1);
-    label_ = dict->Convert(tree.substr(1, first_space - 1));
+    label_ = label_dict->Convert(tree.substr(1, first_space - 1));
 
     vector<string> child_strings;
     unsigned start = first_space + 1;
@@ -57,7 +57,7 @@ SyntaxTree::SyntaxTree(string tree, Dict* dict) : dict(dict), id_(-1) {
     }
 
     for (string child_string : child_strings) {
-      children.push_back(SyntaxTree(child_string, dict));
+      children.push_back(SyntaxTree(child_string, word_dict, label_dict));
     }
     assert (children.size() > 0);
   }
@@ -156,11 +156,11 @@ vector<WordId> SyntaxTree::GetTerminals() const {
 
 string SyntaxTree::ToString() const {
   if (IsTerminal()) {
-    return dict->Convert(label_);
+    return word_dict->Convert(label_);
   }
 
   stringstream ss;
-  ss << "(" << dict->Convert(label_);
+  ss << "(" << label_dict->Convert(label_);
   for (const SyntaxTree& child : children) {
     ss << " " << child.ToString();
   }

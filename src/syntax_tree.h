@@ -10,7 +10,7 @@ using namespace cnn;
 class SyntaxTree {
 public:
   SyntaxTree();
-  SyntaxTree(string tree, Dict* dict);
+  SyntaxTree(string tree, Dict* word_dict, Dict* label_dict);
 
   bool IsTerminal() const;
   unsigned NumChildren() const;
@@ -28,7 +28,8 @@ public:
   string ToString() const;
   unsigned AssignNodeIds(unsigned start = 0);
 private:
-  Dict* dict;
+  Dict* word_dict;
+  Dict* label_dict;
   WordId label_;
   unsigned id_;
   vector<SyntaxTree> children;
