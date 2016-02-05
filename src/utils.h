@@ -10,8 +10,6 @@ using namespace cnn;
 
 typedef int WordId;
 typedef vector<WordId> Sentence;
-typedef pair<Sentence, Sentence> SentencePair;
-typedef vector<SentencePair> Bitext;
 
 inline unsigned int UTF8Len(unsigned char x);
 inline unsigned int UTF8StringLen(const string& x);
