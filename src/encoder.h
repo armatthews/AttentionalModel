@@ -18,23 +18,19 @@ class EncoderModel {
 public:
   virtual ~EncoderModel() {}
 
-  virtual void InitializeParameters(Model& model) = 0;
   virtual void NewGraph(ComputationGraph& cg) = 0;
   virtual vector<Expression> Encode(const Input& sentence) = 0;
 
 private:
   friend class boost::serialization::access;
   template<class Archive>
-  void serialize(Archive& ar, const unsigned int) {
-    cerr << "serializing encodermodel" << endl;
-  }
+  void serialize(Archive& ar, const unsigned int) {}
 };
 
 class BidirectionalSentenceEncoder : public EncoderModel<Sentence> {
 public:
   BidirectionalSentenceEncoder();
   BidirectionalSentenceEncoder(Model& model, unsigned vocab_size, unsigned input_dim, unsigned output_dim);
-  void InitializeParameters(Model& model);
 
   void NewGraph(ComputationGraph& cg);
   vector<Expression> Encode(const Sentence& sentence);
@@ -46,17 +42,19 @@ private:
   unsigned output_dim;
   LSTMBuilder forward_builder;
   LSTMBuilder reverse_builder;
-  LookupParameters* embeddings;
+  LookupParameterIndex embeddings;
   ComputationGraph* pcg;
 
   friend class boost::serialization::access;
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {
     boost::serialization::void_cast_register<BidirectionalSentenceEncoder, EncoderModel>();
-    cerr << "serializing bidirectionalsentenceencoder" << endl;
     ar & vocab_size;
     ar & input_dim;
     ar & output_dim;
+    ar & forward_builder;
+    ar & reverse_builder;
+    ar & embeddings;
   }
 };
 BOOST_CLASS_EXPORT_KEY(BidirectionalSentenceEncoder)

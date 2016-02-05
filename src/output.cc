@@ -14,11 +14,6 @@ SoftmaxOutputModel::SoftmaxOutputModel(Model& model, unsigned embedding_dim, uns
   else {
     fsb = new StandardSoftmaxBuilder(state_dim, vocab->size(), &model);
   }
-  InitializeParameters(model);
-}
-
-void SoftmaxOutputModel::InitializeParameters(Model& model) {
-  cerr << "Initializing SoftmaxOutputModel" << endl;
   embeddings = model.add_lookup_parameters(vocab_size, {embedding_dim});
   output_builder = LSTMBuilder(lstm_layer_count, embedding_dim + context_dim, state_dim, &model);
 }
@@ -44,4 +39,11 @@ Expression SoftmaxOutputModel::Loss(const WordId prev_word, const Expression& co
   Expression input = concatenate({prev_embedding, context});
   Expression state = output_builder.add_input(input);
   return fsb->neg_log_softmax(state, ref);
+}
+
+WordId SoftmaxOutputModel::Sample(const WordId prev_word, const Expression& context) {
+  Expression prev_embedding = lookup(*pcg, embeddings, prev_word);
+  Expression input = concatenate({prev_embedding, context});
+  Expression state = output_builder.add_input(input);
+  return fsb->sample(state);
 }

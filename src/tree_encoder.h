@@ -18,14 +18,13 @@ private:
   unsigned output_dim;
   EncoderModel<Sentence>* linear_encoder;
   TreeLSTMBuilder* tree_builder;
-  LookupParameters* label_embeddings;
+  LookupParameterIndex label_embeddings;
   ComputationGraph* pcg;
 
   friend class boost::serialization::access;
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {
     boost::serialization::void_cast_register<TreeEncoder, EncoderModel>();
-    cerr << "Serializing TreeEncoder" << endl;
   }
 };
 BOOST_CLASS_EXPORT_KEY(TreeEncoder)

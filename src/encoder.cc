@@ -6,11 +6,6 @@ const unsigned lstm_layer_count = 2;
 BidirectionalSentenceEncoder::BidirectionalSentenceEncoder() {}
 
 BidirectionalSentenceEncoder::BidirectionalSentenceEncoder(Model& model, unsigned vocab_size, unsigned input_dim, unsigned output_dim) : vocab_size(vocab_size), input_dim(input_dim), output_dim(output_dim) {
-  InitializeParameters(model);
-}
-
-void BidirectionalSentenceEncoder::InitializeParameters(Model& model) {
-  cerr << "Initializing BidirectionalSentenceEncoder" << endl;
   assert (output_dim % 2 == 0);
   embeddings = model.add_lookup_parameters(vocab_size, {input_dim});
   forward_builder = LSTMBuilder(lstm_layer_count, input_dim, output_dim / 2, &model);

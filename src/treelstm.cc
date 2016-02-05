@@ -25,31 +25,31 @@ SocherTreeLSTMBuilder::SocherTreeLSTMBuilder(unsigned N,
   unsigned layer_input_dim = input_dim;
   for (unsigned i = 0; i < layers; ++i) {
     // i
-    Parameters* p_x2i = model->add_parameters({hidden_dim, layer_input_dim});
-    LookupParameters* p_h2i = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
-    LookupParameters* p_c2i = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
-    Parameters* p_bi = model->add_parameters({hidden_dim});
+    ParameterIndex p_x2i = model->add_parameters({hidden_dim, layer_input_dim});
+    LookupParameterIndex p_h2i = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
+    LookupParameterIndex p_c2i = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
+    ParameterIndex p_bi = model->add_parameters({hidden_dim});
 
     // f
-    Parameters* p_x2f = model->add_parameters({hidden_dim, layer_input_dim});
-    LookupParameters* p_h2f = model->add_lookup_parameters(N*N, {hidden_dim, hidden_dim});
-    LookupParameters* p_c2f = model->add_lookup_parameters(N*N, {hidden_dim, hidden_dim});
-    Parameters* p_bf = model->add_parameters({hidden_dim});
+    ParameterIndex p_x2f = model->add_parameters({hidden_dim, layer_input_dim});
+    LookupParameterIndex p_h2f = model->add_lookup_parameters(N*N, {hidden_dim, hidden_dim});
+    LookupParameterIndex p_c2f = model->add_lookup_parameters(N*N, {hidden_dim, hidden_dim});
+    ParameterIndex p_bf = model->add_parameters({hidden_dim});
 
     // o
-    Parameters* p_x2o = model->add_parameters({hidden_dim, layer_input_dim});
-    LookupParameters* p_h2o = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
-    LookupParameters* p_c2o = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
-    Parameters* p_bo = model->add_parameters({hidden_dim});
+    ParameterIndex p_x2o = model->add_parameters({hidden_dim, layer_input_dim});
+    LookupParameterIndex p_h2o = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
+    LookupParameterIndex p_c2o = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
+    ParameterIndex p_bo = model->add_parameters({hidden_dim});
 
     // c (a.k.a. u)
-    Parameters* p_x2c = model->add_parameters({hidden_dim, layer_input_dim});
-    LookupParameters* p_h2c = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
-    Parameters* p_bc = model->add_parameters({hidden_dim});
+    ParameterIndex p_x2c = model->add_parameters({hidden_dim, layer_input_dim});
+    LookupParameterIndex p_h2c = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
+    ParameterIndex p_bc = model->add_parameters({hidden_dim});
     layer_input_dim = hidden_dim;  // output (hidden) from 1st layer is input to next
 
-    vector<Parameters*> ps = {p_x2i, p_bi, p_x2f, p_bf, p_x2o, p_bo, p_x2c, p_bc};
-    vector<LookupParameters*> lps = {p_h2i, p_h2f, p_h2o, p_h2c, p_c2i, p_c2f, p_c2o};
+    vector<ParameterIndex> ps = {p_x2i, p_bi, p_x2f, p_bf, p_x2o, p_bo, p_x2c, p_bc};
+    vector<LookupParameterIndex> lps = {p_h2i, p_h2f, p_h2o, p_h2c, p_c2i, p_c2f, p_c2o};
     params.push_back(ps);
     lparams.push_back(lps);
   }  // layers
@@ -85,9 +85,9 @@ void SocherTreeLSTMBuilder::new_graph_impl(ComputationGraph& cg) {
     assert (lp.size() == C2O + 1);
     vector<vector<Expression>> lvars(lp.size());
     for (unsigned p_type = H2I; p_type <= C2O; p_type++) {
-    LookupParameters* p = lp[p_type];
-      vector<Expression> vals(p->values.size());
-      for (unsigned k = 0; k < p->values.size(); ++k) {
+    LookupParameterIndex p = lp[p_type];
+      vector<Expression> vals(p.values().size());
+      for (unsigned k = 0; k < p.values().size(); ++k) {
         //vals[k] = lookup(cg, p, k);
         vals[k].i = 0;
       }
@@ -99,7 +99,7 @@ void SocherTreeLSTMBuilder::new_graph_impl(ComputationGraph& cg) {
 
 Expression SocherTreeLSTMBuilder::LookupParameter(unsigned layer, unsigned p_type, unsigned value) {
   if (lparam_vars[layer][p_type][value].i == 0) {
-    LookupParameters* p = lparams[layer][p_type];
+    LookupParameterIndex p = lparams[layer][p_type];
     lparam_vars[layer][p_type][value] = lookup(*cg, p, value);
   }
   return lparam_vars[layer][p_type][value];
@@ -263,7 +263,7 @@ void SocherTreeLSTMBuilder::copy(const RNNBuilder & rnn) {
   assert(params.size() == rnn_treelstm.params.size());
   for(size_t i = 0; i < params.size(); ++i) {
     for(size_t j = 0; j < params[i].size(); ++j) {
-      params[i][j]->copy(*rnn_treelstm.params[i][j]);
+      params[i][j] = rnn_treelstm.params[i][j];
     }
   }
 }

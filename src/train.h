@@ -35,8 +35,8 @@ void Serialize(vector<Dict*> dicts, Translator<Input>& translator, Model& model)
   for (Dict* dict : dicts) {
     oa & *dict;
   }
-  oa & translator;
   oa & model;
+  oa & translator;
 }
 
 template <class Input>
@@ -46,9 +46,8 @@ void Deserialize(const string& filename, vector<Dict*> dicts, Translator<Input>&
   for (Dict* dict : dicts) {
     oa & *dict;
   }
-  oa & translator;
-  translator.InitializeParameters(model);
   oa & model;
+  oa & translator;
 }
 
 Bitext* ReadBitext(const string& filename, Dict* source_vocab, Dict* target_vocab) {

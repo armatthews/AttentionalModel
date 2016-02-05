@@ -6,11 +6,6 @@ AttentionModel::~AttentionModel() {}
 StandardAttentionModel::StandardAttentionModel() {}
 
 StandardAttentionModel::StandardAttentionModel(Model& model, unsigned input_dim, unsigned state_dim, unsigned hidden_dim) : input_dim(input_dim), state_dim(state_dim), hidden_dim(hidden_dim) {
-  InitializeParameters(model);
-}
-
-void StandardAttentionModel::InitializeParameters(Model& model) {
-  cerr << "Initializing StandardAttentionModel" << endl;
   p_W = model.add_parameters({hidden_dim, input_dim});
   p_V = model.add_parameters({hidden_dim, state_dim});
   p_b = model.add_parameters({hidden_dim, 1});

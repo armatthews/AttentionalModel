@@ -45,8 +45,8 @@ struct SocherTreeLSTMBuilder : public TreeLSTMBuilder {
 
  public:
   // first index is layer, then ...
-  std::vector<std::vector<Parameters*>> params;
-  std::vector<std::vector<LookupParameters*>> lparams;
+  std::vector<std::vector<ParameterIndex>> params;
+  std::vector<std::vector<LookupParameterIndex>> lparams;
 
   // first index is layer, then ...
   std::vector<std::vector<Expression>> param_vars;
