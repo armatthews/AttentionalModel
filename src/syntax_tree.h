@@ -7,7 +7,7 @@
 using namespace std;
 using namespace cnn;
 
-class SyntaxTree {
+class SyntaxTree : public TranslatorInput {
 public:
   SyntaxTree();
   SyntaxTree(string tree, Dict* word_dict, Dict* label_dict);
@@ -20,7 +20,7 @@ public:
   unsigned MaxDepth() const;
   WordId label() const;
   unsigned id() const;
-  vector<WordId> GetTerminals() const;
+  Sentence GetTerminals() const;
 
   SyntaxTree& GetChild(unsigned i);
   const SyntaxTree& GetChild(unsigned i) const;

@@ -140,12 +140,13 @@ unsigned SyntaxTree::id() const {
   return id_;
 }
 
-vector<WordId> SyntaxTree::GetTerminals() const {
+Sentence SyntaxTree::GetTerminals() const {
+  Sentence terminals;
   if (IsTerminal()) {
-    return {label_};
+    terminals.push_back(label_);
+    return terminals;
   }
   else {
-    vector<WordId> terminals;
     for (const SyntaxTree& child : children) {
       vector<WordId> child_terminals = child.GetTerminals();
       terminals.insert(terminals.end(), child_terminals.begin(), child_terminals.end());

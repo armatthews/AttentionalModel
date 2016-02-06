@@ -22,8 +22,10 @@ void TreeEncoder::NewGraph(ComputationGraph& cg) {
   pcg = &cg;
 }
 
-vector<Expression> TreeEncoder::Encode(const SyntaxTree& sentence) {
-  vector<Expression> linear_encodings = linear_encoder->Encode(sentence.GetTerminals());
+vector<Expression> TreeEncoder::Encode(const TranslatorInput* const input) {
+  const SyntaxTree& sentence = *dynamic_cast<const SyntaxTree*>(input);
+  Sentence terminals = sentence.GetTerminals();
+  vector<Expression> linear_encodings = linear_encoder->Encode(&terminals);
   tree_builder->start_new_sequence();
 
   vector<Expression> node_encodings;

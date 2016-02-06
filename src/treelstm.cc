@@ -86,8 +86,8 @@ void SocherTreeLSTMBuilder::new_graph_impl(ComputationGraph& cg) {
     vector<vector<Expression>> lvars(lp.size());
     for (unsigned p_type = H2I; p_type <= C2O; p_type++) {
     LookupParameterIndex p = lp[p_type];
-      vector<Expression> vals(p.values().size());
-      for (unsigned k = 0; k < p.values().size(); ++k) {
+      vector<Expression> vals(p.get()->values.size());
+      for (unsigned k = 0; k < p.get()->values.size(); ++k) {
         //vals[k] = lookup(cg, p, k);
         vals[k].i = 0;
       }

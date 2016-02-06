@@ -13,13 +13,12 @@ using namespace std;
 using namespace cnn;
 using namespace cnn::expr;
 
-template <class Input>
 class EncoderModel {
 public:
   virtual ~EncoderModel() {}
 
   virtual void NewGraph(ComputationGraph& cg) = 0;
-  virtual vector<Expression> Encode(const Input& sentence) = 0;
+  virtual vector<Expression> Encode(const TranslatorInput* const input) = 0;
 
 private:
   friend class boost::serialization::access;
@@ -27,13 +26,13 @@ private:
   void serialize(Archive& ar, const unsigned int) {}
 };
 
-class BidirectionalSentenceEncoder : public EncoderModel<Sentence> {
+class BidirectionalSentenceEncoder : public EncoderModel {
 public:
   BidirectionalSentenceEncoder();
   BidirectionalSentenceEncoder(Model& model, unsigned vocab_size, unsigned input_dim, unsigned output_dim);
 
   void NewGraph(ComputationGraph& cg);
-  vector<Expression> Encode(const Sentence& sentence);
+  vector<Expression> Encode(const TranslatorInput* const input);
   vector<Expression> EncodeForward(const Sentence& sentence);
   vector<Expression> EncodeReverse(const Sentence& sentence);
 private:

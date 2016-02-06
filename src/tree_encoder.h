@@ -3,20 +3,20 @@
 #include "treelstm.h"
 #include "syntax_tree.h"
 
-class TreeEncoder : public EncoderModel<SyntaxTree> {
+class TreeEncoder : public EncoderModel {
 public:
   TreeEncoder();
   TreeEncoder(Model& model, unsigned vocab_size, unsigned label_vocab_size, unsigned input_dim, unsigned output_dim);
   void InitializeParameters(Model& model);
 
   void NewGraph(ComputationGraph& cg);
-  vector<Expression> Encode(const SyntaxTree& sentence);
+  vector<Expression> Encode(const TranslatorInput* const input);
 private:
   unsigned vocab_size;
   unsigned label_vocab_size;
   unsigned input_dim;
   unsigned output_dim;
-  EncoderModel<Sentence>* linear_encoder;
+  EncoderModel* linear_encoder;
   TreeLSTMBuilder* tree_builder;
   LookupParameterIndex label_embeddings;
   ComputationGraph* pcg;

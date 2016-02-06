@@ -16,7 +16,8 @@ void BidirectionalSentenceEncoder::NewGraph(ComputationGraph& cg) {
   pcg = &cg;
 }
 
-vector<Expression> BidirectionalSentenceEncoder::Encode(const Sentence& sentence) {
+vector<Expression> BidirectionalSentenceEncoder::Encode(const TranslatorInput* input) {
+  const Sentence& sentence = *dynamic_cast<const Sentence*>(input);
   vector<Expression> forward_encodings = EncodeForward(sentence);
   vector<Expression> reverse_encodings = EncodeReverse(sentence);
   vector<Expression> bidir_encodings(sentence.size());

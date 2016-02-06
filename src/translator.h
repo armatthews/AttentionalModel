@@ -4,16 +4,15 @@
 #include "attention.h"
 #include "output.h"
 
-template <class Input>
 class Translator {
 public:
   Translator() {}
-  Translator(EncoderModel<Input>* encoder, AttentionModel* attention, OutputModel* output);
-  Expression BuildGraph(const Input& source, const Sentence& target, ComputationGraph& cg);
-  vector<Sentence> Sample(const Input& source, unsigned samples, WordId BOS, WordId EOS, unsigned max_length, ComputationGraph& cg);
+  Translator(EncoderModel* encoder, AttentionModel* attention, OutputModel* output);
+  Expression BuildGraph(const TranslatorInput* const source, const Sentence& target, ComputationGraph& cg);
+  vector<Sentence> Sample(const TranslatorInput* const source, unsigned samples, WordId BOS, WordId EOS, unsigned max_length, ComputationGraph& cg);
 
 private:
-  EncoderModel<Input>* encoder_model;
+  EncoderModel* encoder_model;
   AttentionModel* attention_model;
   OutputModel* output_model;
 
@@ -22,15 +21,13 @@ private:
   void serialize(Archive& ar, const unsigned int);
 };
 
-template<class Input>
-Translator<Input>::Translator(EncoderModel<Input>* encoder, AttentionModel* attention, OutputModel* output) {
+Translator::Translator(EncoderModel* encoder, AttentionModel* attention, OutputModel* output) {
   encoder_model = encoder;
   attention_model = attention;
   output_model = output;
 }
 
-template <class Input>
-Expression Translator<Input>::BuildGraph(const Input& source, const Sentence& target, ComputationGraph& cg) {
+Expression Translator::BuildGraph(const TranslatorInput* const source, const Sentence& target, ComputationGraph& cg) {
   encoder_model->NewGraph(cg);
   attention_model->NewGraph(cg);
   output_model->NewGraph(cg);
@@ -49,8 +46,7 @@ Expression Translator<Input>::BuildGraph(const Input& source, const Sentence& ta
   return sum(word_losses);
 }
 
-template <class Input>
-vector<Sentence> Translator<Input>::Sample(const Input& source, unsigned sample_count, WordId BOS, WordId EOS, unsigned max_length, ComputationGraph& cg) {
+vector<Sentence> Translator::Sample(const TranslatorInput* const source, unsigned sample_count, WordId BOS, WordId EOS, unsigned max_length, ComputationGraph& cg) {
   vector<Sentence> samples;
   vector<Expression> encodings;
   for (unsigned i = 0; i < sample_count; ++i) {
@@ -63,7 +59,7 @@ vector<Sentence> Translator<Input>::Sample(const Input& source, unsigned sample_
     }
 
     WordId prev_word = BOS;
-    vector<WordId> sample;
+    Sentence sample;
     while (sample.size() < max_length) {
       Expression state = output_model->GetState();
       Expression context = attention_model->GetContext(encodings, state);
@@ -79,9 +75,8 @@ vector<Sentence> Translator<Input>::Sample(const Input& source, unsigned sample_
   return samples;
 }
 
-template<class Input>
 template<class Archive>
-void Translator<Input>::serialize(Archive& ar, const unsigned int) {
+void Translator::serialize(Archive& ar, const unsigned int) {
   ar & encoder_model;
   ar & attention_model;
   ar & output_model;
