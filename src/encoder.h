@@ -2,8 +2,6 @@
 #include <vector>
 #include <boost/serialization/export.hpp>
 #include <boost/serialization/access.hpp>
-#include <boost/archive/text_iarchive.hpp>
-#include <boost/archive/text_oarchive.hpp>
 #include "cnn/cnn.h"
 #include "cnn/lstm.h"
 #include "cnn/expr.h"
@@ -17,7 +15,9 @@ class EncoderModel {
 public:
   virtual ~EncoderModel() {}
 
+  virtual bool IsT2S() const = 0;
   virtual void NewGraph(ComputationGraph& cg) = 0;
+  virtual void SetDropout(float rate) {};
   virtual vector<Expression> Encode(const TranslatorInput* const input) = 0;
 
 private:
@@ -26,31 +26,54 @@ private:
   void serialize(Archive& ar, const unsigned int) {}
 };
 
-class BidirectionalSentenceEncoder : public EncoderModel {
+class TrivialEncoder : public EncoderModel {
 public:
-  BidirectionalSentenceEncoder();
-  BidirectionalSentenceEncoder(Model& model, unsigned vocab_size, unsigned input_dim, unsigned output_dim);
+  TrivialEncoder();
+  TrivialEncoder(Model& model, unsigned vocab_size, unsigned input_dim, unsigned output_dim);
 
+  bool IsT2S() const;
   void NewGraph(ComputationGraph& cg);
   vector<Expression> Encode(const TranslatorInput* const input);
-  vector<Expression> EncodeForward(const Sentence& sentence);
-  vector<Expression> EncodeReverse(const Sentence& sentence);
 private:
-  unsigned vocab_size;
-  unsigned input_dim;
-  unsigned output_dim;
-  LSTMBuilder forward_builder;
-  LSTMBuilder reverse_builder;
-  LookupParameterIndex embeddings;
+  Parameter p_W, p_b;
+  Expression W, b;
+  LookupParameter embeddings;
   ComputationGraph* pcg;
 
   friend class boost::serialization::access;
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {
-    boost::serialization::void_cast_register<BidirectionalSentenceEncoder, EncoderModel>();
-    ar & vocab_size;
-    ar & input_dim;
-    ar & output_dim;
+    //boost::serialization::void_cast_register<TrivialEncoder, EncoderModel>();
+    ar & boost::serialization::base_object<EncoderModel>(*this);
+    ar & p_W;
+    ar & p_b;
+    ar & embeddings;
+  }
+};
+BOOST_CLASS_EXPORT_KEY(TrivialEncoder)
+
+class BidirectionalSentenceEncoder : public EncoderModel {
+public:
+  BidirectionalSentenceEncoder();
+  BidirectionalSentenceEncoder(Model& model, unsigned vocab_size, unsigned input_dim, unsigned output_dim);
+
+  bool IsT2S() const;
+  void NewGraph(ComputationGraph& cg);
+  void SetDropout(float rate);
+  vector<Expression> Encode(const TranslatorInput* const input);
+  vector<Expression> EncodeForward(const Sentence& sentence);
+  vector<Expression> EncodeReverse(const Sentence& sentence);
+private:
+  LSTMBuilder forward_builder;
+  LSTMBuilder reverse_builder;
+  LookupParameter embeddings;
+  ComputationGraph* pcg;
+
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {
+    //boost::serialization::void_cast_register<BidirectionalSentenceEncoder, EncoderModel>();
+    ar & boost::serialization::base_object<EncoderModel>(*this);
     ar & forward_builder;
     ar & reverse_builder;
     ar & embeddings;

@@ -1,19 +1,57 @@
 #include "encoder.h"
 BOOST_CLASS_EXPORT_IMPLEMENT(BidirectionalSentenceEncoder)
+BOOST_CLASS_EXPORT_IMPLEMENT(TrivialEncoder)
 
 const unsigned lstm_layer_count = 2;
 
+TrivialEncoder::TrivialEncoder() {}
+
+TrivialEncoder::TrivialEncoder(Model& model, unsigned vocab_size, unsigned input_dim, unsigned output_dim) {
+  embeddings = model.add_lookup_parameters(vocab_size, {input_dim});
+  p_W = model.add_parameters({output_dim, input_dim});
+  p_b = model.add_parameters({output_dim});
+}
+
+bool TrivialEncoder::IsT2S() const {
+  return false;
+}
+
+void TrivialEncoder::NewGraph(ComputationGraph& cg) {
+  pcg = &cg;
+  W = parameter(cg, p_W);
+  b = parameter(cg, p_b);
+}
+
+vector<Expression> TrivialEncoder::Encode(const TranslatorInput* input) {
+  const Sentence& sentence = *dynamic_cast<const Sentence*>(input);
+  vector<Expression> encodings(sentence.size());
+  for (unsigned i = 0; i < sentence.size(); ++i) {
+    Expression embedding = lookup(*pcg, embeddings, sentence[i]);
+    encodings[i] = affine_transform({b, W, embedding});
+  }
+  return encodings;
+}
+
 BidirectionalSentenceEncoder::BidirectionalSentenceEncoder() {}
 
-BidirectionalSentenceEncoder::BidirectionalSentenceEncoder(Model& model, unsigned vocab_size, unsigned input_dim, unsigned output_dim) : vocab_size(vocab_size), input_dim(input_dim), output_dim(output_dim) {
+BidirectionalSentenceEncoder::BidirectionalSentenceEncoder(Model& model, unsigned vocab_size, unsigned input_dim, unsigned output_dim) {
   assert (output_dim % 2 == 0);
   embeddings = model.add_lookup_parameters(vocab_size, {input_dim});
   forward_builder = LSTMBuilder(lstm_layer_count, input_dim, output_dim / 2, &model);
   reverse_builder = LSTMBuilder(lstm_layer_count, input_dim, output_dim / 2, &model);
 }
 
+bool BidirectionalSentenceEncoder::IsT2S() const {
+  return false;
+}
+
 void BidirectionalSentenceEncoder::NewGraph(ComputationGraph& cg) {
   pcg = &cg;
+}
+
+void BidirectionalSentenceEncoder::SetDropout(float rate) {
+  forward_builder.set_dropout(rate);
+  reverse_builder.set_dropout(rate);
 }
 
 vector<Expression> BidirectionalSentenceEncoder::Encode(const TranslatorInput* input) {

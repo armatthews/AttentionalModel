@@ -16,6 +16,10 @@ void TreeEncoder::InitializeParameters(Model& model) {
   linear_encoder = new BidirectionalSentenceEncoder(model, vocab_size, input_dim, output_dim);
 }
 
+bool TreeEncoder::IsT2S() const {
+  return true;
+}
+
 void TreeEncoder::NewGraph(ComputationGraph& cg) {
   linear_encoder->NewGraph(cg);
   tree_builder->new_graph(cg);

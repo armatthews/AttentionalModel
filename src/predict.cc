@@ -1,50 +1,31 @@
 #include "cnn/cnn.h"
-#include "cnn/training.h"
 
 #include <boost/program_options.hpp>
 
 #include <iostream>
 #include <fstream>
-#include <csignal>
 
-#include "bitext.h"
-#include "attentional.h"
-#include "decoder.h"
+#include "io.h"
+#include "kbestlist.h"
 #include "utils.h"
 
 using namespace cnn;
 using namespace std;
 namespace po = boost::program_options;
 
-bool ctrlc_pressed = false;
-void ctrlc_handler(int signal) {
-  if (ctrlc_pressed) {
-    exit(1);
-  }
-  else {
-    ctrlc_pressed = true;
-  }
-}
-
 int main(int argc, char** argv) {
-  if (argc < 2) {
-    cerr << "Usage: cat source.txt | " << argv[0] << " model" << endl;
-    cerr << endl;
-    exit(1);
-  }
-  signal (SIGINT, ctrlc_handler);
+  cnn::Initialize(argc, argv);
 
   po::options_description desc("description");
   desc.add_options()
-  ("models", po::value<vector<string>>()->required()->composing(), "model file(s), as output by train")
+  ("model", po::value<string>()->required(), "model file(s), as output by train")
   ("kbest_size", po::value<unsigned>()->default_value(10), "K-best list size")
   ("beam_size", po::value<unsigned>()->default_value(10), "Beam size")
   ("max_length", po::value<unsigned>()->default_value(100), "Maximum length of output sentences")
-  ("t2s", po::bool_switch()->default_value(false), "Treat input as trees rather than normal sentences") // XXX: Can't we infer this from the model somehow?
   ("help", "Display this help message");
 
   po::positional_options_description positional_options;
-  positional_options.add("models", -1);
+  positional_options.add("model", 1);
 
   po::variables_map vm;
   po::store(po::command_line_parser(argc, argv).options(desc).positional(positional_options).run(), vm);
@@ -56,55 +37,41 @@ int main(int argc, char** argv) {
 
   po::notify(vm);
 
-  vector<string> model_filenames = vm["models"].as<vector<string>>();
+  const string model_filename = vm["model"].as<string>();
   const unsigned beam_size = vm["beam_size"].as<unsigned>();
   const unsigned max_length = vm["max_length"].as<unsigned>();
   const unsigned kbest_size = vm["kbest_size"].as<unsigned>();
-  const bool t2s = vm["t2s"].as<bool>();
 
-  cnn::Initialize(argc, argv);
+  Model cnn_model;
+  Translator translator;
+  vector<Dict*> dicts;
+  Deserialize(model_filename, dicts, translator, cnn_model);
 
-  Dict source_vocab;
-  Dict target_vocab;
-  vector<Model*> cnn_models;
-  vector<AttentionalModel*> attentional_models;
-  tie(source_vocab, target_vocab, cnn_models, attentional_models) = LoadModels(model_filenames);
+  Dict* source_vocab = dicts[0];
+  Dict* target_vocab = dicts[1];
+  Dict* label_vocab = translator.IsT2S() ? dicts[2] : nullptr;
 
-  assert (source_vocab.Contains("<s>"));
-  assert (source_vocab.Contains("</s>"));
-  WordId ktSOS = target_vocab.Convert("<s>");
-  WordId ktEOS = target_vocab.Convert("</s>");
-  source_vocab.Freeze();
-  target_vocab.Freeze();
-
-  AttentionalDecoder decoder(attentional_models);
-  decoder.SetParams(max_length, ktSOS, ktEOS);
+  assert (source_vocab->Contains("<s>"));
+  assert (source_vocab->Contains("</s>"));
+  WordId ktSOS = target_vocab->Convert("<s>");
+  WordId ktEOS = target_vocab->Convert("</s>");
+  assert (source_vocab->is_frozen());
+  assert (target_vocab->is_frozen());
 
   string line;
   unsigned sentence_number = 0;
   while(getline(cin, line)) {
-    vector<string> parts = tokenize(line, "|||");
-    parts = strip(parts);
-
-    KBestList<vector<WordId>> kbest;
-    if (t2s) {
-      SyntaxTree source_tree;
-      vector<WordId> target;
-      tie(source_tree, target) = ReadT2SInputLine(line, source_vocab, target_vocab);
-      kbest = decoder.TranslateKBest(source_tree, kbest_size, beam_size);
+    TranslatorInput* source;
+    if (translator.IsT2S()) {
+      source = new SyntaxTree(line, source_vocab, label_vocab);
     }
     else {
-      vector<WordId> source;
-      vector<WordId> target;
-      tie(source, target) = ReadInputLine(line, source_vocab, target_vocab);
-      kbest = decoder.TranslateKBest(source, kbest_size, beam_size);
+      source = ReadSentence(line, *target_vocab);
     }
-    OutputKBestList(sentence_number, kbest, target_vocab);
-    sentence_number++;
 
-    if (ctrlc_pressed) {
-      break;
-    }
+    KBestList<Sentence> kbest = translator.TranslateKBest(source, kbest_size, beam_size, max_length, ktSOS, ktEOS);
+    OutputKBestList(sentence_number, kbest, *target_vocab);
+    sentence_number++;
   }
 
   return 0;

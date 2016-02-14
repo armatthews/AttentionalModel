@@ -1,31 +1,19 @@
 #include "cnn/cnn.h"
-#include "cnn/training.h"
 
 #include <boost/program_options.hpp>
 #include <boost/algorithm/string/join.hpp>
 
 #include <iostream>
 #include <fstream>
-#include <csignal>
 
-#include "train.h"
+#include "io.h"
 #include "utils.h"
 
 using namespace cnn;
 using namespace std;
 namespace po = boost::program_options;
 
-vector<WordId> ReadInputLine(string line, Dict& vocab) {
-  vector<string> words = tokenize(line, " ");
-  vector<WordId> r(words.size());
-  for (unsigned i = 0; i < words.size(); ++i) {
-    r[i] = vocab.Convert(words[i]);
-  }
-  return r;
-}
-
-int main(int argc, char** argv) {
-  signal (SIGINT, ctrlc_handler);
+int main(int argc, char** argv) {  
   cnn::Initialize(argc, argv);
 
   po::options_description desc("description");
@@ -52,42 +40,48 @@ int main(int argc, char** argv) {
   unsigned num_samples = vm["samples"].as<unsigned>();
   unsigned max_length = vm["max_length"].as<unsigned>();
 
-  Dict source_vocab;
-  Dict target_vocab;
   Model cnn_model;
-  Translator<Sentence> translator;
-  Deserialize(model_filename, {&source_vocab, &target_vocab}, translator, cnn_model);
+  Translator translator;
+  vector<Dict*> dicts;
+  Deserialize(model_filename, dicts, translator, cnn_model);
 
-  assert (source_vocab.Contains("<s>"));
-  assert (source_vocab.Contains("</s>"));
-  WordId ktBOS = target_vocab.Convert("<s>");
-  WordId ktEOS = target_vocab.Convert("</s>");
-  source_vocab.Freeze();
-  target_vocab.Freeze();
+  for (Dict* dict : dicts) {
+    assert (dict->is_frozen());
+  }
+
+  Dict* source_vocab = dicts[0];
+  Dict* target_vocab = dicts[1];
+  Dict* label_vocab = nullptr;
+
+  source_vocab->Freeze();
+  target_vocab->Freeze();
+
+  assert (source_vocab->Contains("<s>"));
+  assert (source_vocab->Contains("</s>"));
+  WordId ktBOS = target_vocab->Convert("<s>");
+  WordId ktEOS = target_vocab->Convert("</s>");
 
   string line;
   unsigned sentence_number = 0;
   while(getline(cin, line)) {
-    vector<WordId> source = ReadInputLine(line, source_vocab);
+    TranslatorInput* source;
+    if (translator.IsT2S()) {
+      source = new SyntaxTree(line, source_vocab, label_vocab);
+    }
+    else {
+      source = ReadSentence(line, *source_vocab);
+    }
 
-    ComputationGraph cg;
-    vector<Sentence> samples = translator.Sample(source, num_samples, ktBOS, ktEOS, max_length, cg);
+    vector<Sentence> samples = translator.Sample(source, num_samples, ktBOS, ktEOS, max_length);
     for (Sentence sample : samples) {
       vector<string> words;
       for (WordId w : sample) {
-        words.push_back(target_vocab.Convert(w));
+        words.push_back(target_vocab->Convert(w));
       }
       cout << sentence_number << " ||| " << boost::algorithm::join(words, " ") << endl;
-      if (ctrlc_pressed) {
-        break;
-      }
     }
     cout.flush();
     sentence_number++;
-
-    if (ctrlc_pressed) {
-      break;
-    }
   }
 
   return 0;

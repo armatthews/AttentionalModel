@@ -25,31 +25,31 @@ SocherTreeLSTMBuilder::SocherTreeLSTMBuilder(unsigned N,
   unsigned layer_input_dim = input_dim;
   for (unsigned i = 0; i < layers; ++i) {
     // i
-    ParameterIndex p_x2i = model->add_parameters({hidden_dim, layer_input_dim});
-    LookupParameterIndex p_h2i = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
-    LookupParameterIndex p_c2i = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
-    ParameterIndex p_bi = model->add_parameters({hidden_dim});
+    Parameter p_x2i = model->add_parameters({hidden_dim, layer_input_dim});
+    LookupParameter p_h2i = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
+    LookupParameter p_c2i = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
+    Parameter p_bi = model->add_parameters({hidden_dim});
 
     // f
-    ParameterIndex p_x2f = model->add_parameters({hidden_dim, layer_input_dim});
-    LookupParameterIndex p_h2f = model->add_lookup_parameters(N*N, {hidden_dim, hidden_dim});
-    LookupParameterIndex p_c2f = model->add_lookup_parameters(N*N, {hidden_dim, hidden_dim});
-    ParameterIndex p_bf = model->add_parameters({hidden_dim});
+    Parameter p_x2f = model->add_parameters({hidden_dim, layer_input_dim});
+    LookupParameter p_h2f = model->add_lookup_parameters(N*N, {hidden_dim, hidden_dim});
+    LookupParameter p_c2f = model->add_lookup_parameters(N*N, {hidden_dim, hidden_dim});
+    Parameter p_bf = model->add_parameters({hidden_dim});
 
     // o
-    ParameterIndex p_x2o = model->add_parameters({hidden_dim, layer_input_dim});
-    LookupParameterIndex p_h2o = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
-    LookupParameterIndex p_c2o = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
-    ParameterIndex p_bo = model->add_parameters({hidden_dim});
+    Parameter p_x2o = model->add_parameters({hidden_dim, layer_input_dim});
+    LookupParameter p_h2o = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
+    LookupParameter p_c2o = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
+    Parameter p_bo = model->add_parameters({hidden_dim});
 
     // c (a.k.a. u)
-    ParameterIndex p_x2c = model->add_parameters({hidden_dim, layer_input_dim});
-    LookupParameterIndex p_h2c = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
-    ParameterIndex p_bc = model->add_parameters({hidden_dim});
+    Parameter p_x2c = model->add_parameters({hidden_dim, layer_input_dim});
+    LookupParameter p_h2c = model->add_lookup_parameters(N, {hidden_dim, hidden_dim});
+    Parameter p_bc = model->add_parameters({hidden_dim});
     layer_input_dim = hidden_dim;  // output (hidden) from 1st layer is input to next
 
-    vector<ParameterIndex> ps = {p_x2i, p_bi, p_x2f, p_bf, p_x2o, p_bo, p_x2c, p_bc};
-    vector<LookupParameterIndex> lps = {p_h2i, p_h2f, p_h2o, p_h2c, p_c2i, p_c2f, p_c2o};
+    vector<Parameter> ps = {p_x2i, p_bi, p_x2f, p_bf, p_x2o, p_bo, p_x2c, p_bc};
+    vector<LookupParameter> lps = {p_h2i, p_h2f, p_h2o, p_h2c, p_c2i, p_c2f, p_c2o};
     params.push_back(ps);
     lparams.push_back(lps);
   }  // layers
@@ -85,7 +85,7 @@ void SocherTreeLSTMBuilder::new_graph_impl(ComputationGraph& cg) {
     assert (lp.size() == C2O + 1);
     vector<vector<Expression>> lvars(lp.size());
     for (unsigned p_type = H2I; p_type <= C2O; p_type++) {
-    LookupParameterIndex p = lp[p_type];
+    LookupParameter p = lp[p_type];
       vector<Expression> vals(p.get()->values.size());
       for (unsigned k = 0; k < p.get()->values.size(); ++k) {
         //vals[k] = lookup(cg, p, k);
@@ -97,9 +97,9 @@ void SocherTreeLSTMBuilder::new_graph_impl(ComputationGraph& cg) {
   }
 }
 
-Expression SocherTreeLSTMBuilder::LookupParameter(unsigned layer, unsigned p_type, unsigned value) {
+Expression SocherTreeLSTMBuilder::Lookup(unsigned layer, unsigned p_type, unsigned value) {
   if (lparam_vars[layer][p_type][value].i == 0) {
-    LookupParameterIndex p = lparams[layer][p_type];
+    LookupParameter p = lparams[layer][p_type];
     lparam_vars[layer][p_type][value] = lookup(*cg, p, value);
   }
   return lparam_vars[layer][p_type][value];
@@ -164,9 +164,9 @@ Expression SocherTreeLSTMBuilder::add_input(int id, vector<int> children, const 
       xs.reserve(4 * children.size() + 3);
       for (unsigned j = 0; j < children.size(); ++j) {
         unsigned ej = (j < N) ? j : N - 1;
-        xs.push_back(LookupParameter(i, H2I, ej));
+        xs.push_back(Lookup(i, H2I, ej));
         xs.push_back(i_h_children[j]);
-        xs.push_back(LookupParameter(i, C2I, ej));
+        xs.push_back(Lookup(i, C2I, ej));
         xs.push_back(i_c_children[j]);
       }
       assert (xs.size() == 4 * children.size() + 3);
@@ -186,9 +186,9 @@ Expression SocherTreeLSTMBuilder::add_input(int id, vector<int> children, const 
         xs.reserve(4 * children.size() + 3);
         for (unsigned j = 0; j < children.size(); ++j) {
           unsigned ej = (j < N) ? j : N - 1;
-          xs.push_back(LookupParameter(i, H2F, ej * N + ek));
+          xs.push_back(Lookup(i, H2F, ej * N + ek));
           xs.push_back(i_h_children[j]);
-          xs.push_back(LookupParameter(i, C2F, ej * N + ek));
+          xs.push_back(Lookup(i, C2F, ej * N + ek));
           xs.push_back(i_c_children[j]);
         }
         assert (xs.size() == 4 * children.size() + 3);
@@ -208,7 +208,7 @@ Expression SocherTreeLSTMBuilder::add_input(int id, vector<int> children, const 
       xs.reserve(2 * children.size() + 3);
       for (unsigned j = 0; j < children.size(); ++j) {
         unsigned ej = (j < N) ? j : N - 1;
-        xs.push_back(LookupParameter(i, H2C, ej));
+        xs.push_back(Lookup(i, H2C, ej));
         xs.push_back(i_h_children[j]);
       }
       assert (xs.size() == 2 * children.size() + 3);
@@ -239,9 +239,9 @@ Expression SocherTreeLSTMBuilder::add_input(int id, vector<int> children, const 
       xs.reserve(4 * children.size() + 3);
       for (unsigned j = 0; j < children.size(); ++j) {
         unsigned ej = (j < N) ? j : N - 1;
-        xs.push_back(LookupParameter(i, H2O, ej));
+        xs.push_back(Lookup(i, H2O, ej));
         xs.push_back(i_h_children[j]);
-        xs.push_back(LookupParameter(i, C2O, ej));
+        xs.push_back(Lookup(i, C2O, ej));
         xs.push_back(i_c_children[j]);
       }
       assert (xs.size() == 4 * children.size() + 3);

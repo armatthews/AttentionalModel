@@ -41,12 +41,12 @@ struct SocherTreeLSTMBuilder : public TreeLSTMBuilder {
  protected:
   void new_graph_impl(ComputationGraph& cg) override;
   void start_new_sequence_impl(const std::vector<Expression>& h0) override;
-  Expression LookupParameter(unsigned layer, unsigned p_type, unsigned value);
+  Expression Lookup(unsigned layer, unsigned p_type, unsigned value);
 
  public:
   // first index is layer, then ...
-  std::vector<std::vector<ParameterIndex>> params;
-  std::vector<std::vector<LookupParameterIndex>> lparams;
+  std::vector<std::vector<Parameter>> params;
+  std::vector<std::vector<LookupParameter>> lparams;
 
   // first index is layer, then ...
   std::vector<std::vector<Expression>> param_vars;

@@ -2,8 +2,6 @@
 #include <vector>
 #include <boost/serialization/export.hpp>
 #include <boost/serialization/access.hpp>
-#include <boost/archive/text_iarchive.hpp>
-#include <boost/archive/text_oarchive.hpp>
 #include "cnn/cnn.h"
 #include "cnn/lstm.h"
 #include "cnn/expr.h"
@@ -18,6 +16,7 @@ public:
   virtual ~AttentionModel();
 
   virtual void NewGraph(ComputationGraph& cg) = 0;
+  virtual void SetDropout(float rate) {}
   virtual Expression GetScoreVector(const vector<Expression>& inputs, const Expression& state) = 0;
   virtual Expression GetAlignmentVector(const vector<Expression>& inputs, const Expression& state) = 0;
   virtual Expression GetContext(const vector<Expression>& inputs, const Expression& state) = 0;
@@ -38,23 +37,46 @@ public:
   Expression GetAlignmentVector(const vector<Expression>& inputs, const Expression& state);
   Expression GetContext(const vector<Expression>& inputs, const Expression& state);
 private:
-  unsigned input_dim, state_dim, hidden_dim;
-  ParameterIndex p_U, p_V, p_W, p_b, p_c;
-  Expression U, V, W, b, c;
+  Parameter p_U, p_V, p_W, p_b;
+  Expression U, V, W, b;
+  Expression WI, input_matrix;
 
   friend class boost::serialization::access;
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {
-    boost::serialization::void_cast_register<StandardAttentionModel, AttentionModel>();
-    ar & input_dim;
-    ar & state_dim;
-    ar & hidden_dim;
+    //boost::serialization::void_cast_register<StandardAttentionModel, AttentionModel>();
+    ar & boost::serialization::base_object<AttentionModel>(*this);
     ar & p_U;
     ar & p_V;
     ar & p_W;
     ar & p_b;
-    ar & p_c;
-
   }
 };
 BOOST_CLASS_EXPORT_KEY(StandardAttentionModel)
+
+class EncoderDecoderAttentionModel : public AttentionModel {
+public:
+  EncoderDecoderAttentionModel();
+  EncoderDecoderAttentionModel(Model& model, unsigned input_dim, unsigned state_dim);
+
+  void NewGraph(ComputationGraph& cg);
+  Expression GetScoreVector(const vector<Expression>& inputs, const Expression& state);
+  Expression GetAlignmentVector(const vector<Expression>& inputs, const Expression& state);
+  Expression GetContext(const vector<Expression>& inputs, const Expression& state);
+private:
+  unsigned state_dim;
+  Parameter p_W, p_b;
+  Expression W, b;
+
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {
+    //boost::serialization::void_cast_register<EncoderDecoderAttentionModel, AttentionModel>();
+    ar & boost::serialization::base_object<AttentionModel>(*this);
+    ar & state_dim;
+    ar & p_W;
+    ar & p_b;
+  }
+};
+BOOST_CLASS_EXPORT_KEY(EncoderDecoderAttentionModel)
+
