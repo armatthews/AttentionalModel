@@ -41,37 +41,46 @@ Expression Translator::BuildGraph(const TranslatorInput* const source, const Sen
   return sum(word_losses);
 }
 
-vector<Sentence> Translator::Sample(const TranslatorInput* const source, unsigned sample_count, WordId BOS, WordId EOS, unsigned max_length) {
-  ComputationGraph* cg = new ComputationGraph();
-  vector<Sentence> samples;
-  vector<Expression> encodings;
+void Translator::Sample(const vector<Expression>& encodings, Sentence& prefix, RNNPointer state_pointer, unsigned sample_count, WordId BOS, WordId EOS, unsigned max_length, ComputationGraph& cg, vector<Sentence>& samples) {
+  WordId prev_word = prefix.size() > 0 ? prefix.back() : BOS;
+  Expression prev_state = output_model->GetState(state_pointer);
+  Expression context = attention_model->GetContext(encodings, prev_state);
+  Expression new_state = output_model->AddInput(prev_word, context, state_pointer);
+  RNNPointer new_pointer = output_model->GetStatePointer();
+
+  unordered_map<WordId, unsigned> continuations;
   for (unsigned i = 0; i < sample_count; ++i) {
-    if (i % 10 == 0) {
-      delete cg;
-      cg = new ComputationGraph();
-      NewGraph(*cg);
-      encodings = encoder_model->Encode(source);
+    WordId w = output_model->Sample(new_state);
+    if (continuations.find(w) != continuations.end()) {
+      continuations[w]++;
     }
     else {
-      output_model->NewGraph(*cg);
+      continuations[w] = 1;
     }
+  }
 
-    WordId prev_word = BOS;
-    Sentence sample;
-    while (sample.size() < max_length) {
-      Expression prev_state = output_model->GetState();
-      Expression context = attention_model->GetContext(encodings, prev_state);
-      Expression new_state = output_model->AddInput(prev_word, context);
-      WordId word = output_model->Sample(new_state);
-      prev_word = word;
-      sample.push_back(word);
-      if (word == EOS) {
-        break;
+  for (auto it = continuations.begin(); it != continuations.end(); ++it) {
+    WordId w = it->first;
+    prefix.push_back(w);
+    if (w != EOS) {
+      Sample(encodings, prefix, new_pointer, it->second, BOS, EOS, max_length - 1, cg, samples);
+    }
+    else {
+      for (unsigned i = 0; i < it->second; ++i) {
+        samples.push_back(prefix);
       }
     }
-    samples.push_back(sample);
+    prefix.pop_back();
   }
-  delete cg;
+}
+
+vector<Sentence> Translator::Sample(const TranslatorInput* const source, unsigned sample_count, WordId BOS, WordId EOS, unsigned max_length) {
+  ComputationGraph cg;
+  NewGraph(cg);
+  vector<Expression> encodings = encoder_model->Encode(source);
+  Sentence prefix;
+  vector<Sentence> samples;
+  Sample(encodings, prefix, output_model->GetStatePointer(), sample_count, BOS, EOS, max_length, cg, samples);
   return samples;
 }
 
