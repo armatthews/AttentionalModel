@@ -66,8 +66,7 @@ int main(int argc, char** argv) {
     }
     Sentence* target = ReadSentence(parts[1], *target_vocab); 
 
-    ComputationGraph cg;
-    vector<vector<float>> alignment = translator.Align(source, *target, cg);
+    vector<vector<float>> alignment = translator.Align(source, *target);
 
     assert (alignment.size() > 0);
     if (!show_eos) {

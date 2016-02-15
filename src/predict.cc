@@ -66,10 +66,10 @@ int main(int argc, char** argv) {
       source = new SyntaxTree(line, source_vocab, label_vocab);
     }
     else {
-      source = ReadSentence(line, *target_vocab);
+      source = ReadSentence(line, *source_vocab);
     }
 
-    KBestList<Sentence> kbest = translator.TranslateKBest(source, kbest_size, beam_size, max_length, ktSOS, ktEOS);
+    KBestList<Sentence> kbest = translator.Translate(source, kbest_size, beam_size, ktSOS, ktEOS, max_length);
     OutputKBestList(sentence_number, kbest, *target_vocab);
     sentence_number++;
   }

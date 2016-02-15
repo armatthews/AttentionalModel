@@ -1,51 +1,28 @@
 #pragma once
-#include "attentional.h"
-#include "io.h"
+#include "translator.h"
+#include "kbestlist.h"
 
 struct DecoderState {
-  vector<vector<Expression>> model_annotations;
-  vector<MLP> model_aligners;
-  vector<MLP> model_final_mlps;
-  vector<Expression> model_output_states;
-  vector<vector<vector<float>>> model_alignments;
+  vector<vector<Expression>> source_encodings;
+  vector<Expression> output_states;
+
+  explicit DecoderState(unsigned n);
 };
 
-class AttentionalDecoder {
+class Decoder {
 public:
-  explicit AttentionalDecoder(AttentionalModel* model);
-  explicit AttentionalDecoder(const vector<AttentionalModel*>& models);
+  explicit Decoder(Translator* translator);
+  explicit Decoder(const vector<Translator*>& translators);
   void SetParams(unsigned max_length, WordId kSOS, WordId kEOS);
 
-  vector<vector<WordId>> SampleTranslations(const vector<WordId>& source, unsigned n) const;
-  vector<WordId> Translate(const vector<WordId>& source, unsigned beam_size) const;
-  KBestList<vector<WordId>> TranslateKBest(const vector<WordId>& source, unsigned K, unsigned beam_size) const;
-  vector<vector<float>> Align(const vector<WordId>& source, const vector<WordId>& target) const;
-  vector<cnn::real> Loss(const vector<WordId>& source, const vector<WordId>& target) const;
-
-  vector<vector<WordId>> SampleTranslations(const SyntaxTree& source, unsigned n) const;
-  vector<WordId> Translate(const SyntaxTree& source, unsigned beam_size) const;
-  KBestList<vector<WordId>> TranslateKBest(const SyntaxTree& source, unsigned K, unsigned beam_size) const;
-  vector<vector<float>> Align(const SyntaxTree& source, const vector<WordId>& target) const;
-  vector<cnn::real> Loss(const SyntaxTree& source, const vector<WordId>& target) const;
+  vector<Sentence> SampleTranslations(const TranslatorInput* source, unsigned n) const;
+  Sentence Translate(const TranslatorInput* source, unsigned beam_size) const;
+  KBestList<Sentence> TranslateKBest(const TranslatorInput* source, unsigned K, unsigned beam_size) const;
+  vector<vector<float>> Align(const TranslatorInput* source, const Sentence& target) const;
+  vector<cnn::real> Loss(const TranslatorInput* source, const Sentence& target) const;
 
 private:
-  // Each of these methods is a generic version that takes a DecoderState rather than a source object.
-  // This allows us to minimize code duplication by abstracting away whether the input was a sentence
-  // or a source-side syntax tree.
-  vector<vector<WordId>> SampleTranslations(DecoderState& ds, unsigned n, ComputationGraph& cg) const;
-  KBestList<vector<WordId>> TranslateKBest(DecoderState& ds, unsigned K, unsigned beam_size, ComputationGraph& cg) const;
-  vector<vector<float>> Align(DecoderState& ds, const vector<WordId>& target, ComputationGraph& cg) const;
-  vector<cnn::real> Loss(DecoderState& ds, const vector<WordId>& target, ComputationGraph& cg) const;
-
-  // Initialize() calls InitializeAnnotations() then InitializeGivenAnnotations(),
-  // and returns a DecoderState() which can then be passed on to one of the above methods
-  DecoderState Initialize(const vector<WordId>& source, ComputationGraph& cg) const;
-  DecoderState Initialize(const SyntaxTree& source, ComputationGraph& cg) const;
-  tuple<vector<vector<Expression>>, vector<Expression>> InitializeAnnotations(const vector<WordId>& source, ComputationGraph& cg) const;
-  tuple<vector<vector<Expression>>, vector<Expression>> InitializeAnnotations(const SyntaxTree& source, ComputationGraph& cg) const;
-  DecoderState InitializeGivenAnnotations(const vector<vector<Expression>>& model_annotations, const vector<Expression> model_zeroth_states, ComputationGraph& cg) const;
-
-  vector<AttentionalModel*> models;
+  vector<Translator*> translators;
   unsigned max_length;
   WordId kSOS;
   WordId kEOS;

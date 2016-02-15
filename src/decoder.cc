@@ -7,76 +7,75 @@
 #include "decoder.h"
 #include "utils.h"
 
-AttentionalDecoder::AttentionalDecoder(AttentionalModel* model) {
-  models.push_back(model);
+// Samples an item from a multinomial distribution
+// The values in dist should sum to one.
+unsigned Sample(const vector<float>& dist) {
+  double r = rand01();
+  unsigned w = 0;
+  for (; w < dist.size(); ++w) {
+    r -= dist[w];
+    if (r < 0.0) {
+      break;
+    }
+  }
+
+  if (w == dist.size()) {
+    --w;
+  }
+  return w;
 }
 
-AttentionalDecoder::AttentionalDecoder(const vector<AttentionalModel*>& models) : models(models) {
-  assert (models.size() > 0);
+DecoderState::DecoderState(unsigned n) {
+  source_encodings.resize(n);
+  output_states.resize(n);
 }
 
-void AttentionalDecoder::SetParams(unsigned max_length, WordId kSOS, WordId kEOS) {
+Decoder::Decoder(Translator* translator) {
+  translators.push_back(translator); 
+}
+
+Decoder::Decoder(const vector<Translator*>& translators) : translators(translators) {
+  assert (translators.size() > 0);
+}
+
+void Decoder::SetParams(unsigned max_length, WordId kSOS, WordId kEOS) {
   this->max_length = max_length;
   this->kSOS = kSOS;
   this->kEOS = kEOS;
 }
 
-vector<vector<WordId>> AttentionalDecoder::SampleTranslations(const vector<WordId>& source, unsigned n) const {
+vector<Sentence> Decoder::SampleTranslations(const TranslatorInput* source, unsigned n) const {
   ComputationGraph cg;
-  DecoderState ds = Initialize(source, cg);
-  return SampleTranslations(ds, n, cg);
-}
+  vector<Sentence> samples(n);
+  vector<vector<Expression>> source_encodings(translators.size());
 
-vector<vector<WordId>> AttentionalDecoder::SampleTranslations(const SyntaxTree& source_tree, unsigned n) const {
-  ComputationGraph cg;
-  DecoderState ds = Initialize(source_tree, cg);
-  return SampleTranslations(ds, n, cg);
-}
+  for (unsigned i = 0; i < translators.size(); ++i) {
+    translators[i]->NewGraph(cg);
+    source_encodings[i] = translators[i]->Encode(source);
+  }
 
-vector<WordId> AttentionalDecoder::Translate(const vector<WordId>& source, unsigned beam_size) const {
-  KBestList<vector<WordId>> kbest = TranslateKBest(source, 1, beam_size);
-  return kbest.hypothesis_list().begin()->second;
-}
+  for (unsigned j = 0; j < n; ++j) {
+    WordId prev_word = kSOS;
+    Sentence sample;
+    while (sample.size() < max_length) {
+      vector<Expression> log_distributions(translators.size());
+      for (unsigned i = 0; i < translators.size(); ++i) {
+        Translator* translator = translators[i];
+        vector<Expression>& encodings = source_encodings[i];
+        Expression prev_state = translator->output_model->GetState();
+        Expression context = translator->attention_model->GetContext(encodings, prev_state); 
+        Expression new_state = translator->output_model->AddInput(prev_word, context);
+        log_distributions[i] = translator->output_model->FullLogDistribution(new_state);
+      }
 
-vector<WordId> AttentionalDecoder::Translate(const SyntaxTree& source, unsigned beam_size) const {
-  KBestList<vector<WordId>> kbest = TranslateKBest(source, 1, beam_size);
-  return kbest.hypothesis_list().begin()->second;
-}
-
-KBestList<vector<WordId>> AttentionalDecoder::TranslateKBest(const SyntaxTree& source_tree, unsigned K, unsigned beam_size) const {
-  ComputationGraph cg;
-  DecoderState ds = Initialize(source_tree, cg);
-  return TranslateKBest(ds, K, beam_size, cg);
-}
-
-KBestList<vector<WordId>> AttentionalDecoder::TranslateKBest(const vector<WordId>& source, unsigned K, unsigned beam_size) const {
-  ComputationGraph cg;
-  DecoderState ds = Initialize(source, cg);
-  return TranslateKBest(ds, K, beam_size, cg);
-}
-
-vector<vector<cnn::real>> AttentionalDecoder::Align(const vector<WordId>& source, const vector<WordId>& target) const {
-  ComputationGraph cg;
-  DecoderState ds = Initialize(source, cg);
-  return Align(ds, target, cg);
-}
-
-vector<vector<cnn::real>> AttentionalDecoder::Align(const SyntaxTree& source, const vector<WordId>& target) const {
-  ComputationGraph cg;
-  DecoderState ds = Initialize(source, cg);
-  return Align(ds, target, cg);
-}
-
-vector<cnn::real> AttentionalDecoder::Loss(const vector<WordId>& source, const vector<WordId>& target) const {
-  ComputationGraph cg;
-  DecoderState ds = Initialize(source, cg);
-  return Loss(ds, target, cg);
-}
-
-vector<cnn::real> AttentionalDecoder::Loss(const SyntaxTree& source, const vector<WordId>& target) const {
-  ComputationGraph cg;
-  DecoderState ds = Initialize(source, cg);
-  return Loss(ds, target, cg);
+      Expression final_distribution = softmax(sum(log_distributions));
+      WordId w = Sample(final_distribution);
+      sample.push_back(w);
+      prev_word = w;
+    }
+    samples[j] = sample;
+  }
+  return samples;
 }
 
 vector<vector<WordId>> AttentionalDecoder::SampleTranslations(DecoderState& ds, unsigned n, ComputationGraph& cg) const {

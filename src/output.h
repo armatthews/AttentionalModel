@@ -18,11 +18,14 @@ public:
 
   virtual void NewGraph(ComputationGraph& cg) = 0;
   virtual void SetDropout(float rate) {}
-  virtual Expression GetState() = 0;
+  virtual Expression GetState() const = 0;
+  virtual Expression GetState(RNNPointer p) const = 0;
+  virtual RNNPointer GetStatePointer() const = 0;
   virtual Expression AddInput(const WordId prev_word, const Expression& context) = 0;
-  //virtual Expression PredictDistribution(const Expression state) = 0;
-  virtual WordId Sample(const Expression& state) = 0;
-  virtual Expression Loss(const Expression& state, unsigned ref) = 0;
+  virtual Expression AddInput(const WordId prev_word, const Expression& context, const RNNPointer& p) = 0;
+  virtual Expression PredictLogDistribution(const Expression& state) const = 0;
+  virtual WordId Sample(const Expression& state) const = 0;
+  virtual Expression Loss(const Expression& state, unsigned ref) const = 0;
 
 private:
   friend class boost::serialization::access;
@@ -37,11 +40,14 @@ public:
 
   void NewGraph(ComputationGraph& cg);
   void SetDropout(float rate);
-  Expression GetState();
+  Expression GetState() const;
+  Expression GetState(RNNPointer p) const;
+  RNNPointer GetStatePointer() const;
   Expression AddInput(const WordId prev_word, const Expression& context);
-  Expression PredictDistribution(const Expression& state);
-  WordId Sample(const Expression& state);
-  Expression Loss(const Expression& state, unsigned ref);
+  Expression AddInput(const WordId prev_word, const Expression& context, const RNNPointer& p);
+  Expression PredictLogDistribution(const Expression& state) const;
+  WordId Sample(const Expression& state) const;
+  Expression Loss(const Expression& state, unsigned ref) const;
 protected:
   unsigned state_dim;
   LSTMBuilder output_builder;
@@ -67,9 +73,9 @@ public:
   MlpSoftmaxOutputModel(Model& model, unsigned embedding_dim, unsigned context_dim, unsigned state_dim, unsigned hidden_dim, Dict* vocab, const string& clusters_file);
 
   void NewGraph(ComputationGraph& cg);
-  Expression PredictDistribution(const Expression& state);
-  WordId Sample(const Expression& state);
-  Expression Loss(const Expression& state, unsigned ref);
+  Expression PredictLogDistribution(const Expression& state) const;
+  WordId Sample(const Expression& state) const;
+  Expression Loss(const Expression& state, unsigned ref) const;
 private:
   Parameter p_W, p_b;
   Expression W, b;

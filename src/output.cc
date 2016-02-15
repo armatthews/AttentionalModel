@@ -30,7 +30,7 @@ void SoftmaxOutputModel::SetDropout(float rate) {
   //output_builder.set_dropout(rate);
 }
 
-Expression SoftmaxOutputModel::GetState() {
+Expression SoftmaxOutputModel::GetState() const {
   if (output_builder.state() == -1 && output_builder.h0.size() == 0) {
     return zeroes(*pcg, {state_dim});
   }
@@ -39,23 +39,42 @@ Expression SoftmaxOutputModel::GetState() {
   }
 }
 
+Expression SoftmaxOutputModel::GetState(RNNPointer p) const {
+  if (p == -1) {
+    if (output_builder.h0.size() == 0) {
+      return zeroes(*pcg, {state_dim});
+    }
+    else {
+      return output_builder.back();
+    }
+  }
+  return output_builder.get_h(p).back();
+}
+
+RNNPointer SoftmaxOutputModel::GetStatePointer() const {
+  return output_builder.state();
+}
+
 Expression SoftmaxOutputModel::AddInput(const WordId prev_word, const Expression& context) {
+  return AddInput(prev_word, context, output_builder.state());
+}
+
+Expression SoftmaxOutputModel::AddInput(const WordId prev_word, const Expression& context, const RNNPointer& p) {
   Expression prev_embedding = lookup(*pcg, embeddings, prev_word);
   Expression input = concatenate({prev_embedding, context});
-  Expression state = output_builder.add_input(input);
+  Expression state = output_builder.add_input(p, input);
   return state;
 }
 
-Expression SoftmaxOutputModel::PredictDistribution(const Expression& state) {
-  // TODO: We should change this to have AddInput() elsewhere, and just use GetState() here, and probably in Loss/Sample too. Perhaps this function should just take a pointer to a state (i.e. an Expression) or something, instead of two parameters.
-  assert (false);
+Expression SoftmaxOutputModel::PredictLogDistribution(const Expression& state) const {
+  return fsb->full_log_distribution(state);
 }
 
-Expression SoftmaxOutputModel::Loss(const Expression& state, unsigned ref) {
+Expression SoftmaxOutputModel::Loss(const Expression& state, unsigned ref) const {
   return fsb->neg_log_softmax(state, ref);
 }
 
-WordId SoftmaxOutputModel::Sample(const Expression& state) {
+WordId SoftmaxOutputModel::Sample(const Expression& state) const {
   return fsb->sample(state);
 }
 
@@ -72,17 +91,17 @@ void MlpSoftmaxOutputModel::NewGraph(ComputationGraph& cg) {
   b = parameter(cg, p_b);
 }
 
-Expression MlpSoftmaxOutputModel::PredictDistribution(const Expression& state) {
+Expression MlpSoftmaxOutputModel::PredictLogDistribution(const Expression& state) const {
   Expression h = tanh(affine_transform({b, W, state}));
-  return SoftmaxOutputModel::PredictDistribution(h);
+  return SoftmaxOutputModel::PredictLogDistribution(h);
 }
 
-Expression MlpSoftmaxOutputModel::Loss(const Expression& state, unsigned ref) {
+Expression MlpSoftmaxOutputModel::Loss(const Expression& state, unsigned ref) const {
   Expression h = tanh(affine_transform({b, W, state}));
   return SoftmaxOutputModel::Loss(h, ref);
 }
 
-WordId MlpSoftmaxOutputModel::Sample(const Expression& state) {
+WordId MlpSoftmaxOutputModel::Sample(const Expression& state) const {
   Expression h = tanh(affine_transform({b, W, state}));
   return SoftmaxOutputModel::Sample(h);
 }

@@ -3,6 +3,7 @@
 #include "encoder.h"
 #include "attention.h"
 #include "output.h"
+#include "kbestlist.h"
 
 class Translator {
 public:
@@ -14,7 +15,10 @@ public:
   void SetDropout(float rate);
   Expression BuildGraph(const TranslatorInput* const source, const Sentence& target, ComputationGraph& cg);
   vector<Sentence> Sample(const TranslatorInput* const source, unsigned samples, WordId BOS, WordId EOS, unsigned max_length);
-  vector<vector<float>> Align(const TranslatorInput* const source, const Sentence& target, ComputationGraph& cg);
+  vector<vector<float>> Align(const TranslatorInput* const source, const Sentence& target);
+  // This could be used if your loss is over alignment matrices, for example
+  // Expression Align(const TranslatorInput* const source, const Sentence& target, ComputationGraph& cg);
+  KBestList<Sentence> Translate(const TranslatorInput* const source, unsigned K, unsigned beam_size, WordId BOS, WordId EOS, unsigned max_length);
 
 private:
   EncoderModel* encoder_model;
