@@ -54,6 +54,7 @@ int main(int argc, char** argv) {
   string line;
   unsigned sentence_number = 0;
   while(getline(cin, line)) {
+    cerr << line << endl;
     vector<string> parts = tokenize(line, "|||");
     parts = strip(parts);
 
@@ -66,7 +67,9 @@ int main(int argc, char** argv) {
     }
     Sentence* target = ReadSentence(parts[1], *target_vocab); 
 
-    vector<vector<float>> alignment = translator.Align(source, *target);
+    ComputationGraph cg;
+    vector<Expression> alignment = translator.Align(source, *target, cg);
+    cg.incremental_forward();
 
     assert (alignment.size() > 0);
     if (!show_eos) {
@@ -74,7 +77,8 @@ int main(int argc, char** argv) {
     }
 
     unsigned j = 0;
-    for (vector<float> v : alignment) {
+    for (Expression a : alignment) {
+      vector<float> v = as_vector(a.value());
       for (unsigned i = 0; i < v.size(); ++i) {
         cout << (i == 0 ? "" : " ") << v[i];
       }

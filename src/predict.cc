@@ -61,6 +61,7 @@ int main(int argc, char** argv) {
   string line;
   unsigned sentence_number = 0;
   while(getline(cin, line)) {
+    cerr << line << endl;
     TranslatorInput* source;
     if (translator.IsT2S()) {
       source = new SyntaxTree(line, source_vocab, label_vocab);

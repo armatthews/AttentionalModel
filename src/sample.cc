@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
 
   Dict* source_vocab = dicts[0];
   Dict* target_vocab = dicts[1];
-  Dict* label_vocab = nullptr;
+  Dict* label_vocab = translator.IsT2S() ? dicts[2] : nullptr;
 
   source_vocab->Freeze();
   target_vocab->Freeze();
@@ -64,9 +64,12 @@ int main(int argc, char** argv) {
   string line;
   unsigned sentence_number = 0;
   while(getline(cin, line)) {
+    cerr << line << endl;
     TranslatorInput* source;
     if (translator.IsT2S()) {
-      source = new SyntaxTree(line, source_vocab, label_vocab);
+      SyntaxTree* source_tree = new SyntaxTree(line, source_vocab, label_vocab);
+      source_tree->AssignNodeIds();
+      source = source_tree;
     }
     else {
       source = ReadSentence(line, *source_vocab);
