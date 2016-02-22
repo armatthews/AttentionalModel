@@ -1,5 +1,6 @@
 #include "attention.h"
 BOOST_CLASS_EXPORT_IMPLEMENT(StandardAttentionModel)
+BOOST_CLASS_EXPORT_IMPLEMENT(SparsemaxAttentionModel)
 BOOST_CLASS_EXPORT_IMPLEMENT(EncoderDecoderAttentionModel)
 
 AttentionModel::~AttentionModel() {}
@@ -46,14 +47,21 @@ Expression StandardAttentionModel::GetScoreVector(const vector<Expression>& inpu
 }
 
 Expression StandardAttentionModel::GetAlignmentVector(const vector<Expression>& inputs, const Expression& state) {
-  return sparsemax(GetScoreVector(inputs, state));
-  //return softmax(GetScoreVector(inputs, state));
+  return softmax(GetScoreVector(inputs, state));
 }
 
 Expression StandardAttentionModel::GetContext(const vector<Expression>& inputs, const Expression& state) {
   Expression dist = GetAlignmentVector(inputs, state);
   Expression context = input_matrix * dist;
   return context;
+}
+
+SparsemaxAttentionModel::SparsemaxAttentionModel() : StandardAttentionModel() {}
+
+SparsemaxAttentionModel::SparsemaxAttentionModel(Model& model, unsigned input_dim, unsigned state_dim, unsigned hidden_dim) : StandardAttentionModel(model, input_dim, state_dim, hidden_dim) {}
+
+Expression SparsemaxAttentionModel::GetAlignmentVector(const vector<Expression>& inputs, const Expression& state) {
+  return sparsemax(GetScoreVector(inputs, state));
 }
 
 EncoderDecoderAttentionModel::EncoderDecoderAttentionModel() {}

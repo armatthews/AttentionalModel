@@ -44,7 +44,6 @@ private:
   friend class boost::serialization::access;
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {
-    //boost::serialization::void_cast_register<StandardAttentionModel, AttentionModel>();
     ar & boost::serialization::base_object<AttentionModel>(*this);
     ar & p_U;
     ar & p_V;
@@ -53,6 +52,35 @@ private:
   }
 };
 BOOST_CLASS_EXPORT_KEY(StandardAttentionModel)
+
+class SparsemaxAttentionModel : public StandardAttentionModel {
+public:
+  SparsemaxAttentionModel();
+  SparsemaxAttentionModel(Model& model, unsigned input_dim, unsigned state_dim, unsigned hidden_dim);
+  Expression GetAlignmentVector(const vector<Expression>& inputs, const Expression& state);
+private:
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {
+    ar & boost::serialization::base_object<StandardAttentionModel>(*this);
+  }
+};
+BOOST_CLASS_EXPORT_KEY(SparsemaxAttentionModel)
+
+/*class ConvolutionalAttentionModel : public AttentionModel {
+  ConvolutionalAttentionModel();
+  ConvolutionalAttentionModel(Model& model, unsigned input_dim, unsigned state_dim, unsigned hidden_dim, unsigned conv_size);
+
+  void NewGraph(ComputationGraph& cg);
+  Expression GetScoreVector(const vector<Expression>& inputs, const Expression& state);
+  Expression GetAlignmentVector(const vector<Expression>& inputs, const Expression& state);
+  Expression GetContext(const vector<Expression>& inputs, const Expression& state);
+
+private:
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {}
+};*/
 
 class EncoderDecoderAttentionModel : public AttentionModel {
 public:
@@ -71,7 +99,6 @@ private:
   friend class boost::serialization::access;
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {
-    //boost::serialization::void_cast_register<EncoderDecoderAttentionModel, AttentionModel>();
     ar & boost::serialization::base_object<AttentionModel>(*this);
     ar & state_dim;
     ar & p_W;
