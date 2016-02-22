@@ -63,6 +63,7 @@ int main(int argc, char** argv) {
   ("clusters,c", po::value<string>()->default_value(""), "Vocabulary clusters file")
   ("num_iterations,i", po::value<unsigned>()->default_value(UINT_MAX), "Number of epochs to train for")
   ("cores,j", po::value<unsigned>()->default_value(1), "Number of CPU cores to use for training")
+  ("sparsemax", "Use Sparsemax (rather than Softmax) for computing attention")
   ("t2s", "Use tree-to-string translation")
   ("dropout_rate", po::value<float>(), "Dropout rate (should be >= 0.0 and < 1)")
   ("report_frequency,r", po::value<unsigned>()->default_value(100), "Show the training loss of every r examples")
@@ -86,6 +87,7 @@ int main(int argc, char** argv) {
   po::notify(vm);
 
   const bool t2s = vm.count("t2s");
+  const bool sparsemax = vm.count("sparsemax");
   const unsigned num_cores = vm["cores"].as<unsigned>();
   const unsigned num_iterations = vm["num_iterations"].as<unsigned>();
   const string train_bitext_filename = vm["train_bitext"].as<string>();
@@ -158,10 +160,20 @@ int main(int argc, char** argv) {
     else {
       encoder_model = new TreeEncoder(cnn_model, source_vocab->size(), label_vocab->size(), embedding_dim, annotation_dim);
     }
-    AttentionModel* attention_model = new StandardAttentionModel(cnn_model, annotation_dim, output_state_dim, alignment_hidden_dim);
-    //AttentionModel* attention_model = new EncoderDecoderAttentionModel(cnn_model, annotation_dim, output_state_dim);
-    //OutputModel* output_model = new SoftmaxOutputModel(cnn_model, embedding_dim, annotation_dim, output_state_dim, target_vocab, clusters_filename);
-    OutputModel* output_model = new MlpSoftmaxOutputModel(cnn_model, embedding_dim, annotation_dim, output_state_dim, final_hidden_size, target_vocab, clusters_filename);
+
+    AttentionModel* attention_model = nullptr;
+    if (!sparsemax) {
+      attention_model = new StandardAttentionModel(cnn_model, annotation_dim, output_state_dim, alignment_hidden_dim);
+    }
+    else {
+      attention_model = new SparsemaxAttentionModel(cnn_model, annotation_dim, output_state_dim, alignment_hidden_dim);
+    }
+    // attention_model = new EncoderDecoderAttentionModel(cnn_model, annotation_dim, output_state_dim);
+
+    OutputModel* output_model = nullptr;
+    // output_model = new SoftmaxOutputModel(cnn_model, embedding_dim, annotation_dim, output_state_dim, target_vocab, clusters_filename);
+    output_model = new MlpSoftmaxOutputModel(cnn_model, embedding_dim, annotation_dim, output_state_dim, final_hidden_size, target_vocab, clusters_filename);
+
     translator = new Translator(encoder_model, attention_model, output_model);
 
     for (Dict* dict : dicts) {

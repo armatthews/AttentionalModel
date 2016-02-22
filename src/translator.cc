@@ -84,11 +84,10 @@ vector<Sentence> Translator::Sample(const TranslatorInput* const source, unsigne
   return samples;
 }
 
-vector<vector<float>> Translator::Align(const TranslatorInput* const source, const Sentence& target) {
-  ComputationGraph cg;
+vector<Expression> Translator::Align(const TranslatorInput* const source, const Sentence& target, ComputationGraph& cg) {
   NewGraph(cg);
-  vector<vector<float>> alignment;
   vector<Expression> encodings = encoder_model->Encode(source);
+  vector<Expression> alignments;
   Expression input_matrix = concatenate_cols(encodings);
   for (unsigned i = 1; i < target.size(); ++i) {
     const WordId& prev_word = target[i - 1];
@@ -96,10 +95,9 @@ vector<vector<float>> Translator::Align(const TranslatorInput* const source, con
     Expression word_alignment = attention_model->GetAlignmentVector(encodings, state);
     Expression context = input_matrix * word_alignment;
     output_model->AddInput(prev_word, context);
-    cg.incremental_forward();
-    alignment.push_back(as_vector(word_alignment.value()));
+    alignments.push_back(word_alignment);
   }
-  return alignment;
+  return alignments;
 }
 
 KBestList<Sentence> Translator::Translate(const TranslatorInput* const source, unsigned K, unsigned beam_size, WordId BOS, WordId EOS, unsigned max_length) {

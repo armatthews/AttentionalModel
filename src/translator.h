@@ -15,7 +15,7 @@ public:
   void SetDropout(float rate);
   Expression BuildGraph(const TranslatorInput* const source, const Sentence& target, ComputationGraph& cg);
   vector<Sentence> Sample(const TranslatorInput* const source, unsigned samples, WordId BOS, WordId EOS, unsigned max_length);
-  vector<vector<float>> Align(const TranslatorInput* const source, const Sentence& target);
+  vector<Expression> Align(const TranslatorInput* const source, const Sentence& target, ComputationGraph& cg);
   // This could be used if your loss is over alignment matrices, for example
   // Expression Align(const TranslatorInput* const source, const Sentence& target, ComputationGraph& cg);
   KBestList<Sentence> Translate(const TranslatorInput* const source, unsigned K, unsigned beam_size, WordId BOS, WordId EOS, unsigned max_length);
@@ -24,6 +24,8 @@ private:
   EncoderModel* encoder_model;
   AttentionModel* attention_model;
   OutputModel* output_model;
+
+  void Sample(const vector<Expression>& encodings, Sentence& prefix, RNNPointer state_pointer, unsigned sample_count, WordId BOS, WordId EOS, unsigned max_length, ComputationGraph& cg, vector<Sentence>& samples);
 
   friend class boost::serialization::access;
   template<class Archive>

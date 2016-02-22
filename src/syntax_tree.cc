@@ -180,4 +180,3 @@ unsigned SyntaxTree::AssignNodeIds(unsigned start) {
 ostream& operator<< (ostream& stream, const SyntaxTree& tree) {
   return stream << tree.ToString();
 }
-
