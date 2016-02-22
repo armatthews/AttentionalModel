@@ -1,16 +1,12 @@
-#ifndef CNN_TREELSTM_H_
-#define CNN_TREELSTM_H_
-
+#pragma once
 #include "cnn/cnn.h"
 #include "cnn/rnn.h"
 #include "cnn/expr.h"
 #include "cnn/lstm.h"
 
+using namespace cnn;
+using namespace std;
 using namespace cnn::expr;
-
-namespace cnn {
-
-class Model;
 
 struct TreeLSTMBuilder : public RNNBuilder {
 public:
@@ -26,7 +22,15 @@ public:
   virtual void new_graph_impl(ComputationGraph& cg) override = 0;
   virtual void start_new_sequence_impl(const std::vector<Expression>& h0) override = 0;
   virtual Expression add_input_impl(int prev, const Expression& x) override;
+
+private:
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {
+    ar & boost::serialization::base_object<RNNBuilder>(*this);
+  }
 };
+BOOST_CLASS_EXPORT_KEY(TreeLSTMBuilder)
 
 struct SocherTreeLSTMBuilder : public TreeLSTMBuilder {
   SocherTreeLSTMBuilder() = default;
@@ -64,7 +68,18 @@ struct SocherTreeLSTMBuilder : public TreeLSTMBuilder {
   unsigned N; // Max branching factor
 private:
   ComputationGraph* cg;
+
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {
+    ar & boost::serialization::base_object<TreeLSTMBuilder>(*this);
+    ar & params;
+    ar & lparams;
+    ar & layers;
+    ar & N;
+  }
 };
+BOOST_CLASS_EXPORT_KEY(SocherTreeLSTMBuilder)
 
 struct TreeLSTMBuilder2 : public TreeLSTMBuilder {
   TreeLSTMBuilder2() = default;
@@ -84,7 +99,15 @@ struct TreeLSTMBuilder2 : public TreeLSTMBuilder {
 
 private:
   ComputationGraph* cg;
+
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {
+    ar & boost::serialization::base_object<TreeLSTMBuilder>(*this);
+    ar & node_builder;
+  }
 };
+BOOST_CLASS_EXPORT_KEY(TreeLSTMBuilder2)
 
 struct BidirectionalTreeLSTMBuilder2 : public TreeLSTMBuilder {
   BidirectionalTreeLSTMBuilder2() = default;
@@ -105,7 +128,16 @@ struct BidirectionalTreeLSTMBuilder2 : public TreeLSTMBuilder {
 
 private:
   ComputationGraph* cg;
+
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {
+    ar & boost::serialization::base_object<TreeLSTMBuilder>(*this);
+    ar & fwd_node_builder;
+    ar & rev_node_builder;
+  }
 };
+BOOST_CLASS_EXPORT_KEY(BidirectionalTreeLSTMBuilder2)
 
 struct DerpTreeLSTMBuilder : public TreeLSTMBuilder {
   DerpTreeLSTMBuilder() = default;
@@ -118,8 +150,12 @@ public:
   std::vector<Expression> h;
 private:
   ComputationGraph* cg;
+
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {
+    ar & boost::serialization::base_object<TreeLSTMBuilder>(*this);
+  }
 };
+BOOST_CLASS_EXPORT_KEY(DerpTreeLSTMBuilder)
 
-} // namespace cnn
-
-#endif

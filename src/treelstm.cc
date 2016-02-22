@@ -8,9 +8,14 @@
 #include "cnn/nodes.h"
 
 using namespace std;
+using namespace cnn;
 using namespace cnn::expr;
 
-namespace cnn {
+BOOST_CLASS_EXPORT_IMPLEMENT(TreeLSTMBuilder)
+BOOST_CLASS_EXPORT_IMPLEMENT(SocherTreeLSTMBuilder)
+BOOST_CLASS_EXPORT_IMPLEMENT(TreeLSTMBuilder2)
+BOOST_CLASS_EXPORT_IMPLEMENT(BidirectionalTreeLSTMBuilder2)
+BOOST_CLASS_EXPORT_IMPLEMENT(DerpTreeLSTMBuilder)
 
 enum { X2I, BI, X2F, BF, X2O, BO, X2C, BC };
 enum { H2I, H2F, H2O, H2C, C2I, C2F, C2O };
@@ -376,5 +381,3 @@ Expression DerpTreeLSTMBuilder::add_input(int id, vector<int> children, const Ex
   h.push_back(r);
   return r;
 }
-
-} // namespace cnn

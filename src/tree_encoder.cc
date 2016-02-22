@@ -6,15 +6,13 @@ const unsigned lstm_layer_count = 2;
 TreeEncoder::TreeEncoder() {}
 
 TreeEncoder::TreeEncoder(Model& model, unsigned vocab_size, unsigned label_vocab_size, unsigned input_dim, unsigned output_dim)
-  : vocab_size(vocab_size), label_vocab_size(label_vocab_size), input_dim(input_dim), output_dim(output_dim) {
-  InitializeParameters(model);
-}
-
-void TreeEncoder::InitializeParameters(Model& model) {
-  tree_builder = new SocherTreeLSTMBuilder(5, lstm_layer_count, output_dim, output_dim, &model);
+  : output_dim(output_dim) {
+  //tree_builder = new SocherTreeLSTMBuilder(5, lstm_layer_count, output_dim, output_dim, &model);
+  tree_builder = new BidirectionalTreeLSTMBuilder2(lstm_layer_count, output_dim, output_dim, &model);
   label_embeddings = model.add_lookup_parameters(label_vocab_size, {output_dim});
   linear_encoder = new BidirectionalSentenceEncoder(model, vocab_size, input_dim, output_dim);
 }
+
 
 bool TreeEncoder::IsT2S() const {
   return true;
@@ -81,6 +79,14 @@ vector<Expression> TreeEncoder::Encode(const TranslatorInput* const input) {
   }
   assert (node_stack.size() == index_stack.size());
   assert (node_stack.size() == 0);
+
+  // Graham-style drop out
+  /*if (rand01() < 0.5) {
+    Expression z = zeroes(*pcg, {output_dim});
+    for (unsigned i = 0; i < node_encodings.size() - 1; ++i) {
+      node_encodings[i] = z;
+    }
+  }*/
+
   return node_encodings;
 }
-

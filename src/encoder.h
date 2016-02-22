@@ -43,7 +43,6 @@ private:
   friend class boost::serialization::access;
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {
-    //boost::serialization::void_cast_register<TrivialEncoder, EncoderModel>();
     ar & boost::serialization::base_object<EncoderModel>(*this);
     ar & p_W;
     ar & p_b;
@@ -72,7 +71,6 @@ private:
   friend class boost::serialization::access;
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {
-    //boost::serialization::void_cast_register<BidirectionalSentenceEncoder, EncoderModel>();
     ar & boost::serialization::base_object<EncoderModel>(*this);
     ar & forward_builder;
     ar & reverse_builder;
