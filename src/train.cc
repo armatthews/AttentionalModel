@@ -186,6 +186,7 @@ int main(int argc, char** argv) {
   }
 
   cerr << "Vocabulary sizes: " << source_vocab->size() << " / " << target_vocab->size() << endl;
+  cerr << "Total parameters: " << cnn_model.parameter_count() << endl;
 
   trainer = CreateTrainer(cnn_model, vm);
   Learner learner(dicts, *translator, cnn_model);
