@@ -93,7 +93,6 @@ int main(int argc, char** argv) {
   const string train_bitext_filename = vm["train_bitext"].as<string>();
   const string dev_bitext_filename = vm["dev_bitext"].as<string>();
   const unsigned hidden_size = vm["hidden_size"].as<unsigned>();
-  cerr << "dev_bitext is currently " << dev_bitext_filename << endl;
 
   vector<Dict*> dicts;
   Model cnn_model;
