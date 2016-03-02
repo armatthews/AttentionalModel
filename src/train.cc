@@ -152,7 +152,7 @@ int main(int argc, char** argv) {
     const string clusters_filename = vm["clusters"].as<string>(); 
 
     EncoderModel* encoder_model = nullptr;
-    if (!t2s) {
+    if (!t2s || true) {
       //encoder_model = new TrivialEncoder(cnn_model, source_vocab->size(), embedding_dim, annotation_dim);
       encoder_model = new BidirectionalSentenceEncoder(cnn_model, source_vocab->size(), embedding_dim, annotation_dim);
     }

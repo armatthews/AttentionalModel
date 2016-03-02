@@ -4,6 +4,7 @@
 #include "attention.h"
 #include "output.h"
 #include "kbestlist.h"
+#include "syntax_tree.h"
 
 class Translator {
 public:

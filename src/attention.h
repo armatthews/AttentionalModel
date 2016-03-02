@@ -6,6 +6,9 @@
 #include "cnn/lstm.h"
 #include "cnn/expr.h"
 #include "utils.h"
+#include "syntax_tree.h"
+#include <stack>
+#include <map>
 
 using namespace std;
 using namespace cnn;
@@ -36,10 +39,35 @@ public:
   Expression GetScoreVector(const vector<Expression>& inputs, const Expression& state);
   Expression GetAlignmentVector(const vector<Expression>& inputs, const Expression& state);
   Expression GetContext(const vector<Expression>& inputs, const Expression& state);
+
+  Expression GetAlignmentVector(const vector<Expression>& inputs, const Expression& state, const SyntaxTree* const tree);
+  Expression GetContext(const vector<Expression>& inputs, const Expression& state, const SyntaxTree* const tree);
 private:
   Parameter p_U, p_V, p_W, p_b;
   Expression U, V, W, b;
   Expression WI, input_matrix;
+
+  Expression coverage;
+  vector<float> source_percentages_v;
+  Expression source_percentages;
+  Parameter p_length_ratio;
+  Expression length_ratio;
+
+  Parameter p_st_w1, p_st_b1, p_st_w2;
+  Expression st_w1, st_b1, st_w2;
+  LSTMBuilder fwd_expectation_estimator;
+  LSTMBuilder rev_expectation_estimator;
+  LookupParameter embeddings;
+  Parameter p_exp_w, p_exp_b;
+  Expression exp_w, exp_b;
+
+  Parameter p_lamb, p_lamb2;
+  Expression lamb, lamb2;
+  unsigned ti;
+  vector<Expression> node_coverage;
+  vector<Expression> node_expected_counts;
+
+  void Visit(const SyntaxTree* const parent, const vector<Expression> node_coverage, const vector<Expression> node_expected_counts, vector<vector<Expression>>& node_log_probs);
 
   friend class boost::serialization::access;
   template<class Archive>
@@ -49,6 +77,16 @@ private:
     ar & p_V;
     ar & p_W;
     ar & p_b;
+    ar & p_length_ratio;
+    ar & p_st_w1;
+    ar & p_st_w2;
+    ar & p_st_b1;
+    ar & fwd_expectation_estimator;
+    ar & rev_expectation_estimator;
+    ar & embeddings;
+    ar & p_exp_w;
+    ar & p_exp_b;
+    ar & p_lamb;
   }
 };
 BOOST_CLASS_EXPORT_KEY(StandardAttentionModel)
