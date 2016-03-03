@@ -14,6 +14,11 @@ using namespace std;
 using namespace cnn;
 using namespace cnn::expr;
 
+const bool SYNTAX_PRIOR = true;
+const bool DIAGONAL_PRIOR = true;
+const bool COVERAGE_PRIOR = true;
+const bool SYNTAX_LSTM = true;
+
 class AttentionModel {
 public:
   virtual ~AttentionModel();
@@ -42,6 +47,9 @@ public:
 
   Expression GetAlignmentVector(const vector<Expression>& inputs, const Expression& state, const SyntaxTree* const tree);
   Expression GetContext(const vector<Expression>& inputs, const Expression& state, const SyntaxTree* const tree);
+
+  Expression DiagonalPrior(const vector<Expression>& inputs, unsigned ti);
+  Expression SyntaxPrior(const vector<Expression>& inputs, const SyntaxTree* const tree, Expression a);
 private:
   Parameter p_U, p_V, p_W, p_b;
   Expression U, V, W, b;
@@ -61,8 +69,8 @@ private:
   Parameter p_exp_w, p_exp_b;
   Expression exp_w, exp_b;
 
-  Parameter p_lamb, p_lamb2;
-  Expression lamb, lamb2;
+  Parameter p_lamb, p_lamb2, p_lamb3;
+  Expression lamb, lamb2, lamb3;
   unsigned ti;
   vector<Expression> node_coverage;
   vector<Expression> node_expected_counts;
@@ -87,6 +95,8 @@ private:
     ar & p_exp_w;
     ar & p_exp_b;
     ar & p_lamb;
+    ar & p_lamb2;
+    ar & p_lamb3;
   }
 };
 BOOST_CLASS_EXPORT_KEY(StandardAttentionModel)

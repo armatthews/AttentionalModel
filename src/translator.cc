@@ -29,16 +29,27 @@ Expression Translator::BuildGraph(const TranslatorInput* const source, const Sen
   vector<Expression> word_losses(target.size());
   word_losses[0] = input(cg, 0.0f); // <s>
 
-  vector<Expression> encodings = encoder_model->Encode(source);
-  /*const SyntaxTree* const tree = dynamic_cast<const SyntaxTree* const>(source);
-  Sentence terminals = tree->GetTerminals();
-  vector<Expression> encodings = encoder_model->Encode(&terminals);*/
+  vector<Expression> encodings;
+  const SyntaxTree* const tree = dynamic_cast<const SyntaxTree* const>(source);
+  if (SYNTAX_PRIOR) {
+    Sentence terminals = tree->GetTerminals();
+    encodings = encoder_model->Encode(&terminals);
+  }
+  else {
+    encodings = encoder_model->Encode(source);
+  }
+
   for (unsigned i = 1; i < target.size(); ++i) {
     const WordId& prev_word = target[i - 1];
     const WordId& curr_word = target[i]; 
     Expression prev_state = output_model->GetState();
-    Expression context = dynamic_cast<StandardAttentionModel*>(attention_model)->GetContext(encodings, prev_state);
-    //Expression context = dynamic_cast<StandardAttentionModel*>(attention_model)->GetContext(encodings, prev_state, tree);
+    Expression context;
+    if (SYNTAX_PRIOR) {
+      context = dynamic_cast<StandardAttentionModel*>(attention_model)->GetContext(encodings, prev_state, tree);
+    }
+    else {
+      context = dynamic_cast<StandardAttentionModel*>(attention_model)->GetContext(encodings, prev_state);
+    }
     Expression new_state = output_model->AddInput(prev_word, context);
     word_losses[i] = output_model->Loss(new_state, curr_word);
   }

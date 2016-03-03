@@ -56,6 +56,11 @@ StandardAttentionModel::StandardAttentionModel(Model& model, unsigned input_dim,
   embeddings = model.add_lookup_parameters(14000, {hidden_dim});
   p_exp_w = model.add_parameters({1, hidden_dim});
   p_exp_b = model.add_parameters({1});
+  p_lamb3 = model.add_parameters({1});
+
+  p_lamb.get()->values.v[0] = 0.1;
+  p_lamb2.get()->values.v[0] = 0.1;
+  p_lamb3.get()->values.v[0] = 0.1;
 }
 
 void StandardAttentionModel::NewGraph(ComputationGraph& cg) {
@@ -65,6 +70,7 @@ void StandardAttentionModel::NewGraph(ComputationGraph& cg) {
   b = parameter(cg, p_b);
   lamb = parameter(cg, p_lamb);
   lamb2 = parameter(cg, p_lamb2);
+  lamb3 = parameter(cg, p_lamb3);
   length_ratio = parameter(cg, p_length_ratio);
   input_matrix.pg = nullptr;
   coverage.pg = nullptr;
@@ -104,16 +110,9 @@ Expression StandardAttentionModel::GetScoreVector(const vector<Expression>& inpu
   return scores;
 }
 
-Expression StandardAttentionModel::GetAlignmentVector(const vector<Expression>& inputs, const Expression& state) {
-  Expression a = softmax(GetScoreVector(inputs, state));
+Expression StandardAttentionModel::DiagonalPrior(const vector<Expression>& inputs, unsigned ti) {
+  ComputationGraph& cg = *inputs[0].pg;
 
-  /*// Coverage stuff
-  if (coverage.pg == nullptr) {
-    coverage = zeroes(*a.pg, {(unsigned)inputs.size()});
-  }
-  Expression prior2 = softmax(1 - coverage);
-
-  // Diagonal prior
   // max (x, -x) = abs
   if (source_percentages.pg == nullptr) {
     source_percentages_v.resize(inputs.size());
@@ -128,36 +127,19 @@ Expression StandardAttentionModel::GetAlignmentVector(const vector<Expression>& 
         source_percentages_v[i] = 1.0 * (i - 1) / (inputs.size() - 2);
       }
     }
-    source_percentages = input(*a.pg, {(unsigned)inputs.size()}, &source_percentages_v);
+    source_percentages = input(cg, {(unsigned)inputs.size()}, &source_percentages_v);
   }
 
   Expression tN = inputs.size() * length_ratio;
-  Expression target_percentage = cdiv(input(*a.pg, ti), tN);
+  Expression target_percentage = cdiv(input(cg, ti), tN);
   vector<Expression> target_percentage_n(inputs.size(), target_percentage);
   Expression tp = concatenate(target_percentage_n);
   Expression diff = source_percentages - tp;
-  Expression prior = softmax(-max(-diff, diff));*/
-
-  // General prior stuff
-  /*vector<Expression> vw(inputs.size(), lamb);
-  vector<Expression> vv(inputs.size(), 1 - lamb);
-  Expression w = concatenate(vw);
-  Expression v = concatenate(vv);
-  //a = softmax(cwise_multiply(v, log(a)) + cwise_multiply(w, log(prior)));*/
-  /*a = cwise_multiply(pow(a, lamb), pow(prior, lamb2) + pow(prior2, 1 - lamb - lamb2));
-  Expression Z = sum_cols(transpose(a));
-  vector<Expression> Z_n(inputs.size(), Z);
-  Expression Zc = concatenate(Z_n);
-  a = cdiv(a, Zc);*/
-
-  //coverage = coverage + a;
-  //++ti;
-
-  return a;
+  Expression diagonal_prior = softmax(-max(-diff, diff));
+  return diagonal_prior;
 }
 
-Expression StandardAttentionModel::GetAlignmentVector(const vector<Expression>& inputs, const Expression& state, const SyntaxTree* const tree) {
-  Expression a = softmax(GetScoreVector(inputs, state));
+Expression StandardAttentionModel::SyntaxPrior(const vector<Expression>& inputs, const SyntaxTree* const tree, Expression a) {
   if (node_coverage.size() == 0) {
     node_coverage.resize(tree->NumNodes());
     for (unsigned i = 0; i < tree->NumNodes(); ++i) {
@@ -167,30 +149,32 @@ Expression StandardAttentionModel::GetAlignmentVector(const vector<Expression>& 
     map<WordId, Expression> word_embeddings;
     node_expected_counts.resize(tree->NumNodes());
     for (unsigned i = 0; i < tree->NumNodes(); ++i) {
-      // Naive: just count terminals
-      node_expected_counts[i] = input(*a.pg, tree->GetTerminals().size());
+      if (!SYNTAX_LSTM) {
+        node_expected_counts[i] = input(*a.pg, tree->GetTerminals().size());
+      }
+      else {
+        const Sentence& terminals = tree->GetTerminals();
+        Expression fwd_exp, rev_exp;
 
-      /*const Sentence& terminals = tree->GetTerminals();
-      Expression fwd_exp, rev_exp;
-
-      fwd_expectation_estimator.start_new_sequence();
-      for (WordId w : terminals) {
-        if (word_embeddings.find(w) == word_embeddings.end()) {
-          word_embeddings[w] = lookup(*a.pg, embeddings, w);
+        fwd_expectation_estimator.start_new_sequence();
+        for (WordId w : terminals) {
+          if (word_embeddings.find(w) == word_embeddings.end()) {
+            word_embeddings[w] = lookup(*a.pg, embeddings, w);
+          }
+          fwd_exp = fwd_expectation_estimator.add_input(word_embeddings[w]);
         }
-        fwd_exp = fwd_expectation_estimator.add_input(word_embeddings[w]);
-      }
 
-      rev_expectation_estimator.start_new_sequence();
-      for (auto it = terminals.rbegin(); it != terminals.rend(); ++it) {
-        WordId w = *it;
-        assert (word_embeddings.find(w) != word_embeddings.end());
-        rev_exp = rev_expectation_estimator.add_input(word_embeddings[w]);
-      }
+        rev_expectation_estimator.start_new_sequence();
+        for (auto it = terminals.rbegin(); it != terminals.rend(); ++it) {
+          WordId w = *it;
+          assert (word_embeddings.find(w) != word_embeddings.end());
+          rev_exp = rev_expectation_estimator.add_input(word_embeddings[w]);
+        }
 
-      Expression expectation_h = concatenate({fwd_exp, rev_exp});
-      Expression expectation = affine_transform({exp_b, exp_w, expectation_h});
-      node_expected_counts[i] = expectation;*/
+        Expression expectation_h = concatenate({fwd_exp, rev_exp});
+        Expression expectation = affine_transform({exp_b, exp_w, expectation_h});
+        node_expected_counts[i] = expectation;
+      }
     }
   }
 
@@ -255,12 +239,71 @@ Expression StandardAttentionModel::GetAlignmentVector(const vector<Expression>& 
     terminal_priors[i] = sum(node_log_probs[terminal->id()]);
   }
 
-  Expression prior = softmax(concatenate(terminal_priors));
-  vector<Expression> vw(inputs.size(), lamb);
-  vector<Expression> vv(inputs.size(), 1 - lamb);
-  Expression w = concatenate(vw);
-  Expression v = concatenate(vv);
-  a = softmax(cwise_multiply(v, log(a)) + cwise_multiply(w, log(prior)));
+  Expression syntax_prior = softmax(concatenate(terminal_priors));
+  return syntax_prior;
+}
+
+Expression StandardAttentionModel::GetAlignmentVector(const vector<Expression>& inputs, const Expression& state) {
+  Expression a = softmax(GetScoreVector(inputs, state));
+
+  if (coverage.pg == nullptr) {
+    coverage = zeroes(*a.pg, {(unsigned)inputs.size()});
+  }
+
+  if (COVERAGE_PRIOR) {
+    Expression coverage_prior = softmax(1 - coverage);
+    a = cwise_multiply(a, pow(coverage_prior, lamb));
+  }
+
+  if (DIAGONAL_PRIOR) {
+    Expression diagonal_prior = DiagonalPrior(inputs, ti);
+    a = cwise_multiply(a, pow(diagonal_prior, lamb2));
+  }
+
+  if (COVERAGE_PRIOR || DIAGONAL_PRIOR || SYNTAX_PRIOR) {
+    Expression Z = sum_cols(transpose(a));
+    vector<Expression> Z_n(inputs.size(), Z);
+    Expression Zc = concatenate(Z_n);
+    a = cdiv(a, Zc);
+  }
+
+  coverage = coverage + a;
+  ++ti;
+
+  return a;
+}
+
+Expression StandardAttentionModel::GetAlignmentVector(const vector<Expression>& inputs, const Expression& state, const SyntaxTree* const tree) {
+  Expression a = softmax(GetScoreVector(inputs, state));
+
+  if (coverage.pg == nullptr) {
+    coverage = zeroes(*a.pg, {(unsigned)inputs.size()});
+  }
+
+  if (COVERAGE_PRIOR) {
+    Expression coverage_prior = softmax(1 - coverage);
+    a = cwise_multiply(a, pow(coverage_prior, lamb));
+  }
+
+  if (DIAGONAL_PRIOR) {
+    Expression diagonal_prior = DiagonalPrior(inputs, ti);
+    a = cwise_multiply(a, pow(diagonal_prior, lamb2));
+  }
+
+  if (SYNTAX_PRIOR) {
+    Expression syntax_prior = SyntaxPrior(inputs, tree, a);
+    a = cwise_multiply(a, pow(syntax_prior, lamb3));
+  }
+
+  if (COVERAGE_PRIOR || DIAGONAL_PRIOR || SYNTAX_PRIOR) {
+    Expression Z = sum_cols(transpose(a));
+    vector<Expression> Z_n(inputs.size(), Z);
+    Expression Zc = concatenate(Z_n);
+    a = cdiv(a, Zc);
+  }
+
+  coverage = coverage + a;
+  ++ti;
 
   return a;
 }
