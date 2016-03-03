@@ -17,7 +17,8 @@ using namespace cnn::expr;
 const bool SYNTAX_PRIOR = true;
 const bool DIAGONAL_PRIOR = true;
 const bool COVERAGE_PRIOR = true;
-const bool SYNTAX_LSTM = true;
+const bool SYNTAX_LSTM = false;
+const bool SYNTAX_LOG_FEATS = false;
 
 class AttentionModel {
 public:

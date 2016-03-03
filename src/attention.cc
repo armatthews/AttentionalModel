@@ -25,6 +25,9 @@ void StandardAttentionModel::Visit(const SyntaxTree* const parent, const vector<
     Expression child_coverage = node_coverage[child->id()];
     Expression child_expected_count = node_expected_counts[child->id()];
     Expression input = concatenate({parent_coverage, parent_expected_count, child_coverage, child_expected_count});
+    if (SYNTAX_LOG_FEATS) {
+      input = concatenate({input, log(input + 1e-40)});
+    }
     Expression h = tanh(affine_transform({st_b1, st_w1, input}));
     child_scores[i] = st_w2 * h;
   }
@@ -48,7 +51,12 @@ StandardAttentionModel::StandardAttentionModel(Model& model, unsigned input_dim,
   p_lamb = model.add_parameters({1});
   p_lamb2 = model.add_parameters({1});
   p_length_ratio = model.add_parameters({1});
-  p_st_w1 = model.add_parameters({hidden_dim, 4});
+  if (SYNTAX_LOG_FEATS) {
+    p_st_w1 = model.add_parameters({hidden_dim, 8});
+  }
+  else {
+    p_st_w1 = model.add_parameters({hidden_dim, 4});
+  }
   p_st_w2 = model.add_parameters({1, hidden_dim});
   p_st_b1 = model.add_parameters({hidden_dim});
   fwd_expectation_estimator = LSTMBuilder(2, hidden_dim, hidden_dim / 2, &model);
@@ -172,7 +180,7 @@ Expression StandardAttentionModel::SyntaxPrior(const vector<Expression>& inputs,
         }
 
         Expression expectation_h = concatenate({fwd_exp, rev_exp});
-        Expression expectation = affine_transform({exp_b, exp_w, expectation_h});
+        Expression expectation = exp(affine_transform({exp_b, exp_w, expectation_h}));
         node_expected_counts[i] = expectation;
       }
     }
