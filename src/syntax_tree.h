@@ -1,11 +1,31 @@
 #pragma once
 #include <vector>
 #include <string>
+#include <stack>
 #include "cnn/dict.h"
 #include "utils.h"
 
 using namespace std;
 using namespace cnn;
+
+class SyntaxTree;
+
+enum TreeIterationOrder {PreOrder, PostOrder};
+
+class SyntaxTreeIterator {
+public:
+  SyntaxTreeIterator(SyntaxTree* root, TreeIterationOrder order);
+  SyntaxTree& operator*();
+  bool operator==(const SyntaxTreeIterator& other);
+  bool operator!=(const SyntaxTreeIterator& other);
+  SyntaxTreeIterator& operator++(); // pre-increment
+  //SyntaxTreeIterator operator++(int); //post-increment
+  SyntaxTree* node;
+private:
+  stack<SyntaxTree*> node_stack;
+  stack<unsigned> index_stack;
+  TreeIterationOrder order;
+};
 
 class SyntaxTree : public TranslatorInput {
 public:
@@ -27,6 +47,9 @@ public:
 
   string ToString() const;
   unsigned AssignNodeIds(unsigned start = 0);
+
+  SyntaxTreeIterator begin(TreeIterationOrder order) const;
+  SyntaxTreeIterator end() const;
 private:
   Dict* word_dict;
   Dict* label_dict;
