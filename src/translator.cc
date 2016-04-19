@@ -30,8 +30,9 @@ Expression Translator::BuildGraph(const TranslatorInput* const source, const Sen
   word_losses[0] = input(cg, 0.0f); // <s>
 
   vector<Expression> encodings;
-  const SyntaxTree* const tree = dynamic_cast<const SyntaxTree* const>(source);
+  const SyntaxTree* tree = nullptr;
   if (SYNTAX_PRIOR) {
+    tree = dynamic_cast<const SyntaxTree* const>(source);
     Sentence terminals = tree->GetTerminals();
     encodings = encoder_model->Encode(&terminals);
   }

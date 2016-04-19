@@ -23,7 +23,7 @@ int main(int argc, char** argv) {
   positional_options.add("model", 1);
 
   po::variables_map vm;
-  po::store(po::command_line_parser(argc, argv).options(desc).positional(positional_options).run(), vm);
+  po::store(po::command_line_parser(argc, argv).options(desc).positional(positional_options).run(), vm, true);
 
   if (vm.count("help")) {
     cerr << desc;
@@ -33,6 +33,7 @@ int main(int argc, char** argv) {
   po::notify(vm);
 
   const string model_filename = vm["model"].as<string>();
+  //const string model_filename = "wmt16.out";
 
   Model cnn_model;
   Translator translator;

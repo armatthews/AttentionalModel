@@ -8,8 +8,8 @@ namespace po = boost::program_options;
 
 class Learner : public ILearner<SentencePair, SufficientStats> {
 public:
-  Learner(const vector<Dict*>& dicts, Translator& translator, Model& cnn_model) :
-    dicts(dicts), translator(translator), cnn_model(cnn_model) {}
+  Learner(const vector<Dict*>& dicts, Translator& translator, Model& cnn_model, bool quiet) :
+    dicts(dicts), translator(translator), cnn_model(cnn_model), quiet(quiet) {}
   ~Learner() {}
   SufficientStats LearnFromDatum(const SentencePair& datum, bool learn) {
     ComputationGraph cg;
@@ -25,12 +25,15 @@ public:
   }
 
   void SaveModel() {
-    Serialize(dicts, translator, cnn_model);
+    if (!quiet) {
+      Serialize(dicts, translator, cnn_model);
+    }
   }
 private:
   const vector<Dict*>& dicts;
   Translator& translator;
   Model& cnn_model;
+  bool quiet;
 };
 
 // This function lets us elegantly handle the user pressing ctrl-c.
@@ -65,6 +68,11 @@ int main(int argc, char** argv) {
   ("cores,j", po::value<unsigned>()->default_value(1), "Number of CPU cores to use for training")
   ("sparsemax", "Use Sparsemax (rather than Softmax) for computing attention")
   ("t2s", "Use tree-to-string translation")
+  ("diagonal_prior", "Use diagonal prior on attention")
+  ("coverage_prior", "Use coverage prior on attention")
+  ("use_fertility", "Use fertility instead of assuming one source word ≈ one output word. Affects coverage prior and syntax prior.")
+  ("syntax_prior", "Use source-side syntax prior on attention")
+  ("quiet,q", "Don't output model at all (useful during debugging)")
   ("dropout_rate", po::value<float>(), "Dropout rate (should be >= 0.0 and < 1)")
   ("report_frequency,r", po::value<unsigned>()->default_value(100), "Show the training loss of every r examples")
   ("dev_frequency,d", po::value<unsigned>()->default_value(10000), "Run the dev set every d examples. Save the model if the score is a new best")
@@ -87,12 +95,18 @@ int main(int argc, char** argv) {
   po::notify(vm);
 
   const bool t2s = vm.count("t2s");
+  const bool quiet = vm.count("quiet");
   const bool sparsemax = vm.count("sparsemax");
   const unsigned num_cores = vm["cores"].as<unsigned>();
   const unsigned num_iterations = vm["num_iterations"].as<unsigned>();
   const string train_bitext_filename = vm["train_bitext"].as<string>();
   const string dev_bitext_filename = vm["dev_bitext"].as<string>();
   const unsigned hidden_size = vm["hidden_size"].as<unsigned>();
+
+  DIAGONAL_PRIOR = vm.count("diagonal_prior");
+  COVERAGE_PRIOR = vm.count("coverage_prior");
+  SYNTAX_PRIOR = vm.count("syntax_prior");
+  USE_FERTILITY = vm.count("use_fertility");
 
   vector<Dict*> dicts;
   Model cnn_model;
@@ -152,7 +166,7 @@ int main(int argc, char** argv) {
     const string clusters_filename = vm["clusters"].as<string>(); 
 
     EncoderModel* encoder_model = nullptr;
-    if (!t2s || true) {
+    if (!t2s) {
       //encoder_model = new TrivialEncoder(cnn_model, source_vocab->size(), embedding_dim, annotation_dim);
       encoder_model = new BidirectionalSentenceEncoder(cnn_model, source_vocab->size(), embedding_dim, annotation_dim);
     }
@@ -162,10 +176,10 @@ int main(int argc, char** argv) {
 
     AttentionModel* attention_model = nullptr;
     if (!sparsemax) {
-      attention_model = new StandardAttentionModel(cnn_model, annotation_dim, output_state_dim, alignment_hidden_dim);
+      attention_model = new StandardAttentionModel(cnn_model, source_vocab->size(), annotation_dim, output_state_dim, alignment_hidden_dim);
     }
     else {
-      attention_model = new SparsemaxAttentionModel(cnn_model, annotation_dim, output_state_dim, alignment_hidden_dim);
+      attention_model = new SparsemaxAttentionModel(cnn_model, source_vocab->size(), annotation_dim, output_state_dim, alignment_hidden_dim);
     }
     // attention_model = new EncoderDecoderAttentionModel(cnn_model, annotation_dim, output_state_dim);
 
@@ -189,7 +203,7 @@ int main(int argc, char** argv) {
   cerr << "Total parameters: " << cnn_model.parameter_count() << endl;
 
   trainer = CreateTrainer(cnn_model, vm);
-  Learner learner(dicts, *translator, cnn_model);
+  Learner learner(dicts, *translator, cnn_model, quiet);
   unsigned dev_frequency = vm["dev_frequency"].as<unsigned>();
   unsigned report_frequency = vm["report_frequency"].as<unsigned>();
   if (num_cores > 1) {

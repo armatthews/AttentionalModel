@@ -3,6 +3,11 @@ BOOST_CLASS_EXPORT_IMPLEMENT(StandardAttentionModel)
 BOOST_CLASS_EXPORT_IMPLEMENT(SparsemaxAttentionModel)
 BOOST_CLASS_EXPORT_IMPLEMENT(EncoderDecoderAttentionModel)
 
+bool SYNTAX_PRIOR = false;
+bool DIAGONAL_PRIOR = false;
+bool COVERAGE_PRIOR = false;
+bool USE_FERTILITY = false;
+
 void StandardAttentionModel::Visit(const SyntaxTree* const parent, const vector<Expression> node_coverage, const vector<Expression> node_expected_counts, vector<vector<Expression>>& node_log_probs) {
   for (unsigned i = 0; i < parent->NumChildren(); ++i) {
     const SyntaxTree* const child = &parent->GetChild(i);
@@ -25,9 +30,7 @@ void StandardAttentionModel::Visit(const SyntaxTree* const parent, const vector<
     Expression child_coverage = node_coverage[child->id()];
     Expression child_expected_count = node_expected_counts[child->id()];
     Expression input = concatenate({parent_coverage, parent_expected_count, child_coverage, child_expected_count});
-    if (SYNTAX_LOG_FEATS) {
-      input = concatenate({input, log(input + 1e-40)});
-    }
+    input = concatenate({input, log(input + 1e-40)});
     Expression h = tanh(affine_transform({st_b1, st_w1, input}));
     child_scores[i] = st_w2 * h;
   }
@@ -43,32 +46,23 @@ AttentionModel::~AttentionModel() {}
 
 StandardAttentionModel::StandardAttentionModel() {}
 
-StandardAttentionModel::StandardAttentionModel(Model& model, unsigned input_dim, unsigned state_dim, unsigned hidden_dim) {
+StandardAttentionModel::StandardAttentionModel(Model& model, unsigned vocab_size, unsigned input_dim, unsigned state_dim, unsigned hidden_dim) {
   p_W = model.add_parameters({hidden_dim, input_dim});
   p_V = model.add_parameters({hidden_dim, state_dim});
   p_b = model.add_parameters({hidden_dim, 1});
   p_U = model.add_parameters({1, hidden_dim});
-  p_lamb = model.add_parameters({1});
-  p_lamb2 = model.add_parameters({1});
+  p_coverage_prior_weight = model.add_parameters({1});
+  p_diagonal_prior_weight = model.add_parameters({1});
   p_length_ratio = model.add_parameters({1});
-  if (SYNTAX_LOG_FEATS) {
-    p_st_w1 = model.add_parameters({hidden_dim, 8});
-  }
-  else {
-    p_st_w1 = model.add_parameters({hidden_dim, 4});
-  }
+  p_st_w1 = model.add_parameters({hidden_dim, 8});
   p_st_w2 = model.add_parameters({1, hidden_dim});
   p_st_b1 = model.add_parameters({hidden_dim});
-  fwd_expectation_estimator = LSTMBuilder(2, hidden_dim, hidden_dim / 2, &model);
-  rev_expectation_estimator = LSTMBuilder(2, hidden_dim, hidden_dim / 2, &model);
-  embeddings = model.add_lookup_parameters(14000, {hidden_dim});
-  p_exp_w = model.add_parameters({1, hidden_dim});
-  p_exp_b = model.add_parameters({1});
-  p_lamb3 = model.add_parameters({1});
+  fertilities = model.add_lookup_parameters(vocab_size, {1}); // XXX : Should be vocab size
+  p_syntax_prior_weight = model.add_parameters({1});
 
-  p_lamb.get()->values.v[0] = 0.1;
-  p_lamb2.get()->values.v[0] = 0.1;
-  p_lamb3.get()->values.v[0] = 0.1;
+  p_coverage_prior_weight.get()->values.v[0] = 0.1;
+  p_diagonal_prior_weight.get()->values.v[0] = 0.1;
+  p_syntax_prior_weight.get()->values.v[0] = 0.1;
 }
 
 void StandardAttentionModel::NewGraph(ComputationGraph& cg) {
@@ -76,9 +70,9 @@ void StandardAttentionModel::NewGraph(ComputationGraph& cg) {
   V = parameter(cg, p_V);
   W = parameter(cg, p_W);
   b = parameter(cg, p_b);
-  lamb = parameter(cg, p_lamb);
-  lamb2 = parameter(cg, p_lamb2);
-  lamb3 = parameter(cg, p_lamb3);
+  coverage_prior_weight = parameter(cg, p_coverage_prior_weight);
+  diagonal_prior_weight = parameter(cg, p_diagonal_prior_weight);
+  syntax_prior_weight = parameter(cg, p_syntax_prior_weight);
   length_ratio = parameter(cg, p_length_ratio);
   input_matrix.pg = nullptr;
   coverage.pg = nullptr;
@@ -88,10 +82,6 @@ void StandardAttentionModel::NewGraph(ComputationGraph& cg) {
   st_w1 = parameter(cg, p_st_w1);
   st_w2 = parameter(cg, p_st_w2);
   st_b1 = parameter(cg, p_st_b1);
-  fwd_expectation_estimator.new_graph(cg);
-  rev_expectation_estimator.new_graph(cg);
-  exp_w = parameter(cg, p_exp_w);
-  exp_b = parameter(cg, p_exp_b);
 }
 
 Expression StandardAttentionModel::GetScoreVector(const vector<Expression>& inputs, const Expression& state) {
@@ -121,7 +111,6 @@ Expression StandardAttentionModel::GetScoreVector(const vector<Expression>& inpu
 Expression StandardAttentionModel::DiagonalPrior(const vector<Expression>& inputs, unsigned ti) {
   ComputationGraph& cg = *inputs[0].pg;
 
-  // max (x, -x) = abs
   if (source_percentages.pg == nullptr) {
     source_percentages_v.resize(inputs.size());
     for (unsigned i = 0; i < inputs.size(); ++i) {
@@ -143,6 +132,7 @@ Expression StandardAttentionModel::DiagonalPrior(const vector<Expression>& input
   vector<Expression> target_percentage_n(inputs.size(), target_percentage);
   Expression tp = concatenate(target_percentage_n);
   Expression diff = source_percentages - tp;
+  // max (x, -x) = abs
   Expression diagonal_prior = softmax(-max(-diff, diff));
   return diagonal_prior;
 }
@@ -154,34 +144,19 @@ Expression StandardAttentionModel::SyntaxPrior(const vector<Expression>& inputs,
       node_coverage[i] = zeroes(*a.pg, {1});
     }
 
-    map<WordId, Expression> word_embeddings;
     node_expected_counts.resize(tree->NumNodes());
     for (unsigned i = 0; i < tree->NumNodes(); ++i) {
-      if (!SYNTAX_LSTM) {
+      if (!USE_FERTILITY) {
         node_expected_counts[i] = input(*a.pg, tree->GetTerminals().size());
       }
       else {
         const Sentence& terminals = tree->GetTerminals();
-        Expression fwd_exp, rev_exp;
-
-        fwd_expectation_estimator.start_new_sequence();
+        vector<Expression> child_fertilities;
         for (WordId w : terminals) {
-          if (word_embeddings.find(w) == word_embeddings.end()) {
-            word_embeddings[w] = lookup(*a.pg, embeddings, w);
-          }
-          fwd_exp = fwd_expectation_estimator.add_input(word_embeddings[w]);
+          Expression fertility = lookup(*a.pg, fertilities, w);
+          child_fertilities.push_back(fertility);
         }
-
-        rev_expectation_estimator.start_new_sequence();
-        for (auto it = terminals.rbegin(); it != terminals.rend(); ++it) {
-          WordId w = *it;
-          assert (word_embeddings.find(w) != word_embeddings.end());
-          rev_exp = rev_expectation_estimator.add_input(word_embeddings[w]);
-        }
-
-        Expression expectation_h = concatenate({fwd_exp, rev_exp});
-        Expression expectation = exp(affine_transform({exp_b, exp_w, expectation_h}));
-        node_expected_counts[i] = expectation;
+        node_expected_counts[i] = sum(child_fertilities);
       }
     }
   }
@@ -260,12 +235,12 @@ Expression StandardAttentionModel::GetAlignmentVector(const vector<Expression>& 
 
   if (COVERAGE_PRIOR) {
     Expression coverage_prior = softmax(1 - coverage);
-    a = cwise_multiply(a, pow(coverage_prior, lamb));
+    a = cwise_multiply(a, pow(coverage_prior, coverage_prior_weight));
   }
 
   if (DIAGONAL_PRIOR) {
     Expression diagonal_prior = DiagonalPrior(inputs, ti);
-    a = cwise_multiply(a, pow(diagonal_prior, lamb2));
+    a = cwise_multiply(a, pow(diagonal_prior, diagonal_prior_weight));
   }
 
   if (COVERAGE_PRIOR || DIAGONAL_PRIOR || SYNTAX_PRIOR) {
@@ -290,17 +265,17 @@ Expression StandardAttentionModel::GetAlignmentVector(const vector<Expression>& 
 
   if (COVERAGE_PRIOR) {
     Expression coverage_prior = softmax(1 - coverage);
-    a = cwise_multiply(a, pow(coverage_prior, lamb));
+    a = cwise_multiply(a, pow(coverage_prior, coverage_prior_weight));
   }
 
   if (DIAGONAL_PRIOR) {
     Expression diagonal_prior = DiagonalPrior(inputs, ti);
-    a = cwise_multiply(a, pow(diagonal_prior, lamb2));
+    a = cwise_multiply(a, pow(diagonal_prior, diagonal_prior_weight));
   }
 
   if (SYNTAX_PRIOR) {
     Expression syntax_prior = SyntaxPrior(inputs, tree, a);
-    a = cwise_multiply(a, pow(syntax_prior, lamb3));
+    a = cwise_multiply(a, pow(syntax_prior, syntax_prior_weight));
   }
 
   if (COVERAGE_PRIOR || DIAGONAL_PRIOR || SYNTAX_PRIOR) {
@@ -330,7 +305,7 @@ Expression StandardAttentionModel::GetContext(const vector<Expression>& inputs, 
 
 SparsemaxAttentionModel::SparsemaxAttentionModel() : StandardAttentionModel() {}
 
-SparsemaxAttentionModel::SparsemaxAttentionModel(Model& model, unsigned input_dim, unsigned state_dim, unsigned hidden_dim) : StandardAttentionModel(model, input_dim, state_dim, hidden_dim) {}
+SparsemaxAttentionModel::SparsemaxAttentionModel(Model& model, unsigned vocab_size, unsigned input_dim, unsigned state_dim, unsigned hidden_dim) : StandardAttentionModel(model, vocab_size, input_dim, state_dim, hidden_dim) {}
 
 Expression SparsemaxAttentionModel::GetAlignmentVector(const vector<Expression>& inputs, const Expression& state) {
   return sparsemax(GetScoreVector(inputs, state));

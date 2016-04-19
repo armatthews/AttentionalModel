@@ -21,6 +21,7 @@ Bitext* ReadBitext(const string& filename, Dict& source_vocab, Dict& target_voca
   Bitext* bitext = new Bitext();
   for (string line; getline(f, line);) {
     vector<string> parts = tokenize(line, "|||");
+    cerr << "line: \"" << line << "\"" << endl;
     assert (parts.size() == 2);
 
     Sentence* source = ReadSentence(strip(parts[0]), source_vocab);

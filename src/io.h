@@ -1,6 +1,8 @@
 #pragma once
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/archive/text_oarchive.hpp>
 #include <vector>
 #include "cnn/dict.h"
 #include "syntax_tree.h"

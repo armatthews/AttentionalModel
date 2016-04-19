@@ -9,6 +9,6 @@ args = parser.parse_args()
 vocab = set(map(lambda s: s.strip(), open(args.vocab).readlines()))
 
 for line in sys.stdin:
-	words = line.strip().split()
-	words = [word if word in vocab else args.unk_token for word in words]
-	print ' '.join(words)
+  words = line.strip().split()
+  words = [word if word in vocab else args.unk_token for word in words]
+  print ' '.join(words)

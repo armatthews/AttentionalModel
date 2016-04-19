@@ -14,11 +14,10 @@ using namespace std;
 using namespace cnn;
 using namespace cnn::expr;
 
-const bool SYNTAX_PRIOR = true;
-const bool DIAGONAL_PRIOR = true;
-const bool COVERAGE_PRIOR = true;
-const bool SYNTAX_LSTM = false;
-const bool SYNTAX_LOG_FEATS = false;
+extern bool SYNTAX_PRIOR;
+extern bool DIAGONAL_PRIOR;
+extern bool COVERAGE_PRIOR;
+extern bool USE_FERTILITY;
 
 class AttentionModel {
 public:
@@ -39,7 +38,7 @@ private:
 class StandardAttentionModel : public AttentionModel {
 public:
   StandardAttentionModel();
-  StandardAttentionModel(Model& model, unsigned input_dim, unsigned state_dim, unsigned hidden_dim);
+  StandardAttentionModel(Model& model, unsigned vocab_size, unsigned input_dim, unsigned state_dim, unsigned hidden_dim);
 
   void NewGraph(ComputationGraph& cg);
   Expression GetScoreVector(const vector<Expression>& inputs, const Expression& state);
@@ -56,23 +55,26 @@ private:
   Expression U, V, W, b;
   Expression WI, input_matrix;
 
+  // Coverage prior
+  Parameter p_coverage_prior_weight;
+  Expression coverage_prior_weight;
   Expression coverage;
+
+  // Diagonal Prior
+  Parameter p_diagonal_prior_weight;
+  Expression diagonal_prior_weight;
   vector<float> source_percentages_v;
   Expression source_percentages;
   Parameter p_length_ratio;
   Expression length_ratio;
+  unsigned ti;
 
+  // Syntax Prior
+  Parameter p_syntax_prior_weight;
+  Expression syntax_prior_weight;
   Parameter p_st_w1, p_st_b1, p_st_w2;
   Expression st_w1, st_b1, st_w2;
-  LSTMBuilder fwd_expectation_estimator;
-  LSTMBuilder rev_expectation_estimator;
-  LookupParameter embeddings;
-  Parameter p_exp_w, p_exp_b;
-  Expression exp_w, exp_b;
-
-  Parameter p_lamb, p_lamb2, p_lamb3;
-  Expression lamb, lamb2, lamb3;
-  unsigned ti;
+  LookupParameter fertilities;
   vector<Expression> node_coverage;
   vector<Expression> node_expected_counts;
 
@@ -90,14 +92,10 @@ private:
     ar & p_st_w1;
     ar & p_st_w2;
     ar & p_st_b1;
-    ar & fwd_expectation_estimator;
-    ar & rev_expectation_estimator;
-    ar & embeddings;
-    ar & p_exp_w;
-    ar & p_exp_b;
-    ar & p_lamb;
-    ar & p_lamb2;
-    ar & p_lamb3;
+    ar & fertilities;
+    ar & p_coverage_prior_weight;
+    ar & p_diagonal_prior_weight;
+    ar & p_syntax_prior_weight;
   }
 };
 BOOST_CLASS_EXPORT_KEY(StandardAttentionModel)
@@ -105,7 +103,7 @@ BOOST_CLASS_EXPORT_KEY(StandardAttentionModel)
 class SparsemaxAttentionModel : public StandardAttentionModel {
 public:
   SparsemaxAttentionModel();
-  SparsemaxAttentionModel(Model& model, unsigned input_dim, unsigned state_dim, unsigned hidden_dim);
+  SparsemaxAttentionModel(Model& model, unsigned vocab_size, unsigned input_dim, unsigned state_dim, unsigned hidden_dim);
   Expression GetAlignmentVector(const vector<Expression>& inputs, const Expression& state);
 private:
   friend class boost::serialization::access;
