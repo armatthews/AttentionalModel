@@ -31,6 +31,7 @@ Expression Translator::BuildGraph(const TranslatorInput* const source, const Sen
 
   vector<Expression> encodings;
   const SyntaxTree* tree = nullptr;
+  bool SYNTAX_PRIOR = false; // XXX: Fix me! How do we know if we have a syntax prior? How does the syntax prior get access to the tree?
   if (SYNTAX_PRIOR) {
     tree = dynamic_cast<const SyntaxTree* const>(source);
     Sentence terminals = tree->GetTerminals();
@@ -40,6 +41,7 @@ Expression Translator::BuildGraph(const TranslatorInput* const source, const Sen
     encodings = encoder_model->Encode(source);
   }
 
+  attention_model->NewSentence(source);
   for (unsigned i = 1; i < target.size(); ++i) {
     const WordId& prev_word = target[i - 1];
     const WordId& curr_word = target[i]; 

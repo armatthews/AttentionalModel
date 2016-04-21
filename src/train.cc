@@ -70,6 +70,8 @@ int main(int argc, char** argv) {
   ("t2s", "Use tree-to-string translation")
   ("diagonal_prior", "Use diagonal prior on attention")
   ("coverage_prior", "Use coverage prior on attention")
+  ("markov_prior", "Use Markov prior on attention (similar to the HMM model)")
+  ("markov_prior_window_size", po::value<unsigned>()->default_value(5), "Window size to use for the Markov prior. A value of 5 indicates five buckets: -2 or more, -1, 0, +1, +2 or more.")
   ("use_fertility", "Use fertility instead of assuming one source word ≈ one output word. Affects coverage prior and syntax prior.")
   ("syntax_prior", "Use source-side syntax prior on attention")
   ("quiet,q", "Don't output model at all (useful during debugging)")
@@ -103,10 +105,7 @@ int main(int argc, char** argv) {
   const string dev_bitext_filename = vm["dev_bitext"].as<string>();
   const unsigned hidden_size = vm["hidden_size"].as<unsigned>();
 
-  DIAGONAL_PRIOR = vm.count("diagonal_prior");
-  COVERAGE_PRIOR = vm.count("coverage_prior");
-  SYNTAX_PRIOR = vm.count("syntax_prior");
-  USE_FERTILITY = vm.count("use_fertility");
+  bool use_fertility = vm.count("use_fertility"); // TODO: Currently unused
 
   vector<Dict*> dicts;
   Model cnn_model;
@@ -145,13 +144,13 @@ int main(int argc, char** argv) {
 
   Bitext* train_bitext = nullptr;
   Bitext* dev_bitext = nullptr;
-  if (!t2s) {
-    train_bitext = ReadBitext(train_bitext_filename, *source_vocab, *target_vocab);
-    dev_bitext = ReadBitext(dev_bitext_filename, *source_vocab, *target_vocab);
-  }
-  else {
+  if (t2s || vm.count("syntax_prior")) {
     train_bitext = ReadT2SBitext(train_bitext_filename, *source_vocab, *target_vocab, *label_vocab);
     dev_bitext = ReadT2SBitext(dev_bitext_filename, *source_vocab, *target_vocab, *label_vocab);
+  }
+  else {
+    train_bitext = ReadBitext(train_bitext_filename, *source_vocab, *target_vocab);
+    dev_bitext = ReadBitext(dev_bitext_filename, *source_vocab, *target_vocab);
   }
 
   if (!vm.count("model")) {
@@ -192,6 +191,23 @@ int main(int argc, char** argv) {
     for (Dict* dict : dicts) {
       dict->Freeze();
       dict->SetUnk("UNK");
+    }
+
+    if (vm.count("coverage_prior")) {
+      attention_model->AddPrior(new CoveragePrior(cnn_model));
+    }
+
+    if (vm.count("diagonal_prior")) {
+      attention_model->AddPrior(new DiagonalPrior(cnn_model));
+    }
+
+    if (vm.count("markov_prior")) {
+      unsigned window_size = vm["markov_prior_window_size"].as<unsigned>();
+      attention_model->AddPrior(new MarkovPrior(cnn_model, window_size));
+    }
+
+    if (vm.count("syntax_prior")) {
+      attention_model->AddPrior(new SyntaxPrior(cnn_model));
     }
   }
 
