@@ -6,8 +6,8 @@ INCS=-I$(CNN_DIR) -I$(CNN_BUILD_DIR) -I$(EIGEN)
 LIBS=-L$(CNN_BUILD_DIR)/cnn/
 FINAL=-lcnn -lboost_regex -lboost_serialization -lboost_program_options -lrt -lpthread
 #FINAL=-lcnn -lcnncuda -lboost_regex -lboost_serialization -lboost_program_options -lcuda -lcudart -lcublas
-#CFLAGS=-std=c++11 -Ofast -g -march=native -pipe
-CFLAGS=-std=c++11 -Wall -pedantic -O0 -g -pipe
+CFLAGS=-std=c++11 -Ofast -g -march=native -pipe
+#CFLAGS=-std=c++11 -Wall -pedantic -O0 -g -pipe
 BINDIR=bin
 OBJDIR=obj
 SRCDIR=src
@@ -38,6 +38,9 @@ $(BINDIR)/loss: $(addprefix $(OBJDIR)/, loss.o io.o translator.o tree_encoder.o 
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
 $(BINDIR)/predict: $(addprefix $(OBJDIR)/, predict.o io.o translator.o tree_encoder.o encoder.o attention.o prior.o output.o syntax_tree.o treelstm.o kbestlist.o utils.o)
+	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
+
+$(BINDIR)/train-rnng: $(addprefix $(OBJDIR)/, train-rnng.o rnng.o io.o translator.o tree_encoder.o encoder.o attention.o prior.o output.o syntax_tree.o treelstm.o utils.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
 clean:
