@@ -17,6 +17,7 @@ int main(int argc, char** argv) {
   po::options_description desc("description");
   desc.add_options()
   ("model", po::value<string>()->required(), "model files, as output by train")
+  ("perp", "Show per-sentence perplexity instead of negative log prob")
   ("help", "Display this help message");
 
   po::positional_options_description positional_options;
@@ -33,7 +34,7 @@ int main(int argc, char** argv) {
   po::notify(vm);
 
   const string model_filename = vm["model"].as<string>();
-  //const string model_filename = "wmt16.out";
+  const bool show_perp = vm.count("perp") > 0;
 
   Model cnn_model;
   Translator translator;
@@ -67,7 +68,12 @@ int main(int argc, char** argv) {
     cg.incremental_forward();
     cnn::real loss = as_scalar(loss_expr.value());
     unsigned words = target->size() - 1;
-    cout << sentence_number << " ||| " << exp(loss / words) << endl;
+    if (show_perp) {
+      cout << sentence_number << " ||| " << exp(loss / words) << endl;
+    }
+    else {
+      cout << sentence_number << " ||| " << loss << endl;
+    }
     cout.flush();
 
     sentence_number++;
@@ -75,7 +81,12 @@ int main(int argc, char** argv) {
     total_words += words;
   }
 
-  cout << "Total ||| " << exp(total_loss / total_words) << endl;
+  if (show_perp) {
+    cout << "Total ||| " << exp(total_loss / total_words) << endl;
+  }
+  else {
+    cout << "Total ||| " << total_loss << endl;
+  }
 
   return 0;
 }
