@@ -40,6 +40,7 @@ int main(int argc, char** argv) {
   Translator translator;
   vector<Dict*> dicts;
   Deserialize(model_filename, dicts, translator, cnn_model);
+  translator.SetDropout(0.0f);
 
   Dict* source_vocab = dicts[0];
   Dict* target_vocab = dicts[1];

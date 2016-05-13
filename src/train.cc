@@ -8,14 +8,17 @@ namespace po = boost::program_options;
 
 class Learner : public ILearner<SentencePair, SufficientStats> {
 public:
-  Learner(const vector<Dict*>& dicts, Translator& translator, Model& cnn_model, bool quiet) :
-    dicts(dicts), translator(translator), cnn_model(cnn_model), quiet(quiet) {}
+  Learner(const vector<Dict*>& dicts, Translator& translator, Model& cnn_model, bool quiet, float dropout_rate) :
+    dicts(dicts), translator(translator), cnn_model(cnn_model), quiet(quiet), dropout_rate(dropout_rate) {}
   ~Learner() {}
   SufficientStats LearnFromDatum(const SentencePair& datum, bool learn) {
     ComputationGraph cg;
     TranslatorInput* input = get<0>(datum);
     Sentence* output = get<1>(datum);
+
+    translator.SetDropout(learn ? dropout_rate : 0.0f);
     translator.BuildGraph(input, *output, cg);
+
     cnn::real loss = as_scalar(cg.forward());
     //cerr << "Loss of " << loss << " on a thing of length " << output->size() - 1 << endl;
     if (learn) {
@@ -34,6 +37,7 @@ private:
   Translator& translator;
   Model& cnn_model;
   bool quiet;
+  float dropout_rate;
 };
 
 // This function lets us elegantly handle the user pressing ctrl-c.
@@ -75,7 +79,7 @@ int main(int argc, char** argv) {
   ("use_fertility", "Use fertility instead of assuming one source word ≈ one output word. Affects coverage prior and syntax prior.")
   ("syntax_prior", "Use source-side syntax prior on attention")
   ("quiet,q", "Don't output model at all (useful during debugging)")
-  ("dropout_rate", po::value<float>(), "Dropout rate (should be >= 0.0 and < 1)")
+  ("dropout_rate", po::value<float>()->default_value(0.0f), "Dropout rate (should be >= 0.0 and < 1)")
   ("report_frequency,r", po::value<unsigned>()->default_value(100), "Show the training loss of every r examples")
   ("dev_frequency,d", po::value<unsigned>()->default_value(10000), "Run the dev set every d examples. Save the model if the score is a new best")
   ("model", po::value<string>(), "Reload this model and continue learning");
@@ -104,6 +108,7 @@ int main(int argc, char** argv) {
   const string train_bitext_filename = vm["train_bitext"].as<string>();
   const string dev_bitext_filename = vm["dev_bitext"].as<string>();
   const unsigned hidden_size = vm["hidden_size"].as<unsigned>();
+  const float dropout_rate = vm["dropout_rate"].as<float>();
 
   bool use_fertility = vm.count("use_fertility"); // TODO: Currently unused
 
@@ -211,15 +216,11 @@ int main(int argc, char** argv) {
     }
   }
 
-  if (vm.count("dropout_rate")) {
-    translator->SetDropout(vm["dropout_rate"].as<float>());
-  }
-
   cerr << "Vocabulary sizes: " << source_vocab->size() << " / " << target_vocab->size() << endl;
   cerr << "Total parameters: " << cnn_model.parameter_count() << endl;
 
   trainer = CreateTrainer(cnn_model, vm);
-  Learner learner(dicts, *translator, cnn_model, quiet);
+  Learner learner(dicts, *translator, cnn_model, quiet, dropout_rate);
   unsigned dev_frequency = vm["dev_frequency"].as<unsigned>();
   unsigned report_frequency = vm["report_frequency"].as<unsigned>();
   if (num_cores > 1) {
