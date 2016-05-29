@@ -27,7 +27,7 @@ private:
   TreeIterationOrder order;
 };
 
-class SyntaxTree : public TranslatorInput {
+class SyntaxTree : public Sentence {
 public:
   SyntaxTree();
   SyntaxTree(string tree, Dict* word_dict, Dict* label_dict);
@@ -40,7 +40,7 @@ public:
   unsigned MaxDepth() const;
   WordId label() const;
   unsigned id() const;
-  Sentence GetTerminals() const;
+  LinearSentence GetTerminals() const;
 
   SyntaxTree& GetChild(unsigned i);
   const SyntaxTree& GetChild(unsigned i) const;

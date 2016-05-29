@@ -58,14 +58,14 @@ int main(int argc, char** argv) {
     vector<string> parts = tokenize(line, "|||");
     parts = strip(parts);
 
-    TranslatorInput* source;
+    Sentence* source;
     if (translator.IsT2S()) {
       source = new SyntaxTree(parts[0], source_vocab, label_vocab);
     }
     else {
       source = ReadSentence(parts[0], *source_vocab);
     }
-    Sentence* target = ReadSentence(parts[1], *target_vocab); 
+    LinearSentence* target = ReadSentence(parts[1], *target_vocab); 
 
     ComputationGraph cg;
     vector<Expression> alignment = translator.Align(source, *target, cg);

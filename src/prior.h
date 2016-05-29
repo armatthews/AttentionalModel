@@ -16,7 +16,7 @@ public:
   virtual ~AttentionPrior();
   virtual void NewGraph(ComputationGraph& cg);
   virtual void SetDropout(float rate);
-  virtual void NewSentence(const TranslatorInput* input);
+  virtual void NewSentence(const Sentence* input);
 
   virtual Expression Compute(const vector<Expression>& inputs, unsigned target_index);
   virtual Expression Compute(const vector<Expression>& inputs, const SyntaxTree* const tree, unsigned target_index);
@@ -38,7 +38,7 @@ class CoveragePrior : public AttentionPrior {
 public:
   explicit CoveragePrior(Model& model);
   void NewGraph(ComputationGraph& cg);
-  void NewSentence(const TranslatorInput* input) override;
+  void NewSentence(const Sentence* input) override;
   Expression Compute(const vector<Expression>& inputs, unsigned target_index) override;
   Expression Compute(const vector<Expression>& inputs, const SyntaxTree* const tree, unsigned target_index) override;
   void Notify(Expression attention_vector) override;
@@ -60,7 +60,7 @@ class DiagonalPrior : public AttentionPrior {
 public:
   explicit DiagonalPrior(Model& model);
   void NewGraph(ComputationGraph& cg) override;
-  void NewSentence(const TranslatorInput* input) override;
+  void NewSentence(const Sentence* input) override;
   Expression Compute(const vector<Expression>& inputs, unsigned target_index) override;
   Expression Compute(const vector<Expression>& inputs, const SyntaxTree* const tree, unsigned target_index) override;
 private:
@@ -83,7 +83,7 @@ class MarkovPrior : public AttentionPrior {
 public:
   explicit MarkovPrior(Model& model, unsigned window_size);
   void NewGraph(ComputationGraph& cg) override;
-  void NewSentence(const TranslatorInput* input) override;
+  void NewSentence(const Sentence* input) override;
   Expression Compute(const vector<Expression>& inputs, unsigned target_index) override;
   // TODO: Implement for trees
   void Notify(Expression attention_vector) override;
@@ -109,7 +109,7 @@ class SyntaxPrior : public AttentionPrior {
 public:
   explicit SyntaxPrior(Model& model);
   void NewGraph(ComputationGraph& cg) override;
-  void NewSentence(const TranslatorInput* input) override;
+  void NewSentence(const Sentence* input) override;
   Expression Compute(const vector<Expression>& inputs, const SyntaxTree* const tree, unsigned target_index) override;
   void Notify(Expression attention_vector) override;
   void Visit(const SyntaxTree* parent, vector<vector<Expression>>& node_log_probs);

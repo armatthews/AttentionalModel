@@ -13,12 +13,12 @@ using namespace std;
 using namespace cnn;
 
 typedef int WordId;
-class TranslatorInput {
+class Sentence {
 public:
-  virtual ~TranslatorInput();
+  virtual ~Sentence();
 };
-class Sentence : public vector<WordId>, public TranslatorInput {};
-typedef pair<TranslatorInput*, Sentence*> SentencePair;
+class LinearSentence : public vector<WordId>, public Sentence {};
+typedef pair<Sentence*, LinearSentence*> SentencePair;
 typedef vector<SentencePair> Bitext;
 
 inline unsigned int UTF8Len(unsigned char x);

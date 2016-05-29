@@ -54,14 +54,14 @@ int main(int argc, char** argv) {
     parts = strip(parts);
 
     vector<cnn::real> losses;
-    TranslatorInput* source;
+    Sentence* source;
     if (translator.IsT2S()) {
       source = new SyntaxTree(parts[0], source_vocab, label_vocab);
     }
     else {
       source = ReadSentence(parts[0], *source_vocab);
     }
-    Sentence* target = ReadSentence(parts[1], *target_vocab); 
+    LinearSentence* target = ReadSentence(parts[1], *target_vocab); 
 
     ComputationGraph cg;
     Expression loss_expr = translator.BuildGraph(source, *target, cg);

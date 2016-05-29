@@ -62,7 +62,7 @@ int main(int argc, char** argv) {
   unsigned sentence_number = 0;
   while(getline(cin, line)) {
     cerr << line << endl;
-    TranslatorInput* source;
+    Sentence* source;
     if (translator.IsT2S()) {
       source = new SyntaxTree(line, source_vocab, label_vocab);
     }
@@ -70,7 +70,7 @@ int main(int argc, char** argv) {
       source = ReadSentence(line, *source_vocab);
     }
 
-    KBestList<Sentence> kbest = translator.Translate(source, kbest_size, beam_size, ktSOS, ktEOS, max_length);
+    KBestList<LinearSentence> kbest = translator.Translate(source, kbest_size, beam_size, ktSOS, ktEOS, max_length);
     OutputKBestList(sentence_number, kbest, *target_vocab);
     sentence_number++;
   }

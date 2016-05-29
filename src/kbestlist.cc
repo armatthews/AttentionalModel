@@ -3,7 +3,7 @@
 #include "kbestlist.h"
 using namespace std;
 
-void OutputKBestList(unsigned sentence_number, KBestList<Sentence> kbest, Dict& target_vocab) {
+void OutputKBestList(unsigned sentence_number, KBestList<LinearSentence> kbest, Dict& target_vocab) {
   for (auto& scored_hyp : kbest.hypothesis_list()) {
     double score = scored_hyp.first;
     vector<WordId> hyp = scored_hyp.second;

@@ -11,7 +11,7 @@
 
 using namespace std;
 
-TranslatorInput::~TranslatorInput() {}
+Sentence::~Sentence() {}
 
 // given the first character of a UTF8 block, find out how wide it is
 // see http://en.wikipedia.org/wiki/UTF-8 for more info

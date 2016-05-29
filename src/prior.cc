@@ -18,7 +18,7 @@ void AttentionPrior::NewGraph(ComputationGraph& cg) {
 }
 
 void AttentionPrior::SetDropout(float rate) {}
-void AttentionPrior::NewSentence(const TranslatorInput* input) {}
+void AttentionPrior::NewSentence(const Sentence* input) {}
 
 Expression AttentionPrior::Compute(const vector<Expression>& inputs, unsigned target_index) {
   assert (false && "Invalid call to Compute() on a prior that does not accept string inputs");
@@ -38,8 +38,8 @@ void CoveragePrior::NewGraph(ComputationGraph& cg) {
   AttentionPrior::NewGraph(cg);
 }
 
-void CoveragePrior::NewSentence(const TranslatorInput* input) {
-  const Sentence* sent = dynamic_cast<const Sentence*>(input);
+void CoveragePrior::NewSentence(const Sentence* input) {
+  const LinearSentence* sent = dynamic_cast<const LinearSentence*>(input);
   coverage = zeroes(*pcg, {(unsigned)sent->size()});
 }
 
@@ -68,8 +68,8 @@ void DiagonalPrior::NewGraph(ComputationGraph& cg) {
   length_ratio = parameter(cg, p_length_ratio);
 }
 
-void DiagonalPrior::NewSentence(const TranslatorInput* translator_input) {
-  const Sentence* sent = dynamic_cast<const Sentence*>(translator_input);
+void DiagonalPrior::NewSentence(const Sentence* translator_input) {
+  const LinearSentence* sent = dynamic_cast<const LinearSentence*>(translator_input);
   unsigned source_length = sent->size();
   source_percentages_v.resize(source_length);
   for (unsigned i = 0; i < source_length; ++i) {
@@ -112,8 +112,8 @@ void MarkovPrior::NewGraph(ComputationGraph& cg) {
   filter = parameter(cg, p_filter);
 }
 
-void MarkovPrior::NewSentence(const TranslatorInput* input) {
-  const Sentence* sent = dynamic_cast<const Sentence*>(input);
+void MarkovPrior::NewSentence(const Sentence* input) {
+  const LinearSentence* sent = dynamic_cast<const LinearSentence*>(input);
   prev_attention_vector = zeroes(*pcg, {(unsigned)sent->size()});
 }
 
@@ -145,7 +145,7 @@ void SyntaxPrior::NewGraph(ComputationGraph& cg) {
   st_b1 = parameter(cg, p_st_b1);
 }
 
-void SyntaxPrior::NewSentence(const TranslatorInput* input) {
+void SyntaxPrior::NewSentence(const Sentence* input) {
   // TODO: This needs access to trees
   /*node_coverage.resize(tree->NumNodes());
   for (unsigned i = 0; i < tree->NumNodes(); ++i) {
@@ -158,7 +158,7 @@ void SyntaxPrior::NewSentence(const TranslatorInput* input) {
       node_expected_counts[i] = input(*a.pg, tree->GetTerminals().size());
     }
     else {
-      const Sentence& terminals = tree->GetTerminals();
+      const LinearSentence& terminals = tree->GetTerminals();
       vector<Expression> child_fertilities;
       for (WordId w : terminals) {
         Expression fertility = lookup(*a.pg, fertilities, w);

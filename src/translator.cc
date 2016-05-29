@@ -24,7 +24,7 @@ void Translator::SetDropout(float rate) {
   output_model->SetDropout(rate);
 }
 
-Expression Translator::BuildGraph(const TranslatorInput* const source, const Sentence& target, ComputationGraph& cg) {
+Expression Translator::BuildGraph(const Sentence* const source, const LinearSentence& target, ComputationGraph& cg) {
   NewGraph(cg);
   vector<Expression> word_losses(target.size());
   word_losses[0] = input(cg, 0.0f); // <s>
@@ -34,7 +34,7 @@ Expression Translator::BuildGraph(const TranslatorInput* const source, const Sen
   bool SYNTAX_PRIOR = false; // XXX: Fix me! How do we know if we have a syntax prior? How does the syntax prior get access to the tree?
   if (SYNTAX_PRIOR) {
     tree = dynamic_cast<const SyntaxTree* const>(source);
-    Sentence terminals = tree->GetTerminals();
+    LinearSentence terminals = tree->GetTerminals();
     encodings = encoder_model->Encode(&terminals);
   }
   else {
@@ -59,7 +59,7 @@ Expression Translator::BuildGraph(const TranslatorInput* const source, const Sen
   return sum(word_losses);
 }
 
-void Translator::Sample(const vector<Expression>& encodings, Sentence& prefix, RNNPointer state_pointer, unsigned sample_count, WordId BOS, WordId EOS, unsigned max_length, ComputationGraph& cg, vector<Sentence>& samples) {
+void Translator::Sample(const vector<Expression>& encodings, LinearSentence& prefix, RNNPointer state_pointer, unsigned sample_count, WordId BOS, WordId EOS, unsigned max_length, ComputationGraph& cg, vector<LinearSentence>& samples) {
   WordId prev_word = prefix.size() > 0 ? prefix.back() : BOS;
   Expression prev_state = output_model->GetState(state_pointer);
   Expression context = attention_model->GetContext(encodings, prev_state);
@@ -92,17 +92,17 @@ void Translator::Sample(const vector<Expression>& encodings, Sentence& prefix, R
   }
 }
 
-vector<Sentence> Translator::Sample(const TranslatorInput* const source, unsigned sample_count, WordId BOS, WordId EOS, unsigned max_length) {
+vector<LinearSentence> Translator::Sample(const Sentence* const source, unsigned sample_count, WordId BOS, WordId EOS, unsigned max_length) {
   ComputationGraph cg;
   NewGraph(cg);
   vector<Expression> encodings = encoder_model->Encode(source);
-  Sentence prefix;
-  vector<Sentence> samples;
+  LinearSentence prefix;
+  vector<LinearSentence> samples;
   Sample(encodings, prefix, output_model->GetStatePointer(), sample_count, BOS, EOS, max_length, cg, samples);
   return samples;
 }
 
-vector<Expression> Translator::Align(const TranslatorInput* const source, const Sentence& target, ComputationGraph& cg) {
+vector<Expression> Translator::Align(const Sentence* const source, const LinearSentence& target, ComputationGraph& cg) {
   NewGraph(cg);
   vector<Expression> encodings = encoder_model->Encode(source);
   vector<Expression> alignments;
@@ -118,22 +118,22 @@ vector<Expression> Translator::Align(const TranslatorInput* const source, const 
   return alignments;
 }
 
-KBestList<Sentence> Translator::Translate(const TranslatorInput* const source, unsigned K, unsigned beam_size, WordId BOS, WordId EOS, unsigned max_length) {
+KBestList<LinearSentence> Translator::Translate(const Sentence* const source, unsigned K, unsigned beam_size, WordId BOS, WordId EOS, unsigned max_length) {
   assert (beam_size >= K);
   ComputationGraph cg;
   NewGraph(cg);
 
-  KBestList<Sentence> complete_hyps(K);
-  KBestList<pair<Sentence, RNNPointer>> top_hyps(beam_size);
-  top_hyps.add(0.0, make_pair(Sentence(), output_model->GetStatePointer()));
+  KBestList<LinearSentence> complete_hyps(K);
+  KBestList<pair<LinearSentence, RNNPointer>> top_hyps(beam_size);
+  top_hyps.add(0.0, make_pair(LinearSentence(), output_model->GetStatePointer()));
 
   vector<Expression> encodings = encoder_model->Encode(source);
   for (unsigned length = 0; length < max_length; ++length) {
-    KBestList<pair<Sentence, RNNPointer>> new_hyps(beam_size);
+    KBestList<pair<LinearSentence, RNNPointer>> new_hyps(beam_size);
 
     for (auto& hyp : top_hyps.hypothesis_list()) {
       double hyp_score = get<0>(hyp);
-      Sentence hyp_sentence = get<0>(get<1>(hyp));
+      LinearSentence hyp_sentence = get<0>(get<1>(hyp));
       RNNPointer state_pointer = get<1>(get<1>(hyp));
       WordId prev_word = hyp_sentence.size() > 0 ? hyp_sentence.back() : BOS;
       assert (hyp_sentence.size() == length);
@@ -154,7 +154,7 @@ KBestList<Sentence> Translator::Translate(const TranslatorInput* const source, u
         double word_score = get<0>(w);
         WordId word = get<1>(w);
         double new_score = hyp_score + word_score;
-        Sentence new_sentence = hyp_sentence;
+        LinearSentence new_sentence = hyp_sentence;
         new_sentence.push_back(word);
         if (word != EOS) {
           new_hyps.add(new_score, make_pair(new_sentence, new_pointer));
@@ -169,7 +169,7 @@ KBestList<Sentence> Translator::Translate(const TranslatorInput* const source, u
 
   for (auto& hyp : top_hyps.hypothesis_list()) {
     double score = get<0>(hyp);
-    Sentence sentence = get<0>(get<1>(hyp));
+    LinearSentence sentence = get<0>(get<1>(hyp));
     // TODO: Account for </s> in the score
     complete_hyps.add(score, sentence);
   }

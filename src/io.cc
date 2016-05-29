@@ -1,9 +1,9 @@
 #include <fstream>
 #include "io.h"
 
-Sentence* ReadSentence(const string& line, Dict& dict) {
+LinearSentence* ReadSentence(const string& line, Dict& dict) {
   vector<string> words = tokenize(strip(line), " ");
-  Sentence* r = new Sentence();
+  LinearSentence* r = new LinearSentence();
   r->push_back(dict.Convert("<s>"));
   for (const string& w : words) {
     r->push_back(dict.Convert(w));
@@ -23,8 +23,8 @@ Bitext* ReadBitext(const string& filename, Dict& source_vocab, Dict& target_voca
     vector<string> parts = tokenize(line, "|||");
     assert (parts.size() == 2);
 
-    Sentence* source = ReadSentence(strip(parts[0]), source_vocab);
-    Sentence* target = ReadSentence(strip(parts[1]), target_vocab);
+    LinearSentence* source = ReadSentence(strip(parts[0]), source_vocab);
+    LinearSentence* target = ReadSentence(strip(parts[1]), target_vocab);
     bitext->push_back(make_pair(source, target));
   }
 
@@ -45,7 +45,7 @@ Bitext* ReadT2SBitext(const string& filename, Dict& source_vocab, Dict& target_v
 
     SyntaxTree* source = new SyntaxTree(strip(parts[0]), &source_vocab, &label_vocab);
     source->AssignNodeIds();
-    Sentence* target = ReadSentence(strip(parts[1]), target_vocab);
+    LinearSentence* target = ReadSentence(strip(parts[1]), target_vocab);
     bitext->push_back(make_pair(source, target));
   }
 

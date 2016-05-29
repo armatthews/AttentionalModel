@@ -22,8 +22,8 @@ void TrivialEncoder::NewGraph(ComputationGraph& cg) {
   b = parameter(cg, p_b);
 }
 
-vector<Expression> TrivialEncoder::Encode(const TranslatorInput* input) {
-  const Sentence& sentence = *dynamic_cast<const Sentence*>(input);
+vector<Expression> TrivialEncoder::Encode(const Sentence* input) {
+  const LinearSentence& sentence = *dynamic_cast<const LinearSentence*>(input);
   vector<Expression> encodings(sentence.size());
   for (unsigned i = 0; i < sentence.size(); ++i) {
     Expression embedding = lookup(*pcg, embeddings, sentence[i]);
@@ -54,8 +54,8 @@ void BidirectionalSentenceEncoder::SetDropout(float rate) {
   reverse_builder.set_dropout(rate);
 }
 
-vector<Expression> BidirectionalSentenceEncoder::Encode(const TranslatorInput* input) {
-  const Sentence& sentence = *dynamic_cast<const Sentence*>(input);
+vector<Expression> BidirectionalSentenceEncoder::Encode(const Sentence* input) {
+  const LinearSentence& sentence = *dynamic_cast<const LinearSentence*>(input);
   vector<Expression> forward_encodings = EncodeForward(sentence);
   vector<Expression> reverse_encodings = EncodeReverse(sentence);
   vector<Expression> bidir_encodings(sentence.size());
@@ -67,7 +67,7 @@ vector<Expression> BidirectionalSentenceEncoder::Encode(const TranslatorInput* i
   return bidir_encodings;
 }
 
-vector<Expression> BidirectionalSentenceEncoder::EncodeForward(const Sentence& sentence) {
+vector<Expression> BidirectionalSentenceEncoder::EncodeForward(const LinearSentence& sentence) {
   forward_builder.new_graph(*pcg);
   forward_builder.start_new_sequence();
   vector<Expression> forward_encodings(sentence.size());
@@ -79,7 +79,7 @@ vector<Expression> BidirectionalSentenceEncoder::EncodeForward(const Sentence& s
   return forward_encodings;
 }
 
-vector<Expression> BidirectionalSentenceEncoder::EncodeReverse(const Sentence& sentence) {
+vector<Expression> BidirectionalSentenceEncoder::EncodeReverse(const LinearSentence& sentence) {
   reverse_builder.new_graph(*pcg);
   reverse_builder.start_new_sequence();
   vector<Expression> reverse_encodings(sentence.size());

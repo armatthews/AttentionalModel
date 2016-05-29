@@ -13,8 +13,8 @@ public:
   ~Learner() {}
   SufficientStats LearnFromDatum(const SentencePair& datum, bool learn) {
     ComputationGraph cg;
-    TranslatorInput* input = get<0>(datum);
-    Sentence* output = get<1>(datum);
+    Sentence* input = get<0>(datum);
+    LinearSentence* output = get<1>(datum);
 
     translator.SetDropout(learn ? dropout_rate : 0.0f);
     translator.BuildGraph(input, *output, cg);

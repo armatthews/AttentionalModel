@@ -65,7 +65,7 @@ int main(int argc, char** argv) {
   unsigned sentence_number = 0;
   while(getline(cin, line)) {
     cerr << line << endl;
-    TranslatorInput* source;
+    Sentence* source;
     if (translator.IsT2S()) {
       SyntaxTree* source_tree = new SyntaxTree(line, source_vocab, label_vocab);
       source_tree->AssignNodeIds();
@@ -75,8 +75,8 @@ int main(int argc, char** argv) {
       source = ReadSentence(line, *source_vocab);
     }
 
-    vector<Sentence> samples = translator.Sample(source, num_samples, ktBOS, ktEOS, max_length);
-    for (Sentence sample : samples) {
+    vector<LinearSentence> samples = translator.Sample(source, num_samples, ktBOS, ktEOS, max_length);
+    for (LinearSentence sample : samples) {
       vector<string> words;
       for (WordId w : sample) {
         words.push_back(target_vocab->Convert(w));

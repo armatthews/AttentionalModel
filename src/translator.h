@@ -14,19 +14,19 @@ public:
 
   void NewGraph(ComputationGraph& cg);
   void SetDropout(float rate);
-  Expression BuildGraph(const TranslatorInput* const source, const Sentence& target, ComputationGraph& cg);
-  vector<Sentence> Sample(const TranslatorInput* const source, unsigned samples, WordId BOS, WordId EOS, unsigned max_length);
-  vector<Expression> Align(const TranslatorInput* const source, const Sentence& target, ComputationGraph& cg);
+  Expression BuildGraph(const Sentence* const source, const LinearSentence& target, ComputationGraph& cg);
+  vector<LinearSentence> Sample(const Sentence* const source, unsigned samples, WordId BOS, WordId EOS, unsigned max_length);
+  vector<Expression> Align(const Sentence* const source, const LinearSentence& target, ComputationGraph& cg);
   // This could be used if your loss is over alignment matrices, for example
-  // Expression Align(const TranslatorInput* const source, const Sentence& target, ComputationGraph& cg);
-  KBestList<Sentence> Translate(const TranslatorInput* const source, unsigned K, unsigned beam_size, WordId BOS, WordId EOS, unsigned max_length);
+  // Expression Align(const Sentence* const source, const LinearSentence& target, ComputationGraph& cg);
+  KBestList<LinearSentence> Translate(const Sentence* const source, unsigned K, unsigned beam_size, WordId BOS, WordId EOS, unsigned max_length);
 
 private:
   EncoderModel* encoder_model;
   AttentionModel* attention_model;
   OutputModel* output_model;
 
-  void Sample(const vector<Expression>& encodings, Sentence& prefix, RNNPointer state_pointer, unsigned sample_count, WordId BOS, WordId EOS, unsigned max_length, ComputationGraph& cg, vector<Sentence>& samples);
+  void Sample(const vector<Expression>& encodings, LinearSentence& prefix, RNNPointer state_pointer, unsigned sample_count, WordId BOS, WordId EOS, unsigned max_length, ComputationGraph& cg, vector<LinearSentence>& samples);
 
   friend class boost::serialization::access;
   template<class Archive>

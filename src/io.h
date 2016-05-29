@@ -12,7 +12,7 @@
 using namespace std;
 using namespace cnn;
 
-Sentence* ReadSentence(const string& line, Dict& dict);
+LinearSentence* ReadSentence(const string& line, Dict& dict);
 Bitext* ReadBitext(const string& filename, Dict& source_vocab, Dict& target_vocab);
 Bitext* ReadT2SBitext(const string& filename, Dict& source_vocab, Dict& target_vocab, Dict& label_vocab);
 

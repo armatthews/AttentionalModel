@@ -140,8 +140,8 @@ unsigned SyntaxTree::id() const {
   return id_;
 }
 
-Sentence SyntaxTree::GetTerminals() const {
-  Sentence terminals;
+LinearSentence SyntaxTree::GetTerminals() const {
+  LinearSentence terminals;
   if (IsTerminal()) {
     terminals.push_back(label_);
     return terminals;
