@@ -108,6 +108,7 @@ int main(int argc, char** argv) {
   const string train_bitext_filename = vm["train_bitext"].as<string>();
   const string dev_bitext_filename = vm["dev_bitext"].as<string>();
   const unsigned hidden_size = vm["hidden_size"].as<unsigned>();
+  const float dropout_rate = vm["dropout_rate"].as<float>();
 
   bool use_fertility = vm.count("use_fertility"); // TODO: Currently unused
 
@@ -224,9 +225,7 @@ int main(int argc, char** argv) {
     }
   }
 
-  float dropout_rate = vm["dropout_rate"].as<float>();
-
-  cerr << "Vocabulary sizes: " << source_vocab->size() << " / " << target_vocab->size() << endl;
+  //cerr << "Vocabulary sizes: " << source_vocab->size() << " / " << target_vocab->size() << endl;
   cerr << "Total parameters: " << cnn_model.parameter_count() << endl;
 
   trainer = CreateTrainer(cnn_model, vm);
