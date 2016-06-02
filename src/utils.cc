@@ -11,7 +11,14 @@
 
 using namespace std;
 
-Sentence::~Sentence() {}
+InputSentence::~InputSentence() {}
+
+unsigned LinearSentence::NumNodes() const {
+  return this->size();
+}
+
+Word::~Word() {}
+StandardWord::StandardWord(WordId id) : id(id) {}
 
 // given the first character of a UTF8 block, find out how wide it is
 // see http://en.wikipedia.org/wiki/UTF-8 for more info

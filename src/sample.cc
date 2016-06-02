@@ -58,14 +58,14 @@ int main(int argc, char** argv) {
 
   assert (source_vocab->Contains("<s>"));
   assert (source_vocab->Contains("</s>"));
-  WordId ktBOS = target_vocab->Convert("<s>");
-  WordId ktEOS = target_vocab->Convert("</s>");
+  Word* ktBOS = new StandardWord(target_vocab->Convert("<s>"));
+  Word* ktEOS = new StandardWord(target_vocab->Convert("</s>"));
 
   string line;
   unsigned sentence_number = 0;
   while(getline(cin, line)) {
     cerr << line << endl;
-    Sentence* source;
+    InputSentence* source;
     if (translator.IsT2S()) {
       SyntaxTree* source_tree = new SyntaxTree(line, source_vocab, label_vocab);
       source_tree->AssignNodeIds();
@@ -75,12 +75,12 @@ int main(int argc, char** argv) {
       source = ReadSentence(line, *source_vocab);
     }
 
-    vector<LinearSentence> samples = translator.Sample(source, num_samples, ktBOS, ktEOS, max_length);
-    for (LinearSentence sample : samples) {
+    vector<OutputSentence*> samples = translator.Sample(source, num_samples, ktBOS, ktEOS, max_length);
+    for (OutputSentence* sample : samples) {
       vector<string> words;
-      for (WordId w : sample) {
+      /*for (WordId w : sample) {
         words.push_back(target_vocab->Convert(w));
-      }
+      }*/
       cout << sentence_number << " ||| " << boost::algorithm::join(words, " ") << endl;
     }
     cout.flush();

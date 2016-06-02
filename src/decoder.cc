@@ -43,9 +43,9 @@ void Decoder::SetParams(unsigned max_length, WordId kSOS, WordId kEOS) {
   this->kEOS = kEOS;
 }
 
-vector<LinearSentence> Decoder::SampleTranslations(const Sentence* source, unsigned n) const {
+vector<Sentence> Decoder::SampleTranslations(const Sentence* source, unsigned n) const {
   ComputationGraph cg;
-  vector<LinearSentence> samples(n);
+  vector<Sentence> samples(n);
   vector<vector<Expression>> source_encodings(translators.size());
 
   for (unsigned i = 0; i < translators.size(); ++i) {
@@ -55,7 +55,7 @@ vector<LinearSentence> Decoder::SampleTranslations(const Sentence* source, unsig
 
   for (unsigned j = 0; j < n; ++j) {
     WordId prev_word = kSOS;
-    LinearSentence sample;
+    Sentence sample;
     while (sample.size() < max_length) {
       vector<Expression> log_distributions(translators.size());
       for (unsigned i = 0; i < translators.size(); ++i) {

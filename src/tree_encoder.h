@@ -10,7 +10,7 @@ public:
 
   bool IsT2S() const;
   void NewGraph(ComputationGraph& cg);
-  vector<Expression> Encode(const Sentence* const input);
+  vector<Expression> Encode(const InputSentence* const input);
 private:
   unsigned output_dim;
   EncoderModel* linear_encoder;

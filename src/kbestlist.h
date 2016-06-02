@@ -55,4 +55,4 @@ private:
   deque<pair<double, T>> hypotheses;
 };
 
-void OutputKBestList(unsigned sentence_number, KBestList<LinearSentence> kbest, Dict& target_vocab);
+void OutputKBestList(unsigned sentence_number, KBestList<OutputSentence*> kbest, Dict& target_vocab);

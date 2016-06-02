@@ -4,6 +4,7 @@
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
 #include <vector>
+#include <functional>
 #include "cnn/dict.h"
 #include "syntax_tree.h"
 #include "translator.h"
@@ -12,7 +13,20 @@
 using namespace std;
 using namespace cnn;
 
-LinearSentence* ReadSentence(const string& line, Dict& dict);
+typedef function<vector<InputSentence*> ()> InputReader;
+typedef function<vector<OutputSentence*> ()> OutputReader;
+typedef vector<InputSentence*> Corpus;
+
+Bitext ReadBitext(InputReader SourceReader, OutputReader TargetReader);
+
+Corpus ReadStandardText(const string& filename, Dict& dict, bool add_bos_eos = true);
+Corpus ReadSyntaxTrees(const string& filename, Dict& terminal_dict, Dict& label_dict);
+Corpus ReadMorphologyText(const string& filename, Dict& word_dict, Dict& root_dict, Dict& affix_dict, Dict& char_dict);
+
+LinearSentence* ReadSentence(const string& line, Dict& dict, bool add_bos_eos = true);
+SyntaxTree* ReadSyntaxTree(const string& line, Dict& terminal_dict, Dict& label_dict);
+LinearSentence* ReadMorphSentence(const string& line, Dict& word_dict, Dict& root_dict, Dict& affix_dict, Dict& char_dict);
+
 Bitext* ReadBitext(const string& filename, Dict& source_vocab, Dict& target_vocab);
 Bitext* ReadT2SBitext(const string& filename, Dict& source_vocab, Dict& target_vocab, Dict& label_vocab);
 

@@ -13,12 +13,43 @@ using namespace std;
 using namespace cnn;
 
 typedef int WordId;
-class Sentence {
-public:
-  virtual ~Sentence();
+
+struct Word {
+  virtual ~Word();
 };
-class LinearSentence : public vector<WordId>, public Sentence {};
-typedef pair<Sentence*, LinearSentence*> SentencePair;
+
+struct StandardWord : public Word {
+  explicit StandardWord(WordId id);
+  WordId id;
+};
+
+class Analysis {
+public:
+  WordId root;
+  vector<WordId> affixes;
+};
+
+struct MorphoWord : public Word {
+  WordId word;
+  vector<Analysis> analyses;
+  vector<WordId> chars;
+};
+
+class InputSentence {
+public:
+  virtual ~InputSentence();
+  // Returns the number of nodes returned when we embed this sentence
+  virtual unsigned NumNodes() const = 0;
+};
+
+typedef vector<Word*> OutputSentence;
+
+class LinearSentence : public InputSentence, public OutputSentence {
+public:
+  unsigned NumNodes() const;
+};
+
+typedef pair<InputSentence*, OutputSentence*> SentencePair;
 typedef vector<SentencePair> Bitext;
 
 inline unsigned int UTF8Len(unsigned char x);

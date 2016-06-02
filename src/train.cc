@@ -13,17 +13,18 @@ public:
   ~Learner() {}
   SufficientStats LearnFromDatum(const SentencePair& datum, bool learn) {
     ComputationGraph cg;
-    Sentence* input = get<0>(datum);
-    LinearSentence* output = get<1>(datum);
+    InputSentence* input = get<0>(datum);
+    OutputSentence* output = get<1>(datum);
 
     translator.SetDropout(learn ? dropout_rate : 0.0f);
-    translator.BuildGraph(input, *output, cg);
+    translator.BuildGraph(input, output, cg);
     cnn::real loss = as_scalar(cg.forward());
 
     if (learn) {
       cg.backward();
     }
-    return SufficientStats(loss, output->size() - 1, 1);
+    // TODO: Subtract 1 if we added EOS
+    return SufficientStats(loss, output->size(), 1);
   }
 
   void SaveModel() {
@@ -71,6 +72,7 @@ int main(int argc, char** argv) {
   ("cores,j", po::value<unsigned>()->default_value(1), "Number of CPU cores to use for training")
   ("sparsemax", "Use Sparsemax (rather than Softmax) for computing attention")
   ("t2s", "Use tree-to-string translation")
+  ("rnng", "Use RNNG output model")
   ("diagonal_prior", "Use diagonal prior on attention")
   ("coverage_prior", "Use coverage prior on attention")
   ("markov_prior", "Use Markov prior on attention (similar to the HMM model)")
@@ -98,6 +100,7 @@ int main(int argc, char** argv) {
   }
 
   const bool t2s = vm.count("t2s");
+  const bool rnng = vm.count("rnng");
   const bool quiet = vm.count("quiet");
   const bool sparsemax = vm.count("sparsemax");
   const unsigned num_cores = vm["cores"].as<unsigned>();
@@ -184,8 +187,17 @@ int main(int argc, char** argv) {
     // attention_model = new EncoderDecoderAttentionModel(cnn_model, annotation_dim, output_state_dim);
 
     OutputModel* output_model = nullptr;
-    // output_model = new SoftmaxOutputModel(cnn_model, embedding_dim, annotation_dim, output_state_dim, target_vocab, clusters_filename);
-    output_model = new MlpSoftmaxOutputModel(cnn_model, embedding_dim, annotation_dim, output_state_dim, final_hidden_size, target_vocab, clusters_filename);
+    if (!rnng) {
+      // output_model = new SoftmaxOutputModel(cnn_model, embedding_dim, annotation_dim, output_state_dim, target_vocab, clusters_filename);
+      output_model = new MlpSoftmaxOutputModel(cnn_model, embedding_dim, annotation_dim, output_state_dim, final_hidden_size, target_vocab, clusters_filename);
+    }
+    else {
+      unsigned hidden_dim = hidden_size;
+      unsigned term_emb_dim = embedding_dim;
+      unsigned nt_emb_dim = embedding_dim;
+      unsigned action_emb_dim = embedding_dim;
+      output_model = new RnngOutputModel(cnn_model, term_emb_dim, nt_emb_dim, action_emb_dim, annotation_dim, hidden_dim, target_vocab, clusters_filename);
+    }
 
     translator = new Translator(encoder_model, attention_model, output_model);
 

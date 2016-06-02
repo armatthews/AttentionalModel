@@ -1,14 +1,26 @@
 #include <fstream>
 #include "io.h"
 
-LinearSentence* ReadSentence(const string& line, Dict& dict) {
+Bitext ReadBitext(InputReader SourceReader, OutputReader TargetReader) {
+  vector<InputSentence*> source = SourceReader();
+  vector<OutputSentence*> target = TargetReader();
+  assert (source.size() == target.size());
+
+  Bitext bitext;
+  for (unsigned i = 0; i < source.size(); ++i) {
+    bitext.push_back(make_pair(source[i], target[i]));
+  }
+  return bitext;
+}
+
+LinearSentence* ReadSentence(const string& line, Dict& dict, bool add_bos_eos) {
   vector<string> words = tokenize(strip(line), " ");
   LinearSentence* r = new LinearSentence();
-  r->push_back(dict.Convert("<s>"));
+  r->push_back(new StandardWord(dict.Convert("<s>")));
   for (const string& w : words) {
-    r->push_back(dict.Convert(w));
+    r->push_back(new StandardWord(dict.Convert(w)));
   }
-  r->push_back(dict.Convert("</s>"));
+  r->push_back(new StandardWord(dict.Convert("</s>")));
   return r;
 }
 

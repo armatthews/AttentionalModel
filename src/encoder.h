@@ -18,7 +18,7 @@ public:
   virtual bool IsT2S() const = 0;
   virtual void NewGraph(ComputationGraph& cg) = 0;
   virtual void SetDropout(float rate) {};
-  virtual vector<Expression> Encode(const Sentence* const input) = 0;
+  virtual vector<Expression> Encode(const InputSentence* const input) = 0;
 
 private:
   friend class boost::serialization::access;
@@ -33,7 +33,8 @@ public:
 
   bool IsT2S() const;
   void NewGraph(ComputationGraph& cg);
-  vector<Expression> Encode(const Sentence* const input);
+  vector<Expression> Encode(const InputSentence* const input);
+  Expression Embed(const Word* const word);
 private:
   Parameter p_W, p_b;
   Expression W, b;
@@ -59,9 +60,10 @@ public:
   bool IsT2S() const;
   void NewGraph(ComputationGraph& cg);
   void SetDropout(float rate);
-  vector<Expression> Encode(const Sentence* const input);
+  vector<Expression> Encode(const InputSentence* const input);
   vector<Expression> EncodeForward(const LinearSentence& sentence);
   vector<Expression> EncodeReverse(const LinearSentence& sentence);
+  Expression Embed(const Word* const word);
 private:
   LSTMBuilder forward_builder;
   LSTMBuilder reverse_builder;

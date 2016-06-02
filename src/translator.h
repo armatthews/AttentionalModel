@@ -14,19 +14,20 @@ public:
 
   void NewGraph(ComputationGraph& cg);
   void SetDropout(float rate);
-  Expression BuildGraph(const Sentence* const source, const LinearSentence& target, ComputationGraph& cg);
-  vector<LinearSentence> Sample(const Sentence* const source, unsigned samples, WordId BOS, WordId EOS, unsigned max_length);
-  vector<Expression> Align(const Sentence* const source, const LinearSentence& target, ComputationGraph& cg);
+  Expression BuildGraph(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg);
+  vector<OutputSentence*> Sample(const InputSentence* const source, unsigned samples, Word* BOS, Word* EOS, unsigned max_length);
+  vector<Expression> Align(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg);
+
   // This could be used if your loss is over alignment matrices, for example
-  // Expression Align(const Sentence* const source, const LinearSentence& target, ComputationGraph& cg);
-  KBestList<LinearSentence> Translate(const Sentence* const source, unsigned K, unsigned beam_size, WordId BOS, WordId EOS, unsigned max_length);
+  // Expression Align(const InputSentence* const source, const OutputSentence* target, ComputationGraph& cg);
+  KBestList<OutputSentence*> Translate(const InputSentence* const source, unsigned K, unsigned beam_size, Word* BOS, Word* EOS, unsigned max_length);
 
 private:
   EncoderModel* encoder_model;
   AttentionModel* attention_model;
   OutputModel* output_model;
 
-  void Sample(const vector<Expression>& encodings, LinearSentence& prefix, RNNPointer state_pointer, unsigned sample_count, WordId BOS, WordId EOS, unsigned max_length, ComputationGraph& cg, vector<LinearSentence>& samples);
+  void Sample(const vector<Expression>& encodings, OutputSentence* prefix, RNNPointer state_pointer, unsigned sample_count, Word* BOS, Word* EOS, unsigned max_length, ComputationGraph& cg, vector<OutputSentence*>& samples);
 
   friend class boost::serialization::access;
   template<class Archive>

@@ -53,8 +53,8 @@ int main(int argc, char** argv) {
 
   assert (source_vocab->Contains("<s>"));
   assert (source_vocab->Contains("</s>"));
-  WordId ktSOS = target_vocab->Convert("<s>");
-  WordId ktEOS = target_vocab->Convert("</s>");
+  Word* ktSOS = new StandardWord(target_vocab->Convert("<s>"));
+  Word* ktEOS = new StandardWord(target_vocab->Convert("</s>"));
   assert (source_vocab->is_frozen());
   assert (target_vocab->is_frozen());
 
@@ -62,7 +62,7 @@ int main(int argc, char** argv) {
   unsigned sentence_number = 0;
   while(getline(cin, line)) {
     cerr << line << endl;
-    Sentence* source;
+    InputSentence* source;
     if (translator.IsT2S()) {
       source = new SyntaxTree(line, source_vocab, label_vocab);
     }
@@ -70,7 +70,7 @@ int main(int argc, char** argv) {
       source = ReadSentence(line, *source_vocab);
     }
 
-    KBestList<LinearSentence> kbest = translator.Translate(source, kbest_size, beam_size, ktSOS, ktEOS, max_length);
+    KBestList<OutputSentence*> kbest = translator.Translate(source, kbest_size, beam_size, ktSOS, ktEOS, max_length);
     OutputKBestList(sentence_number, kbest, *target_vocab);
     sentence_number++;
   }

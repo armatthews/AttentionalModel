@@ -143,12 +143,12 @@ unsigned SyntaxTree::id() const {
 LinearSentence SyntaxTree::GetTerminals() const {
   LinearSentence terminals;
   if (IsTerminal()) {
-    terminals.push_back(label_);
+    terminals.push_back(new StandardWord(label_));
     return terminals;
   }
   else {
     for (const SyntaxTree& child : children) {
-      vector<WordId> child_terminals = child.GetTerminals();
+      LinearSentence child_terminals = child.GetTerminals();
       terminals.insert(terminals.end(), child_terminals.begin(), child_terminals.end());
     }
     return terminals;
@@ -287,4 +287,8 @@ SyntaxTreeIterator& SyntaxTreeIterator::operator++() {
 
   assert (node_stack.size() == index_stack.size());
   return *this;
+}
+
+unsigned SyntaxTree::size() const {
+  return NumNodes();
 }

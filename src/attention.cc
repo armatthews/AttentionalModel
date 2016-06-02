@@ -5,7 +5,7 @@ BOOST_CLASS_EXPORT_IMPLEMENT(EncoderDecoderAttentionModel)
 
 AttentionModel::~AttentionModel() {}
 
-void AttentionModel::NewSentence(const Sentence* input) {
+void AttentionModel::NewSentence(const InputSentence* input) {
   for (AttentionPrior* prior : priors) {
     prior->NewSentence(input);
   }

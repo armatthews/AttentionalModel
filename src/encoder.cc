@@ -22,11 +22,17 @@ void TrivialEncoder::NewGraph(ComputationGraph& cg) {
   b = parameter(cg, p_b);
 }
 
-vector<Expression> TrivialEncoder::Encode(const Sentence* input) {
+Expression TrivialEncoder::Embed(const Word* const word) {
+  const StandardWord* standard_word = dynamic_cast<const StandardWord*>(word);
+  assert (standard_word != nullptr);
+  return lookup(*pcg, embeddings, standard_word->id);
+}
+
+vector<Expression> TrivialEncoder::Encode(const InputSentence* const input) {
   const LinearSentence& sentence = *dynamic_cast<const LinearSentence*>(input);
   vector<Expression> encodings(sentence.size());
   for (unsigned i = 0; i < sentence.size(); ++i) {
-    Expression embedding = lookup(*pcg, embeddings, sentence[i]);
+    Expression embedding = Embed(sentence[i]);
     encodings[i] = affine_transform({b, W, embedding});
   }
   return encodings;
@@ -54,7 +60,7 @@ void BidirectionalSentenceEncoder::SetDropout(float rate) {
   reverse_builder.set_dropout(rate);
 }
 
-vector<Expression> BidirectionalSentenceEncoder::Encode(const Sentence* input) {
+vector<Expression> BidirectionalSentenceEncoder::Encode(const InputSentence* const input) {
   const LinearSentence& sentence = *dynamic_cast<const LinearSentence*>(input);
   vector<Expression> forward_encodings = EncodeForward(sentence);
   vector<Expression> reverse_encodings = EncodeReverse(sentence);
@@ -67,12 +73,18 @@ vector<Expression> BidirectionalSentenceEncoder::Encode(const Sentence* input) {
   return bidir_encodings;
 }
 
+Expression BidirectionalSentenceEncoder::Embed(const Word* const word) {
+  const StandardWord* standard_word = dynamic_cast<const StandardWord*>(word);
+  assert (standard_word != nullptr);
+  return lookup(*pcg, embeddings, standard_word->id);
+}
+
 vector<Expression> BidirectionalSentenceEncoder::EncodeForward(const LinearSentence& sentence) {
   forward_builder.new_graph(*pcg);
   forward_builder.start_new_sequence();
   vector<Expression> forward_encodings(sentence.size());
   for (unsigned i = 0; i < sentence.size(); ++i) {
-    Expression x = lookup(*pcg, embeddings, sentence[i]);
+    Expression x = Embed(sentence[i]);
     Expression y = forward_builder.add_input(x);
     forward_encodings[i] = y;
   }
@@ -84,7 +96,7 @@ vector<Expression> BidirectionalSentenceEncoder::EncodeReverse(const LinearSente
   reverse_builder.start_new_sequence();
   vector<Expression> reverse_encodings(sentence.size());
   for (unsigned i = 0; i < sentence.size(); ++i) {
-    Expression x = lookup(*pcg, embeddings, sentence[i]);
+    Expression x = Embed(sentence[i]);
     Expression y = reverse_builder.add_input(x);
     reverse_encodings[i] = y;
   }

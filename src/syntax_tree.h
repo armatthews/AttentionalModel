@@ -27,7 +27,7 @@ private:
   TreeIterationOrder order;
 };
 
-class SyntaxTree : public Sentence {
+class SyntaxTree : public InputSentence {
 public:
   SyntaxTree();
   SyntaxTree(string tree, Dict* word_dict, Dict* label_dict);
@@ -50,6 +50,8 @@ public:
 
   SyntaxTreeIterator begin(TreeIterationOrder order) const;
   SyntaxTreeIterator end() const;
+  unsigned size() const;
+
 private:
   Dict* word_dict;
   Dict* label_dict;

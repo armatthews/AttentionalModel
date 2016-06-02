@@ -20,7 +20,7 @@ public:
   virtual ~AttentionModel();
 
   virtual void NewGraph(ComputationGraph& cg) = 0;
-  virtual void NewSentence(const Sentence* input);
+  virtual void NewSentence(const InputSentence* input);
   virtual void SetDropout(float rate) {}
   virtual Expression GetScoreVector(const vector<Expression>& inputs, const Expression& state) = 0;
   virtual Expression GetAlignmentVector(const vector<Expression>& inputs, const Expression& state) = 0;
