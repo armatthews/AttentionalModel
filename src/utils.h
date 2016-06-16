@@ -8,9 +8,11 @@
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>*/
 #include "cnn/dict.h"
+#include "cnn/expr.h"
 
 using namespace std;
 using namespace cnn;
+using namespace cnn::expr;
 
 typedef int WordId;
 
@@ -52,8 +54,8 @@ public:
 typedef pair<InputSentence*, OutputSentence*> SentencePair;
 typedef vector<SentencePair> Bitext;
 
-inline unsigned int UTF8Len(unsigned char x);
-inline unsigned int UTF8StringLen(const string& x);
+unsigned int UTF8Len(unsigned char x);
+unsigned int UTF8StringLen(const string& x);
 
 vector<string> tokenize(string input, string delimiter, unsigned max_times);
 vector<string> tokenize(string input, string delimiter);
@@ -65,3 +67,5 @@ vector<string> strip(const vector<string>& input, bool removeEmpty = false);
 map<string, double> parse_feature_string(string input);
 
 float logsumexp(const vector<float>& v);
+vector<Expression> MakeLSTMInitialState(Expression c, unsigned lstm_dim, unsigned lstm_layer_count);
+

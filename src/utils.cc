@@ -22,7 +22,7 @@ StandardWord::StandardWord(WordId id) : id(id) {}
 
 // given the first character of a UTF8 block, find out how wide it is
 // see http://en.wikipedia.org/wiki/UTF-8 for more info
-inline unsigned int UTF8Len(unsigned char x) {
+unsigned int UTF8Len(unsigned char x) {
   if (x < 0x80) return 1;
   else if ((x >> 5) == 0x06) return 2;
   else if ((x >> 4) == 0x0e) return 3;
@@ -32,7 +32,7 @@ inline unsigned int UTF8Len(unsigned char x) {
   else return 0;
 }
 
-inline unsigned int UTF8StringLen(const string& x) {
+unsigned int UTF8StringLen(const string& x) {
   unsigned pos = 0;
   int len = 0;
   while(pos < x.size()) {
@@ -112,3 +112,11 @@ float logsumexp(const vector<float>& v) {
   return m + log(sum);
 }
 
+vector<Expression> MakeLSTMInitialState(Expression c, unsigned lstm_dim, unsigned lstm_layer_count) {
+  vector<Expression> hinit(lstm_layer_count * 2);
+  for (unsigned i = 0; i < lstm_layer_count; ++i) {
+    hinit[i] = pickrange(c, i * lstm_dim, (i + 1) * lstm_dim);
+    hinit[i + lstm_layer_count] = tanh(hinit[i]);
+  }
+  return hinit;
+}

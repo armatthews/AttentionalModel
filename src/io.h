@@ -13,22 +13,121 @@
 using namespace std;
 using namespace cnn;
 
-typedef function<vector<InputSentence*> ()> InputReader;
-typedef function<vector<OutputSentence*> ()> OutputReader;
-typedef vector<InputSentence*> Corpus;
+class InputReader {
+public:
+  virtual vector<InputSentence*> Read(const string& filename) = 0;
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {}
+};
 
-Bitext ReadBitext(InputReader SourceReader, OutputReader TargetReader);
+class OutputReader {
+public:
+  virtual vector<OutputSentence*> Read(const string& filename) = 0;
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {}
+};
 
-Corpus ReadStandardText(const string& filename, Dict& dict, bool add_bos_eos = true);
-Corpus ReadSyntaxTrees(const string& filename, Dict& terminal_dict, Dict& label_dict);
-Corpus ReadMorphologyText(const string& filename, Dict& word_dict, Dict& root_dict, Dict& affix_dict, Dict& char_dict);
+class StandardInputReader : public InputReader {
+public:
+  vector<InputSentence*> Read(const string& filename);
+  Dict vocab;
+private:
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {
+    ar & boost::serialization::base_object<InputReader>(*this);
+    ar & vocab;
+  }
+};
+BOOST_CLASS_EXPORT_KEY(StandardInputReader)
 
-LinearSentence* ReadSentence(const string& line, Dict& dict, bool add_bos_eos = true);
-SyntaxTree* ReadSyntaxTree(const string& line, Dict& terminal_dict, Dict& label_dict);
-LinearSentence* ReadMorphSentence(const string& line, Dict& word_dict, Dict& root_dict, Dict& affix_dict, Dict& char_dict);
+class SyntaxInputReader : public InputReader {
+public:
+  vector<InputSentence*> Read(const string& filename);
+  Dict terminal_vocab;
+  Dict nonterminal_vocab;
+private:
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {
+    ar & boost::serialization::base_object<InputReader>(*this);
+    ar & terminal_vocab;
+    ar & nonterminal_vocab;
+  }
+};
+BOOST_CLASS_EXPORT_KEY(SyntaxInputReader)
 
-Bitext* ReadBitext(const string& filename, Dict& source_vocab, Dict& target_vocab);
-Bitext* ReadT2SBitext(const string& filename, Dict& source_vocab, Dict& target_vocab, Dict& label_vocab);
+class MorphologyInputReader : public InputReader {
+public:
+  vector<InputSentence*> Read(const string& filename);
+  Dict word_vocab;
+  Dict root_vocab;
+  Dict affix_vocab;
+  Dict char_vocab;
+private:
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {
+    ar & boost::serialization::base_object<InputReader>(*this);
+    ar & word_vocab;
+    ar & root_vocab;
+    ar & affix_vocab;
+    ar & char_vocab;
+  }
+};
+BOOST_CLASS_EXPORT_KEY(MorphologyInputReader)
 
-void Serialize(const vector<Dict*>& dicts, const Translator& translator, Model& cnn_model);
-void Deserialize(const string& filename, vector<Dict*>& dicts, Translator& translator, Model& cnn_model);
+class StandardOutputReader : public OutputReader {
+public:
+  vector<OutputSentence*> Read(const string& filename);
+  Dict vocab;
+private:
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {
+    ar & boost::serialization::base_object<OutputReader>(*this);
+    ar & vocab;
+  }
+};
+BOOST_CLASS_EXPORT_KEY(StandardOutputReader)
+
+class MorphologyOutputReader : public OutputReader {
+public:
+  vector<OutputSentence*> Read(const string& filename);
+  Dict word_vocab;
+  Dict root_vocab;
+  Dict affix_vocab;
+  Dict char_vocab;
+private:
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {
+    ar & boost::serialization::base_object<OutputReader>(*this);
+    ar & word_vocab;
+    ar & root_vocab;
+    ar & affix_vocab;
+    ar & char_vocab;
+  }
+};
+BOOST_CLASS_EXPORT_KEY(MorphologyOutputReader)
+
+class RnngOutputReader : public OutputReader {
+public:
+  vector<OutputSentence*> Read(const string& filename);
+  Dict vocab;
+private:
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {
+    ar & boost::serialization::base_object<OutputReader>(*this);
+    ar & vocab;
+  }
+};
+BOOST_CLASS_EXPORT_KEY(RnngOutputReader)
+
+Bitext ReadBitext(const string& source_filename, const string& target_filename, InputReader* SourceReader, OutputReader* TargetReader);
+
+void Serialize(const InputReader* const input_reader, const OutputReader* const output_reader, const Translator& translator, Model& cnn_model);
+void Deserialize(const string& filename, InputReader* input_reader, OutputReader* output_reader, Translator& translator, Model& cnn_model);

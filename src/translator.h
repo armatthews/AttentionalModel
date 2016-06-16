@@ -10,7 +10,6 @@ class Translator {
 public:
   Translator();
   Translator(EncoderModel* encoder, AttentionModel* attention, OutputModel* output);
-  bool IsT2S() const;
 
   void NewGraph(ComputationGraph& cg);
   void SetDropout(float rate);

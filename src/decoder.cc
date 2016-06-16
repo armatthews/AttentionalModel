@@ -37,15 +37,15 @@ Decoder::Decoder(const vector<Translator*>& translators) : translators(translato
   assert (translators.size() > 0);
 }
 
-void Decoder::SetParams(unsigned max_length, WordId kSOS, WordId kEOS) {
+void Decoder::SetParams(unsigned max_length, const Word* const kSOS, const Word* const kEOS) {
   this->max_length = max_length;
   this->kSOS = kSOS;
   this->kEOS = kEOS;
 }
 
-vector<Sentence> Decoder::SampleTranslations(const Sentence* source, unsigned n) const {
+vector<OutputSentence*> Decoder::SampleTranslations(const InputSentence* const source, unsigned n) const {
   ComputationGraph cg;
-  vector<Sentence> samples(n);
+  vector<OutputSentence*> samples(n);
   vector<vector<Expression>> source_encodings(translators.size());
 
   for (unsigned i = 0; i < translators.size(); ++i) {
@@ -54,9 +54,9 @@ vector<Sentence> Decoder::SampleTranslations(const Sentence* source, unsigned n)
   }
 
   for (unsigned j = 0; j < n; ++j) {
-    WordId prev_word = kSOS;
-    Sentence sample;
-    while (sample.size() < max_length) {
+    const Word* prev_word = kSOS;
+    OutputSentence* sample = new OutputSentence();
+    while (sample->size() < max_length) {
       vector<Expression> log_distributions(translators.size());
       for (unsigned i = 0; i < translators.size(); ++i) {
         Translator* translator = translators[i];
@@ -68,8 +68,8 @@ vector<Sentence> Decoder::SampleTranslations(const Sentence* source, unsigned n)
       }
 
       Expression final_distribution = softmax(sum(log_distributions));
-      WordId w = Sample(final_distribution);
-      sample.push_back(w);
+      const Word* w = Sample(final_distribution);
+      sample->push_back(w);
       prev_word = w;
     }
     samples[j] = sample;

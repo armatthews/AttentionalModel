@@ -8,10 +8,6 @@ Translator::Translator(EncoderModel* encoder, AttentionModel* attention, OutputM
   output_model = output;
 }
 
-bool Translator::IsT2S() const {
-  return encoder_model->IsT2S();
-}
-
 void Translator::NewGraph(ComputationGraph& cg) {
   encoder_model->NewGraph(cg);
   attention_model->NewGraph(cg);

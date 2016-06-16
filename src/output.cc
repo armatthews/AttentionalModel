@@ -2,7 +2,7 @@
 #include "output.h"
 BOOST_CLASS_EXPORT_IMPLEMENT(SoftmaxOutputModel)
 BOOST_CLASS_EXPORT_IMPLEMENT(MlpSoftmaxOutputModel)
-//BOOST_CLASS_EXPORT_IMPLEMENT(MorphLmOutputModel)
+BOOST_CLASS_EXPORT_IMPLEMENT(MorphologyOutputModel)
 BOOST_CLASS_EXPORT_IMPLEMENT(RnngOutputModel)
 
 const unsigned lstm_layer_count = 2;
@@ -74,16 +74,16 @@ Expression SoftmaxOutputModel::AddInput(const Word* prev_word, const Expression&
   return state;
 }
 
-Expression SoftmaxOutputModel::PredictLogDistribution(const Expression& state) const {
+Expression SoftmaxOutputModel::PredictLogDistribution(const Expression& state) {
   return fsb->full_log_distribution(state);
 }
 
-Expression SoftmaxOutputModel::Loss(const Expression& state, const Word* const ref) const {
+Expression SoftmaxOutputModel::Loss(const Expression& state, const Word* const ref) {
   const StandardWord* r = dynamic_cast<const StandardWord*>(ref);
   return fsb->neg_log_softmax(state, r->id);
 }
 
-Word* SoftmaxOutputModel::Sample(const Expression& state) const {
+Word* SoftmaxOutputModel::Sample(const Expression& state) {
   return new StandardWord(fsb->sample(state));
 }
 
@@ -100,19 +100,187 @@ void MlpSoftmaxOutputModel::NewGraph(ComputationGraph& cg) {
   b = parameter(cg, p_b);
 }
 
-Expression MlpSoftmaxOutputModel::PredictLogDistribution(const Expression& state) const {
+Expression MlpSoftmaxOutputModel::PredictLogDistribution(const Expression& state) {
   Expression h = tanh(affine_transform({b, W, state}));
   return SoftmaxOutputModel::PredictLogDistribution(h);
 }
 
-Expression MlpSoftmaxOutputModel::Loss(const Expression& state, const Word* const ref) const {
+Expression MlpSoftmaxOutputModel::Loss(const Expression& state, const Word* const ref) {
   Expression h = tanh(affine_transform({b, W, state}));
   return SoftmaxOutputModel::Loss(h, ref);
 }
 
-Word* MlpSoftmaxOutputModel::Sample(const Expression& state) const {
+Word* MlpSoftmaxOutputModel::Sample(const Expression& state) {
   Expression h = tanh(affine_transform({b, W, state}));
   return SoftmaxOutputModel::Sample(h);
+}
+
+MorphologyOutputModel::MorphologyOutputModel() {}
+
+MorphologyOutputModel::MorphologyOutputModel(Model& model, unsigned word_vocab_size, unsigned root_vocab_size, unsigned affix_vocab_size, unsigned char_vocab_size, unsigned word_emb_dim, unsigned root_emb_dim, unsigned affix_emb_dim, unsigned char_emb_dim, unsigned model_chooser_hidden_dim, unsigned affix_init_hidden_dim, unsigned char_init_hidden_dim, unsigned state_dim, unsigned affix_lstm_dim, unsigned char_lstm_dim, unsigned context_dim) : state_dim(state_dim), affix_lstm_dim(affix_lstm_dim), char_lstm_dim(char_lstm_dim), pcg(nullptr) {
+  unsigned mode_count = 4; // EOS, char, morph, word
+  model_chooser = MLP(model, context_dim, model_chooser_hidden_dim, mode_count);
+
+  // We first use the context to predict a root, then use the root+context to initialize the affix LSTM
+  affix_lstm_init = MLP(model, context_dim + root_emb_dim, affix_init_hidden_dim, lstm_layer_count * affix_lstm_dim);
+
+  // The char LSTM is initialized just from the context
+  char_lstm_init = MLP(model, context_dim, char_init_hidden_dim, lstm_layer_count * char_lstm_dim);
+
+  affix_lstm = LSTMBuilder(lstm_layer_count, affix_emb_dim, affix_lstm_dim, &model);
+  char_lstm = LSTMBuilder(lstm_layer_count, char_emb_dim, char_lstm_dim, &model);
+
+  // The main LSTM takes in the context as well as the char, affix, and word embeddings of the current word. The state is included implicitly.
+  output_builder = LSTMBuilder(lstm_layer_count, char_lstm_dim + affix_lstm_dim + word_emb_dim + context_dim, state_dim, &model);
+  output_lstm_init = model.add_parameters({state_dim * lstm_layer_count});
+  embedder = MorphologyEmbedder(model, word_vocab_size, root_vocab_size, affix_vocab_size, char_vocab_size, word_emb_dim, affix_emb_dim, char_emb_dim, affix_lstm_dim, char_lstm_dim);
+
+  // Unlike on the encoder side, we need a separate root_emb_dim here. This is because we want to use three things to initialize
+  // the affix lstm: the state, the context, and the root. On the input side we have root_emb_dim = lstm_layer_count * affix_lstm_dim
+  // but here we would need root_emb_dim = lstm_layer_count * (affix_lstm_dim + state_dim + context_dim) which is far too much,
+  // so instead we add an affine transform to transform the larger amount of available information into something manageable.
+  root_embeddings = model.add_lookup_parameters(root_vocab_size, {root_emb_dim});
+  affix_embeddings = model.add_lookup_parameters(affix_vocab_size, {affix_emb_dim});
+  char_embeddings = model.add_lookup_parameters(char_vocab_size, {char_emb_dim});
+
+  word_softmax = new StandardSoftmaxBuilder(state_dim, word_vocab_size, &model);
+  root_softmax = new StandardSoftmaxBuilder(state_dim, root_vocab_size, &model);
+  affix_softmax = new StandardSoftmaxBuilder(affix_lstm_dim, affix_vocab_size, &model);
+  char_softmax = new StandardSoftmaxBuilder(char_lstm_dim, char_vocab_size, &model);
+}
+
+void MorphologyOutputModel::NewGraph(ComputationGraph& cg) {
+  pcg = &cg;
+  model_chooser.NewGraph(cg);
+  affix_lstm_init.NewGraph(cg);
+  char_lstm_init.NewGraph(cg);
+  affix_lstm.new_graph(cg);
+  char_lstm.new_graph(cg);
+  output_builder.new_graph(cg);
+  embedder.NewGraph(cg);
+  word_softmax->new_graph(cg);
+  root_softmax->new_graph(cg);
+  affix_softmax->new_graph(cg);
+  char_softmax->new_graph(cg);
+
+  Expression output_lstm_init_expr = parameter(cg, output_lstm_init);
+  output_lstm_init_v = MakeLSTMInitialState(output_lstm_init_expr, state_dim, lstm_layer_count);
+  output_builder.start_new_sequence(output_lstm_init_v);
+}
+
+void MorphologyOutputModel::SetDropout(float rate) {}
+
+Expression MorphologyOutputModel::GetState() const {
+  if (output_builder.state() == -1 && output_builder.h0.size() == 0) {
+    return zeroes(*pcg, {state_dim});
+  }
+  else {
+    return output_builder.back();
+  }
+}
+  
+Expression MorphologyOutputModel::GetState(RNNPointer p) const {
+  if (p == -1) {
+    if (output_builder.h0.size() == 0) {
+      return zeroes(*pcg, {state_dim});  
+    }
+    else {
+      return output_builder.back();
+    }
+  }
+  return output_builder.get_h(p).back();
+}
+
+RNNPointer MorphologyOutputModel::GetStatePointer() const {
+  return output_builder.state();
+}
+
+Expression MorphologyOutputModel::AddInput(const Word* const prev_word, const Expression& context) {
+  return AddInput(prev_word, context, output_builder.state());
+}
+
+Expression MorphologyOutputModel::AddInput(const Word* const prev_word, const Expression& context, const RNNPointer& p) {
+  Expression prev_embedding = embedder.Embed(prev_word);
+  Expression input = concatenate({prev_embedding, context});
+  Expression state = output_builder.add_input(p, input);
+  return state;
+}
+
+Expression MorphologyOutputModel::PredictLogDistribution(const Expression& state) {
+  assert (false);
+}
+
+Word* MorphologyOutputModel::Sample(const Expression& state) {
+  assert (false);
+}
+
+Expression MorphologyOutputModel::WordLoss(const Expression& state, const WordId ref) {
+  return word_softmax->neg_log_softmax(state, ref);
+}
+
+Expression MorphologyOutputModel::AnalysisLoss(const Expression& state, const Analysis& ref) {
+  Expression root_loss = root_softmax->neg_log_softmax(state, ref.root);
+  if (ref.affixes.size() == 0) {
+    return root_loss;
+  }
+
+  Expression root_emb = lookup(*pcg, root_embeddings, ref.root);
+  Expression mlp_input = concatenate({state, root_emb});
+  Expression affix_lstm_init_expr = affix_lstm_init.Feed(mlp_input);
+  vector<Expression> affix_lstm_init_v = MakeLSTMInitialState(affix_lstm_init_expr, affix_lstm_dim, lstm_layer_count);
+  affix_lstm.start_new_sequence(affix_lstm_init_v);
+
+  vector<Expression> affix_losses;
+  for (WordId affix : ref.affixes) {
+    Expression affix_loss = affix_softmax->neg_log_softmax(affix_lstm.back(), affix);
+    Expression affix_emb = lookup(*pcg, affix_embeddings, affix);
+    affix_lstm.add_input(affix_emb);
+    affix_losses.push_back(affix_loss);
+  }
+
+  return root_loss + sum(affix_losses);
+}
+
+Expression MorphologyOutputModel::MorphLoss(const Expression& state, const vector<Analysis>& ref) {
+  assert (ref.size() > 0);
+  Expression min_loss = AnalysisLoss(state, ref[0]);
+  for (unsigned i = 0; i < ref.size(); ++i) {
+    min_loss = min(min_loss, AnalysisLoss(state, ref[i]));
+  }
+  return min_loss;
+}
+
+Expression MorphologyOutputModel::CharLoss(const Expression& state, const vector<WordId>& ref) {
+  assert(ref.size() > 0);
+
+  Expression char_lstm_init_expr = char_lstm_init.Feed(state);
+  vector<Expression> char_lstm_init_v = MakeLSTMInitialState(char_lstm_init_expr, char_lstm_dim, lstm_layer_count);
+  char_lstm.start_new_sequence(char_lstm_init_v);
+
+  vector<Expression> char_losses;
+  for (WordId c : ref) {
+    Expression char_loss = char_softmax->neg_log_softmax(char_lstm.back(), c);
+    Expression char_emb = lookup(*pcg, char_embeddings, c);
+    char_lstm.add_input(char_emb);
+    char_losses.push_back(char_loss);
+  }
+
+  return sum(char_losses);
+}
+
+Expression MorphologyOutputModel::Loss(const Expression& state, const Word* const ref) {
+  const MorphoWord* r = dynamic_cast<const MorphoWord*>(ref);
+  Expression model_probs = log_softmax(model_chooser.Feed(state));
+  Expression word_loss = WordLoss(state, r->word);
+  Expression morph_loss = MorphLoss(state, r->analyses);
+  Expression char_loss = CharLoss(state, r->chars);
+
+  vector<Expression> losses;
+  losses.push_back(pick(model_probs, 1) - word_loss);
+  losses.push_back(pick(model_probs, 2) - morph_loss);
+  losses.push_back(pick(model_probs, 3) - char_loss);
+  Expression total_loss = -logsumexp(losses);
+  return total_loss;
 }
 
 RnngOutputModel::RnngOutputModel() {}
@@ -218,15 +386,15 @@ Expression RnngOutputModel::AddInput(const Word* prev_word_, const Expression& c
   return builder->GetStateVector(context);
 }
 
-Expression RnngOutputModel::PredictLogDistribution(const Expression& source_context) const {
+Expression RnngOutputModel::PredictLogDistribution(const Expression& source_context) {
   assert (false);
 }
 
-Word* RnngOutputModel::Sample(const Expression& source_context) const {
+Word* RnngOutputModel::Sample(const Expression& source_context) {
   assert (false);
 }
 
-Expression RnngOutputModel::Loss(const Expression& source_context, const Word* const ref) const {
+Expression RnngOutputModel::Loss(const Expression& source_context, const Word* const ref) {
   const StandardWord* r = dynamic_cast<const StandardWord*>(ref);
   Action ref_action = Convert(r->id);
   if (ref_action.type == Action::kNone) {
