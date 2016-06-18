@@ -17,11 +17,15 @@ int main(int argc, char** argv) {
   po::options_description desc("description");
   desc.add_options()
   ("model", po::value<string>()->required(), "model files, as output by train")
+  ("input_source", po::value<string>()->required(), "input file source")
+  ("input_target", po::value<string>()->required(), "input file target")
   ("perp", "Show per-sentence perplexity instead of negative log prob")
   ("help", "Display this help message");
 
   po::positional_options_description positional_options;
   positional_options.add("model", 1);
+  positional_options.add("input_source", 1);
+  positional_options.add("input_target", 1);
 
   po::variables_map vm;
   po::store(po::command_line_parser(argc, argv).options(desc).positional(positional_options).run(), vm, true);
@@ -36,39 +40,28 @@ int main(int argc, char** argv) {
   const string model_filename = vm["model"].as<string>();
   const bool show_perp = vm.count("perp") > 0;
 
-  Model cnn_model;
+  InputReader* input_reader = nullptr;
+  OutputReader* output_reader = nullptr;
   Translator translator;
-  vector<Dict*> dicts;
-  Deserialize(model_filename, dicts, translator, cnn_model);
+  Model cnn_model;
+  Deserialize(model_filename, input_reader, output_reader, translator, cnn_model);
+  cerr << "After deserialization input_reader is " << input_reader << endl;
   translator.SetDropout(0.0f);
 
-  Dict* source_vocab = dicts[0];
-  Dict* target_vocab = dicts[1];
-  Dict* label_vocab = translator.IsT2S() ? dicts[2] :  nullptr;
-
-  string line;
-  unsigned sentence_number = 0;
   cnn::real total_loss = 0;
   unsigned total_words = 0;
-  while(getline(cin, line)) {
-    vector<string> parts = tokenize(line, "|||");
-    parts = strip(parts);
-
-    vector<cnn::real> losses;
-    InputSentence* source;
-    if (translator.IsT2S()) {
-      source = new SyntaxTree(parts[0], source_vocab, label_vocab);
-    }
-    else {
-      source = ReadSentence(parts[0], *source_vocab);
-    }
-    OutputSentence* target = ReadSentence(parts[1], *target_vocab); 
+  vector<InputSentence*> source_sentences = input_reader->Read(vm["input_source"].as<string>());
+  vector<OutputSentence*> target_sentences = output_reader->Read(vm["input_target"].as<string>());
+  assert (source_sentences.size() == target_sentences.size());
+  for (unsigned sentence_number = 0; sentence_number < source_sentences.size(); ++sentence_number) {
+    InputSentence* source = source_sentences[sentence_number];
+    OutputSentence* target = target_sentences[sentence_number];
 
     ComputationGraph cg;
     Expression loss_expr = translator.BuildGraph(source, target, cg);
     cg.incremental_forward();
     cnn::real loss = as_scalar(loss_expr.value());
-    unsigned words = target->size() - 1;
+    unsigned words = target->size();
     if (show_perp) {
       cout << sentence_number << " ||| " << exp(loss / words) << endl;
     }
@@ -77,7 +70,6 @@ int main(int argc, char** argv) {
     }
     cout.flush();
 
-    sentence_number++;
     total_loss += loss;
     total_words += words;
   }

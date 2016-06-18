@@ -165,7 +165,7 @@ void Serialize(const InputReader* const input_reader, const OutputReader* const 
   oa & translator;
 }
 
-void Deserialize(const string& filename, InputReader* input_reader, OutputReader* output_reader, Translator& translator, Model& cnn_model) {
+void Deserialize(const string& filename, InputReader*& input_reader, OutputReader*& output_reader, Translator& translator, Model& cnn_model) {
   ifstream f(filename);
   boost::archive::binary_iarchive ia(f);
   ia & cnn_model;

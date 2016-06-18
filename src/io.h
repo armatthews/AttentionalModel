@@ -130,4 +130,4 @@ BOOST_CLASS_EXPORT_KEY(RnngOutputReader)
 Bitext ReadBitext(const string& source_filename, const string& target_filename, InputReader* SourceReader, OutputReader* TargetReader);
 
 void Serialize(const InputReader* const input_reader, const OutputReader* const output_reader, const Translator& translator, Model& cnn_model);
-void Deserialize(const string& filename, InputReader* input_reader, OutputReader* output_reader, Translator& translator, Model& cnn_model);
+void Deserialize(const string& filename, InputReader*& input_reader, OutputReader*& output_reader, Translator& translator, Model& cnn_model);
