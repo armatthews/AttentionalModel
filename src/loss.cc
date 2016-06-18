@@ -45,7 +45,6 @@ int main(int argc, char** argv) {
   Translator translator;
   Model cnn_model;
   Deserialize(model_filename, input_reader, output_reader, translator, cnn_model);
-  cerr << "After deserialization input_reader is " << input_reader << endl;
   translator.SetDropout(0.0f);
 
   cnn::real total_loss = 0;

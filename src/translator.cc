@@ -88,12 +88,12 @@ vector<Expression> Translator::Align(const InputSentence* const source, const Ou
   vector<Expression> alignments;
   Expression input_matrix = concatenate_cols(encodings);
   for (unsigned i = 1; i < target->size(); ++i) {
-    /*const WordId& prev_word = target[i - 1];
+    const Word* prev_word = (*target)[i - 1];
     Expression state = output_model->GetState();
     Expression word_alignment = attention_model->GetAlignmentVector(encodings, state);
     Expression context = input_matrix * word_alignment;
     output_model->AddInput(prev_word, context);
-    alignments.push_back(word_alignment);*/
+    alignments.push_back(word_alignment);
   }
   return alignments;
 }
