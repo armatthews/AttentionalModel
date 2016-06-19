@@ -40,7 +40,10 @@ void CoveragePrior::NewGraph(ComputationGraph& cg) {
 
 void CoveragePrior::NewSentence(const TranslatorInput* input) {
   const Sentence* sent = dynamic_cast<const Sentence*>(input);
-  coverage = zeroes(*pcg, {(unsigned)sent->size()});
+  const SyntaxTree* tree = dynamic_cast<const SyntaxTree*>(input);
+  assert (sent != nullptr || tree != nullptr);
+  unsigned input_size = (sent != nullptr) ? sent->size() : tree->NumNodes();
+  coverage = zeroes(*pcg, {input_size});
 }
 
 Expression CoveragePrior::Compute(const vector<Expression>& inputs, unsigned target_index) {
@@ -70,20 +73,22 @@ void DiagonalPrior::NewGraph(ComputationGraph& cg) {
 
 void DiagonalPrior::NewSentence(const TranslatorInput* translator_input) {
   const Sentence* sent = dynamic_cast<const Sentence*>(translator_input);
-  unsigned source_length = sent->size();
-  source_percentages_v.resize(source_length);
-  for (unsigned i = 0; i < source_length; ++i) {
+  const SyntaxTree* tree = dynamic_cast<const SyntaxTree*>(translator_input);
+  assert (sent != nullptr || tree != nullptr);
+  unsigned input_size = (sent != nullptr) ? sent->size() : tree->NumNodes();
+  source_percentages_v.resize(input_size);
+  for (unsigned i = 0; i < input_size; ++i) {
     if (i == 0) { // <s>
       source_percentages_v[i] = 0.0;
     }
-    else if (i == source_length - 1) { // </s>
+    else if (i == input_size - 1) { // </s>
      source_percentages_v[i] = 1.0;
     }
     else {
-      source_percentages_v[i] = 1.0 * (i - 1) / (source_length - 2);
+      source_percentages_v[i] = 1.0 * (i - 1) / (input_size - 2);
     }
   }
-  source_percentages = input(*pcg, {source_length}, &source_percentages_v);
+  source_percentages = input(*pcg, {input_size}, &source_percentages_v);
 }
 
 Expression DiagonalPrior::Compute(const vector<Expression>& inputs, unsigned target_index) {
@@ -114,7 +119,10 @@ void MarkovPrior::NewGraph(ComputationGraph& cg) {
 
 void MarkovPrior::NewSentence(const TranslatorInput* input) {
   const Sentence* sent = dynamic_cast<const Sentence*>(input);
-  prev_attention_vector = zeroes(*pcg, {(unsigned)sent->size()});
+  const SyntaxTree* tree = dynamic_cast<const SyntaxTree*>(input);
+  assert (sent != nullptr || tree != nullptr);
+  unsigned input_size = (sent != nullptr) ? sent->size() : tree->NumNodes(); 
+  prev_attention_vector = zeroes(*pcg, {input_size});
 }
 
 Expression MarkovPrior::Compute(const vector<Expression>& inputs, unsigned target_index) {

@@ -188,10 +188,19 @@ Expression ParserBuilder::Summarize(const LSTMBuilder& builder) const {
   return summary;
 }
 
-Expression ParserBuilder::BuildGraph(const vector<Action>& correct_actions) {
-  ParserState state(this);
-  vector<Expression> neg_log_probs;
+Expression ParserBuilder::ComputeActionDistribution(Expression state_summary, const vector<unsigned>& valid_actions) {
+  Expression r_t = affine_transform({abias, p2a, state_summary});
+  Expression adist = log_softmax(r_t, valid_actions);
+  return adist;
+}
 
+Expression ParserBuilder::GetStateSummary(Expression stack_summary, Expression action_summary, Expression term_summary) {
+  Expression p_t = affine_transform({pbias, S, stack_summary, A, action_summary, T, term_summary});
+  Expression nlp_t = rectify(p_t);
+  return nlp_t;
+}
+
+void ParserBuilder::StartNewSentence(ParserState& state) {
   term_lstm.start_new_sequence();
   stack_lstm.start_new_sequence();
   action_lstm.start_new_sequence();
@@ -206,29 +215,37 @@ Expression ParserBuilder::BuildGraph(const vector<Action>& correct_actions) {
   state.is_open_paren.push_back(-1);
 
   action_lstm.add_input(action_start);
+}
+
+Expression ParserBuilder::BuildGraph(const vector<Action>& correct_actions) {
+  ParserState state(this);
+  StartNewSentence(state);
 
   unsigned action_count = 0;
+  vector<Expression> neg_log_probs;
   while (state.stack.size() > 2 || state.terms.size() - 1 == 0) {
-    vector<unsigned> current_valid_actions = state.GetValidActionList();
     Expression stack_summary = Summarize(stack_lstm);
     Expression action_summary = Summarize(action_lstm);
     Expression term_summary = Summarize(term_lstm);
 
-    Expression p_t = affine_transform({pbias, S, stack_summary, A, action_summary, T, term_summary});
-    Expression nlp_t = rectify(p_t);
-    Expression r_t = affine_transform({abias, p2a, nlp_t});
-    Expression adist = log_softmax(r_t, current_valid_actions);
+    vector<unsigned> current_valid_actions = state.GetValidActionList();
+    Expression nlp_t = GetStateSummary(stack_summary, action_summary, term_summary);
+    Expression adist = ComputeActionDistribution(nlp_t, current_valid_actions);
 
     assert (action_count < correct_actions.size());
     Action action = correct_actions[action_count];
+
     Expression neg_log_prob = -pick(adist, action.type);
+    if (action.type == Action::kShift) {
+      WordId wordid = action.subtype;
+      Expression loss = cfsm->neg_log_softmax(nlp_t, wordid);
+      neg_log_prob = neg_log_prob +loss;
+    }
     neg_log_probs.push_back(neg_log_prob);
 
     // Perform action
     if (action.type == Action::kShift) {
       WordId wordid = action.subtype;
-      Expression loss = cfsm->neg_log_softmax(nlp_t, wordid);
-      neg_log_probs.push_back(loss);
       state.PerformShift(wordid);
     }
     else if (action.type == Action::kNT) {

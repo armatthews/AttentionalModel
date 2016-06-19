@@ -50,6 +50,9 @@ public:
   Expression Summarize(const LSTMBuilder& builder) const;
   Expression BuildGraph(const vector<Action>& correct_actions);
 
+  void StartNewSentence(ParserState& state);
+  Expression GetStateSummary(Expression stack_summary, Expression action_summary, Expression term_summary);
+  Expression ComputeActionDistribution(Expression state_summary, const vector<unsigned>& valid_actions);
   Expression EmbedNonterminal(WordId nt, const vector<Expression>& children);
 
 private:
