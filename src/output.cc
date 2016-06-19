@@ -4,6 +4,15 @@ BOOST_CLASS_EXPORT_IMPLEMENT(MlpSoftmaxOutputModel)
 
 const unsigned lstm_layer_count = 2;
 
+vector<Expression> MakeLSTMInitialState(Expression c, unsigned lstm_dim, unsigned lstm_layer_count) {
+  vector<Expression> hinit(lstm_layer_count * 2);
+  for (unsigned i = 0; i < lstm_layer_count; ++i) {
+    hinit[i] = pickrange(c, i * lstm_dim, (i + 1) * lstm_dim);
+    hinit[i + lstm_layer_count] = tanh(hinit[i]);
+  }
+  return hinit;
+}
+
 OutputModel::~OutputModel() {}
 
 SoftmaxOutputModel::SoftmaxOutputModel() : fsb(nullptr) {}
@@ -17,11 +26,14 @@ SoftmaxOutputModel::SoftmaxOutputModel(Model& model, unsigned embedding_dim, uns
   }
   embeddings = model.add_lookup_parameters(vocab->size(), {embedding_dim});
   output_builder = LSTMBuilder(lstm_layer_count, embedding_dim + context_dim, state_dim, &model);
+  p_output_builder_initial_state = model.add_parameters({lstm_layer_count * 2 * state_dim});
 }
 
 void SoftmaxOutputModel::NewGraph(ComputationGraph& cg) {
   output_builder.new_graph(cg);
-  output_builder.start_new_sequence();
+  output_builder_initial_state = parameter(cg, p_output_builder_initial_state);
+  vector<Expression> h0 = MakeLSTMInitialState(output_builder_initial_state, state_dim, lstm_layer_count);
+  output_builder.start_new_sequence(h0);
   fsb->new_graph(cg);
   pcg = &cg;
 }
