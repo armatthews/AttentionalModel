@@ -8,9 +8,8 @@ public:
   TreeEncoder();
   TreeEncoder(Model& model, unsigned vocab_size, unsigned label_vocab_size, unsigned input_dim, unsigned output_dim);
 
-  bool IsT2S() const;
   void NewGraph(ComputationGraph& cg);
-  vector<Expression> Encode(const TranslatorInput* const input);
+  vector<Expression> Encode(const InputSentence* const input);
 private:
   unsigned output_dim;
   EncoderModel* linear_encoder;

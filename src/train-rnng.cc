@@ -23,7 +23,7 @@ vector<ActionSequence> ReadOracleActions(const string& filename, Dict& term_voca
     for (string action_string : action_strings) {
       action_string = strip(action_string);
       size_t open_paren_loc = action_string.find("(");
-      if (open_paren_loc != -1) {
+      if (open_paren_loc != string::npos) {
         string action_type_str = action_string.substr(0, open_paren_loc);
         string subtype_str = action_string.substr(open_paren_loc + 1, action_string.length() - open_paren_loc - 2);
         if (action_type_str == "SHIFT") {

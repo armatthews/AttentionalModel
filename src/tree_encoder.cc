@@ -13,20 +13,15 @@ TreeEncoder::TreeEncoder(Model& model, unsigned vocab_size, unsigned label_vocab
   linear_encoder = new BidirectionalSentenceEncoder(model, vocab_size, input_dim, output_dim);
 }
 
-
-bool TreeEncoder::IsT2S() const {
-  return true;
-}
-
 void TreeEncoder::NewGraph(ComputationGraph& cg) {
   linear_encoder->NewGraph(cg);
   tree_builder->new_graph(cg);
   pcg = &cg;
 }
 
-vector<Expression> TreeEncoder::Encode(const TranslatorInput* const input) {
+vector<Expression> TreeEncoder::Encode(const InputSentence* const input) {
   const SyntaxTree& sentence = *dynamic_cast<const SyntaxTree*>(input);
-  Sentence terminals = sentence.GetTerminals();
+  LinearSentence terminals = sentence.GetTerminals();
   vector<Expression> linear_encodings = linear_encoder->Encode(&terminals);
   tree_builder->start_new_sequence();
 

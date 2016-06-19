@@ -8,21 +8,54 @@
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>*/
 #include "cnn/dict.h"
+#include "cnn/expr.h"
 
 using namespace std;
 using namespace cnn;
+using namespace cnn::expr;
 
 typedef int WordId;
-class TranslatorInput {
-public:
-  virtual ~TranslatorInput();
+
+struct Word {
+  virtual ~Word();
 };
-class Sentence : public vector<WordId>, public TranslatorInput {};
-typedef pair<TranslatorInput*, Sentence*> SentencePair;
+
+struct StandardWord : public Word {
+  explicit StandardWord(WordId id);
+  WordId id;
+};
+
+class Analysis {
+public:
+  WordId root;
+  vector<WordId> affixes;
+};
+
+struct MorphoWord : public Word {
+  WordId word;
+  vector<Analysis> analyses;
+  vector<WordId> chars;
+};
+
+class InputSentence {
+public:
+  virtual ~InputSentence();
+  // Returns the number of nodes returned when we embed this sentence
+  virtual unsigned NumNodes() const = 0;
+};
+
+typedef vector<Word*> OutputSentence;
+
+class LinearSentence : public InputSentence, public OutputSentence {
+public:
+  unsigned NumNodes() const;
+};
+
+typedef pair<InputSentence*, OutputSentence*> SentencePair;
 typedef vector<SentencePair> Bitext;
 
-inline unsigned int UTF8Len(unsigned char x);
-inline unsigned int UTF8StringLen(const string& x);
+unsigned int UTF8Len(unsigned char x);
+unsigned int UTF8StringLen(const string& x);
 
 vector<string> tokenize(string input, string delimiter, unsigned max_times);
 vector<string> tokenize(string input, string delimiter);
@@ -34,3 +67,5 @@ vector<string> strip(const vector<string>& input, bool removeEmpty = false);
 map<string, double> parse_feature_string(string input);
 
 float logsumexp(const vector<float>& v);
+vector<Expression> MakeLSTMInitialState(Expression c, unsigned lstm_dim, unsigned lstm_layer_count);
+

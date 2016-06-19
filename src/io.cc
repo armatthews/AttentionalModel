@@ -1,79 +1,189 @@
 #include <fstream>
 #include "io.h"
+BOOST_CLASS_EXPORT_IMPLEMENT(StandardInputReader)
+BOOST_CLASS_EXPORT_IMPLEMENT(SyntaxInputReader)
+BOOST_CLASS_EXPORT_IMPLEMENT(MorphologyInputReader)
+BOOST_CLASS_EXPORT_IMPLEMENT(StandardOutputReader)
+BOOST_CLASS_EXPORT_IMPLEMENT(MorphologyOutputReader)
+BOOST_CLASS_EXPORT_IMPLEMENT(RnngOutputReader)
 
-Sentence* ReadSentence(const string& line, Dict& dict) {
+LinearSentence* ReadStandardSentence(const string& line, Dict& dict, bool add_bos_eos) {
   vector<string> words = tokenize(strip(line), " ");
-  Sentence* r = new Sentence();
-  r->push_back(dict.Convert("<s>"));
-  for (const string& w : words) {
-    r->push_back(dict.Convert(w));
+  LinearSentence* r = new LinearSentence();
+  if (add_bos_eos) {
+    r->push_back(new StandardWord(dict.Convert("<s>")));
   }
-  r->push_back(dict.Convert("</s>"));
+  for (const string& w : words) {
+    r->push_back(new StandardWord(dict.Convert(w)));
+  }
+  if (add_bos_eos) {
+    r->push_back(new StandardWord(dict.Convert("</s>")));
+  }
   return r;
 }
 
-Bitext* ReadBitext(const string& filename, Dict& source_vocab, Dict& target_vocab) {
+vector<LinearSentence*> ReadStandardSentences(const string& filename, Dict& dict, bool add_bos_eos) {
   ifstream f(filename);
-  if (!f.is_open()) {
-    return nullptr;
-  }
+  assert (f.is_open());
 
-  Bitext* bitext = new Bitext();
+  vector<LinearSentence*> sentences;
   for (string line; getline(f, line);) {
-    vector<string> parts = tokenize(line, "|||");
-    assert (parts.size() == 2);
+    LinearSentence* sentence = ReadStandardSentence(strip(line), dict, add_bos_eos);
+    sentences.push_back(sentence);
+  }
+  return sentences;
+}
 
-    Sentence* source = ReadSentence(strip(parts[0]), source_vocab);
-    Sentence* target = ReadSentence(strip(parts[1]), target_vocab);
-    bitext->push_back(make_pair(source, target));
+MorphoWord* ReadMorphoWord(const string& line, Dict& word_vocab, Dict& root_vocab, Dict& affix_vocab, Dict& char_vocab) {
+  MorphoWord* word = new MorphoWord();
+  vector<string> parts = tokenize(strip(line), "\t");
+  string& word_str = parts[0];
+  word->word = word_vocab.Convert(word_str);
+
+  for (unsigned i = 1; i < parts.size(); ++i) {
+    vector<string> morphemes = tokenize(parts[i], "+");
+    assert (morphemes.size() > 0);
+    Analysis analysis;
+    analysis.root = root_vocab.Convert(morphemes[0]);
+    for (unsigned j = 1; j < morphemes.size(); ++j) {
+      analysis.affixes.push_back(affix_vocab.Convert(morphemes[j]));
+    }
+    word->analyses.push_back(analysis);
   }
 
-  cerr << "Read " << bitext->size() << " lines from " << filename << endl;
+  for (unsigned i = 0; i < word_str.length(); ) {
+    unsigned len = UTF8Len(parts[0][i]);
+    string c = parts[0].substr(i, len);
+    word->chars.push_back(char_vocab.Convert(c));
+    i += len;
+  }
+  return word;
+}
+
+LinearSentence* ReadMorphologySentence(const vector<string>& lines, Dict& word_vocab, Dict& root_vocab, Dict& affix_vocab, Dict& char_vocab, bool add_bos_eos) {
+  LinearSentence* r = new LinearSentence();
+  if (add_bos_eos) {
+    // TODO: Add <s>
+  }
+
+  for (const string& line : lines) {
+    r->push_back(ReadMorphoWord(line, word_vocab, root_vocab, affix_vocab, char_vocab));
+  }
+
+  if (add_bos_eos) {
+    // TODO: Add </s>
+  }
+  return r;
+}
+
+vector<LinearSentence*> ReadMorphologySentences(const string& filename, Dict& word_vocab, Dict& root_vocab, Dict& affix_vocab, Dict& char_vocab, bool add_bos_eos) {
+  ifstream f(filename);
+  assert (f.is_open());
+
+  vector<string> current_sentence;
+  vector<LinearSentence*> sentences;
+  for (string line; getline(f, line);) {
+    string sline = strip(line);
+    if (sline.length() == 0) {
+      LinearSentence* sentence = ReadMorphologySentence(current_sentence, word_vocab, root_vocab, affix_vocab, char_vocab, add_bos_eos);
+      sentences.push_back(sentence);
+      current_sentence.clear();
+    }
+    else {
+      current_sentence.push_back(sline);
+    }
+  }
+
+  if (current_sentence.size() > 0) {
+    LinearSentence* sentence = ReadMorphologySentence(current_sentence, word_vocab, root_vocab, affix_vocab, char_vocab, add_bos_eos);
+    sentences.push_back(sentence);
+    current_sentence.clear();
+  }
+  return sentences;
+}
+
+vector<InputSentence*> StandardInputReader::Read(const string& filename) {
+  vector<LinearSentence*> corpus = ReadStandardSentences(filename, vocab, true);
+  return vector<InputSentence*>(corpus.begin(), corpus.end());
+}
+
+vector<InputSentence*> SyntaxInputReader::Read(const string& filename) {
+  ifstream f(filename);
+  assert (f.is_open());
+
+  vector<InputSentence*> sentences;
+  for (string line; getline(f, line);) {
+    SyntaxTree* sentence = new SyntaxTree(strip(line), &terminal_vocab, &nonterminal_vocab);
+    sentence->AssignNodeIds();
+    sentences.push_back(sentence);
+  }
+
+  return sentences;
+}
+
+vector<InputSentence*> MorphologyInputReader::Read(const string& filename) {
+  vector<LinearSentence*> corpus = ReadMorphologySentences(filename, word_vocab, root_vocab, affix_vocab, char_vocab, true);
+  return vector<InputSentence*>(corpus.begin(), corpus.end());
+}
+
+vector<OutputSentence*> StandardOutputReader::Read(const string& filename) {
+  vector<LinearSentence*> corpus = ReadStandardSentences(filename, vocab, true);
+  return vector<OutputSentence*>(corpus.begin(), corpus.end());
+}
+
+vector<OutputSentence*> MorphologyOutputReader::Read(const string& filename) {
+  vector<LinearSentence*> corpus = ReadMorphologySentences(filename, word_vocab, root_vocab, affix_vocab, char_vocab, true);
+  return vector<OutputSentence*>(corpus.begin(), corpus.end());
+}
+
+vector<OutputSentence*> RnngOutputReader::Read(const string& filename) {
+  vector<LinearSentence*> corpus = ReadStandardSentences(filename, vocab, false);
+  return vector<OutputSentence*>(corpus.begin(), corpus.end());
+}
+
+string StandardOutputReader::ToString(const Word* word) {
+  assert (false);
+}
+
+string MorphologyOutputReader::ToString(const Word* word) {
+  assert (false);
+}
+
+string RnngOutputReader::ToString(const Word* word) {
+  assert (false);
+}
+
+Bitext ReadBitext(const string& source_filename, const string& target_filename, InputReader* input_reader, OutputReader* output_reader) {
+  vector<InputSentence*> source = input_reader->Read(source_filename);
+  vector<OutputSentence*> target = output_reader->Read(target_filename);
+  assert (source.size() == target.size());
+
+  Bitext bitext;
+  for (unsigned i = 0; i < source.size(); ++i) {
+    bitext.push_back(make_pair(source[i], target[i]));
+  }
   return bitext;
 }
 
-Bitext* ReadT2SBitext(const string& filename, Dict& source_vocab, Dict& target_vocab, Dict& label_vocab) {
-  ifstream f(filename);
-  if (!f.is_open()) {
-    return nullptr;
-  }
-
-  Bitext* bitext = new Bitext();
-  for (string line; getline(f, line);) {
-    vector<string> parts = tokenize(line, "|||");
-    assert (parts.size() == 2);
-
-    SyntaxTree* source = new SyntaxTree(strip(parts[0]), &source_vocab, &label_vocab);
-    source->AssignNodeIds();
-    Sentence* target = ReadSentence(strip(parts[1]), target_vocab);
-    bitext->push_back(make_pair(source, target));
-  }
-
-  cerr << "Read " << bitext->size() << " lines from " << filename << endl;
-  return bitext;
-}
-
-void Serialize(const vector<Dict*>& dicts, const Translator& translator, Model& cnn_model) {
+void Serialize(const InputReader* const input_reader, const OutputReader* const output_reader, const Translator& translator, Model& cnn_model) {
   int r = ftruncate(fileno(stdout), 0);
   if (r != 0) {}
   fseek(stdout, 0, SEEK_SET);
 
   boost::archive::binary_oarchive oa(cout);
   oa & cnn_model;
-  oa & dicts;
+  oa & input_reader;
+  oa & output_reader;
   oa & translator;
 }
 
-void Deserialize(const string& filename, vector<Dict*>& dicts, Translator& translator, Model& cnn_model) {
+void Deserialize(const string& filename, InputReader*& input_reader, OutputReader*& output_reader, Translator& translator, Model& cnn_model) {
   ifstream f(filename);
   boost::archive::binary_iarchive ia(f);
   ia & cnn_model;
-  ia & dicts;
+  ia & input_reader;
+  ia & output_reader;
   ia & translator;
   f.close();
-
-  for (Dict* dict : dicts) {
-    assert (dict->is_frozen());
-  }
 }
 

@@ -10,23 +10,23 @@ class Translator {
 public:
   Translator();
   Translator(EncoderModel* encoder, AttentionModel* attention, OutputModel* output);
-  bool IsT2S() const;
 
   void NewGraph(ComputationGraph& cg);
   void SetDropout(float rate);
-  Expression BuildGraph(const TranslatorInput* const source, const Sentence& target, ComputationGraph& cg);
-  vector<Sentence> Sample(const TranslatorInput* const source, unsigned samples, WordId BOS, WordId EOS, unsigned max_length);
-  vector<Expression> Align(const TranslatorInput* const source, const Sentence& target, ComputationGraph& cg);
+  Expression BuildGraph(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg);
+  vector<OutputSentence*> Sample(const InputSentence* const source, unsigned samples, unsigned max_length);
+  vector<Expression> Align(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg);
+
   // This could be used if your loss is over alignment matrices, for example
-  // Expression Align(const TranslatorInput* const source, const Sentence& target, ComputationGraph& cg);
-  KBestList<Sentence> Translate(const TranslatorInput* const source, unsigned K, unsigned beam_size, WordId BOS, WordId EOS, unsigned max_length);
+  // Expression Align(const InputSentence* const source, const OutputSentence* target, ComputationGraph& cg);
+  KBestList<OutputSentence*> Translate(const InputSentence* const source, unsigned K, unsigned beam_size, Word* BOS, Word* EOS, unsigned max_length);
 
 private:
   EncoderModel* encoder_model;
   AttentionModel* attention_model;
   OutputModel* output_model;
 
-  void Sample(const vector<Expression>& encodings, Sentence& prefix, RNNPointer state_pointer, unsigned sample_count, WordId BOS, WordId EOS, unsigned max_length, ComputationGraph& cg, vector<Sentence>& samples);
+  void Sample(const vector<Expression>& encodings, OutputSentence* prefix, RNNPointer state_pointer, unsigned sample_count, unsigned max_length, ComputationGraph& cg, vector<OutputSentence*>& samples);
 
   friend class boost::serialization::access;
   template<class Archive>

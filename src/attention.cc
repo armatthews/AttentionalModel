@@ -5,7 +5,7 @@ BOOST_CLASS_EXPORT_IMPLEMENT(EncoderDecoderAttentionModel)
 
 AttentionModel::~AttentionModel() {}
 
-void AttentionModel::NewSentence(const TranslatorInput* input) {
+void AttentionModel::NewSentence(const InputSentence* input) {
   for (AttentionPrior* prior : priors) {
     prior->NewSentence(input);
   }
@@ -17,7 +17,7 @@ void AttentionModel::AddPrior(AttentionPrior* prior) {
 
 StandardAttentionModel::StandardAttentionModel() {}
 
-StandardAttentionModel::StandardAttentionModel(Model& model, unsigned vocab_size, unsigned input_dim, unsigned state_dim, unsigned hidden_dim) {
+StandardAttentionModel::StandardAttentionModel(Model& model, unsigned input_dim, unsigned state_dim, unsigned hidden_dim) {
   p_W = model.add_parameters({hidden_dim, input_dim});
   p_V = model.add_parameters({hidden_dim, state_dim});
   p_b = model.add_parameters({hidden_dim, 1});
@@ -124,7 +124,7 @@ Expression StandardAttentionModel::GetContext(const vector<Expression>& inputs, 
 
 SparsemaxAttentionModel::SparsemaxAttentionModel() : StandardAttentionModel() {}
 
-SparsemaxAttentionModel::SparsemaxAttentionModel(Model& model, unsigned vocab_size, unsigned input_dim, unsigned state_dim, unsigned hidden_dim) : StandardAttentionModel(model, vocab_size, input_dim, state_dim, hidden_dim) {}
+SparsemaxAttentionModel::SparsemaxAttentionModel(Model& model, unsigned input_dim, unsigned state_dim, unsigned hidden_dim) : StandardAttentionModel(model, input_dim, state_dim, hidden_dim) {}
 
 Expression SparsemaxAttentionModel::GetAlignmentVector(const vector<Expression>& inputs, const Expression& state) {
   return sparsemax(GetScoreVector(inputs, state));

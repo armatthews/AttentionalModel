@@ -13,9 +13,24 @@ struct Action {
   ActionType type; // One of the above action types
   WordId subtype; // A word id (for shift) or non-terminal id (for nt). Otherwise unused.
   unsigned GetIndex() const;
+
+  bool operator==(const Action& o) const;
+
+private:
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {
+    ar & type;
+    ar & subtype;
+  }
 };
 
-class ParserBuilder;
+struct ActionHash : public unary_function<Action, size_t> {
+  size_t operator()(const Action& action) const {
+    return hash<unsigned>()(action.GetIndex());
+  }
+};
+
 struct ParserState {
   static const unsigned kMaxOpenNTs = 100;
 
@@ -23,19 +38,15 @@ struct ParserState {
   vector<Expression> terms; // generated terminals
   vector<int> is_open_paren; // -1 if no nonterminal has a parenthesis open, otherwise index of NT
   unsigned nopen_parens;
-  unsigned nt_count; // number of times an NT has been introduced
   Action prev_action;
-  unsigned action_count; // incremented at each prediction
-  ParserBuilder* builder;
 
-  explicit ParserState(ParserBuilder* builder);
+  RNNPointer stack_lstm_pointer;
+  RNNPointer terminal_lstm_pointer;
+  RNNPointer action_lstm_pointer;
 
-  unsigned GetActionIndex(const Action& a);
-  bool IsActionForbidden(const Action& a);
-  vector<unsigned> GetValidActionList();
-  void PerformShift(WordId wordid);
-  void PerformNT(WordId ntid);
-  void PerformReduce();
+  explicit ParserState();
+
+  bool IsActionForbidden(const Action& a) const;
 };
 
 struct ParserBuilder {
@@ -43,20 +54,34 @@ friend class ParserState;
 public:
   ParserBuilder();
   explicit ParserBuilder(Model& model, SoftmaxBuilder* cfsm, unsigned vocab_size, unsigned nt_vocab_size, unsigned action_vocab_size, unsigned hidden_dim, unsigned term_emb_dim, unsigned nt_emb_dim, unsigned action_emb_dim);
-  void SetDropout(float rate);
-  void NewGraph(ComputationGraph& cg);
-  vector<Action> Sample(const vector<WordId>& sentence);
-  vector<Action> Predict(const vector<WordId>& sentence);
-  Expression Summarize(const LSTMBuilder& builder) const;
-  Expression BuildGraph(const vector<Action>& correct_actions);
+  virtual void SetDropout(float rate);
+  virtual void NewGraph(ComputationGraph& cg);
+  virtual void NewSentence();
 
-  void StartNewSentence(ParserState& state);
-  Expression GetStateSummary(Expression stack_summary, Expression action_summary, Expression term_summary);
-  Expression ComputeActionDistribution(Expression state_summary, const vector<unsigned>& valid_actions);
-  Expression EmbedNonterminal(WordId nt, const vector<Expression>& children);
+  virtual Expression Summarize(const LSTMBuilder& builder) const;
+  virtual Expression Summarize(const LSTMBuilder& builder, RNNPointer p) const;
+  virtual Expression GetStateVector() const;
+  virtual Expression GetStateVector(RNNPointer p) const;
+  virtual Expression GetActionDistribution(Expression state_vector) const;
+  virtual Expression Loss(Expression state_vector, const Action& ref) const;
 
-private:
+  virtual RNNPointer state() const;
+
+  virtual void PerformAction(const Action& action);
+  virtual void PerformAction(const Action& action, RNNPointer p);
+  virtual vector<unsigned> GetValidActionList() const;
+
+  virtual vector<Action> Sample(const vector<WordId>& sentence);
+  virtual vector<Action> Predict(const vector<WordId>& sentence);
+  virtual Expression BuildGraph(const vector<Action>& correct_actions);
+
+  virtual Expression EmbedNonterminal(WordId nt, const vector<Expression>& children);
+
+protected:
   ComputationGraph* pcg;
+  ParserState* curr_state;
+  vector<ParserState> prev_states;
+  vector<Expression> prev_outputs;
 
   LSTMBuilder stack_lstm; // Stack
   LSTMBuilder term_lstm; // Sequence of generated terminals
@@ -76,7 +101,7 @@ private:
   Parameter p_cW; // composition function weights
   Parameter p_cbias; // composition function bias
   Parameter p_p2a;   // parser state to action
-  Parameter p_action_start;  // action bias
+  Parameter p_action_start;  // action LSTM start symbol
   Parameter p_abias;  // action bias
   Parameter p_stack_guard;  // end of stack
 
@@ -94,4 +119,35 @@ private:
   SoftmaxBuilder* cfsm;
   float dropout_rate;
   unsigned nt_vocab_size;
+
+  void PerformAction(const Action& action, const ParserState& state);
+  void PerformShift(WordId wordid);
+  void PerformNT(WordId ntid);
+  void PerformReduce();
+
+private:
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {}
 };
+
+struct SourceConditionedParserBuilder : public ParserBuilder {
+  SourceConditionedParserBuilder();
+  SourceConditionedParserBuilder(Model& model, SoftmaxBuilder* cfsm,
+    unsigned vocab_size, unsigned nt_vocab_size, unsigned action_vocab_size, unsigned hidden_dim,
+    unsigned term_emb_dim, unsigned nt_emb_dim, unsigned action_emb_dim, unsigned source_dim);
+
+  void NewGraph(ComputationGraph& cg);
+  Expression GetStateVector(Expression source_context) const;
+  Expression GetStateVector(Expression source_context, RNNPointer p) const;
+private:
+  Parameter p_W;
+  Expression W;
+ 
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {
+    ar & boost::serialization::base_object<ParserBuilder>(*this);
+  }
+};
+BOOST_CLASS_EXPORT_KEY(SourceConditionedParserBuilder)
