@@ -24,6 +24,7 @@ public:
 class OutputReader {
 public:
   virtual vector<OutputSentence*> Read(const string& filename) = 0;
+  virtual string ToString(const Word* word) = 0;
   friend class boost::serialization::access;
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {}
@@ -82,6 +83,7 @@ BOOST_CLASS_EXPORT_KEY(MorphologyInputReader)
 class StandardOutputReader : public OutputReader {
 public:
   vector<OutputSentence*> Read(const string& filename);
+  string ToString(const Word* word);
   Dict vocab;
 private:
   friend class boost::serialization::access;
@@ -96,6 +98,8 @@ BOOST_CLASS_EXPORT_KEY(StandardOutputReader)
 class MorphologyOutputReader : public OutputReader {
 public:
   vector<OutputSentence*> Read(const string& filename);
+  string ToString(const Word* word);
+
   Dict word_vocab;
   Dict root_vocab;
   Dict affix_vocab;
@@ -116,6 +120,8 @@ BOOST_CLASS_EXPORT_KEY(MorphologyOutputReader)
 class RnngOutputReader : public OutputReader {
 public:
   vector<OutputSentence*> Read(const string& filename);
+  string ToString(const Word* word);
+
   Dict vocab;
 private:
   friend class boost::serialization::access;

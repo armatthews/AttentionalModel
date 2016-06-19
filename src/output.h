@@ -22,7 +22,7 @@ public:
 
   virtual void NewGraph(ComputationGraph& cg) = 0;
   virtual void SetDropout(float rate) {}
-  virtual Expression GetState() const = 0;
+  virtual Expression GetState() const;
   virtual Expression GetState(RNNPointer p) const = 0;
   virtual RNNPointer GetStatePointer() const = 0;
   virtual Expression AddInput(const Word* const prev_word, const Expression& context) = 0;
@@ -30,6 +30,9 @@ public:
   virtual Expression PredictLogDistribution(const Expression& state) = 0;
   virtual Word* Sample(const Expression& state) = 0;
   virtual Expression Loss(const Expression& state, const Word* const ref) = 0;
+
+  virtual bool IsDone() const;
+  virtual bool IsDone(RNNPointer p) const = 0;
 
 private:
   friend class boost::serialization::access;
@@ -44,7 +47,6 @@ public:
 
   void NewGraph(ComputationGraph& cg);
   void SetDropout(float rate);
-  Expression GetState() const;
   Expression GetState(RNNPointer p) const;
   RNNPointer GetStatePointer() const;
   Expression Embed(const Word* word);
@@ -53,6 +55,8 @@ public:
   Expression PredictLogDistribution(const Expression& state);
   Word* Sample(const Expression& state);
   Expression Loss(const Expression& state, const Word* const ref);
+
+  bool IsDone(RNNPointer p) const;
 protected:
   unsigned state_dim;
   LSTMBuilder output_builder;
@@ -101,7 +105,6 @@ public:
   MorphologyOutputModel(Model& model, unsigned word_vocab_size, unsigned root_vocab_size, unsigned affix_vocab_size, unsigned char_vocab_size, unsigned word_emb_dim, unsigned root_emb_dim, unsigned affix_emb_dim, unsigned char_emb_dim, unsigned model_chooser_hidden_dim, unsigned affix_init_hidden_dim, unsigned char_init_hidden_dim, unsigned state_dim, unsigned affix_lstm_dim, unsigned char_lstm_dim, unsigned context_dim);
   void NewGraph(ComputationGraph& cg);
   void SetDropout(float rate);
-  Expression GetState() const;
   Expression GetState(RNNPointer p) const;
   RNNPointer GetStatePointer() const;
   Expression AddInput(const Word* const prev_word, const Expression& context);
@@ -114,6 +117,8 @@ public:
   Expression MorphLoss(const Expression& state, const vector<Analysis>& ref);
   Expression CharLoss(const Expression& state, const vector<WordId>& ref);
   Expression Loss(const Expression& state, const Word* const ref);
+
+  bool IsDone(RNNPointer p) const;
 
 private:
   unsigned state_dim;
@@ -173,6 +178,8 @@ public:
   Expression PredictLogDistribution(const Expression& source_context);
   Word* Sample(const Expression& source_context);
   Expression Loss(const Expression& source_context, const Word* const ref);
+
+  bool IsDone(RNNPointer p) const;
 
 private:
   SourceConditionedParserBuilder* builder;

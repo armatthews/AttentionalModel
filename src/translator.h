@@ -14,7 +14,7 @@ public:
   void NewGraph(ComputationGraph& cg);
   void SetDropout(float rate);
   Expression BuildGraph(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg);
-  vector<OutputSentence*> Sample(const InputSentence* const source, unsigned samples, Word* BOS, Word* EOS, unsigned max_length);
+  vector<OutputSentence*> Sample(const InputSentence* const source, unsigned samples, unsigned max_length);
   vector<Expression> Align(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg);
 
   // This could be used if your loss is over alignment matrices, for example
@@ -26,7 +26,7 @@ private:
   AttentionModel* attention_model;
   OutputModel* output_model;
 
-  void Sample(const vector<Expression>& encodings, OutputSentence* prefix, RNNPointer state_pointer, unsigned sample_count, Word* BOS, Word* EOS, unsigned max_length, ComputationGraph& cg, vector<OutputSentence*>& samples);
+  void Sample(const vector<Expression>& encodings, OutputSentence* prefix, RNNPointer state_pointer, unsigned sample_count, unsigned max_length, ComputationGraph& cg, vector<OutputSentence*>& samples);
 
   friend class boost::serialization::access;
   template<class Archive>

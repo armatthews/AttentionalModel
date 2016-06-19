@@ -9,6 +9,14 @@ const unsigned lstm_layer_count = 2;
 
 OutputModel::~OutputModel() {}
 
+bool OutputModel::IsDone() const {
+  return IsDone(GetStatePointer());
+}
+
+Expression OutputModel::GetState() const {
+  return GetState(GetStatePointer());
+}
+
 SoftmaxOutputModel::SoftmaxOutputModel() : fsb(nullptr) {}
 
 SoftmaxOutputModel::SoftmaxOutputModel(Model& model, unsigned embedding_dim, unsigned context_dim, unsigned state_dim, Dict* vocab, const string& clusters_filename) : state_dim(state_dim) {
@@ -31,15 +39,6 @@ void SoftmaxOutputModel::NewGraph(ComputationGraph& cg) {
 
 void SoftmaxOutputModel::SetDropout(float rate) {
   //output_builder.set_dropout(rate);
-}
-
-Expression SoftmaxOutputModel::GetState() const {
-  if (output_builder.state() == -1 && output_builder.h0.size() == 0) {
-    return zeroes(*pcg, {state_dim});
-  }
-  else {
-   return output_builder.back();
-  }
 }
 
 Expression SoftmaxOutputModel::GetState(RNNPointer p) const {
@@ -85,6 +84,10 @@ Expression SoftmaxOutputModel::Loss(const Expression& state, const Word* const r
 
 Word* SoftmaxOutputModel::Sample(const Expression& state) {
   return new StandardWord(fsb->sample(state));
+}
+
+bool SoftmaxOutputModel::IsDone(RNNPointer p) const {
+  return false;
 }
 
 MlpSoftmaxOutputModel::MlpSoftmaxOutputModel() {}
@@ -169,16 +172,7 @@ void MorphologyOutputModel::NewGraph(ComputationGraph& cg) {
 }
 
 void MorphologyOutputModel::SetDropout(float rate) {}
-
-Expression MorphologyOutputModel::GetState() const {
-  if (output_builder.state() == -1 && output_builder.h0.size() == 0) {
-    return zeroes(*pcg, {state_dim});
-  }
-  else {
-    return output_builder.back();
-  }
-}
-  
+ 
 Expression MorphologyOutputModel::GetState(RNNPointer p) const {
   if (p == -1) {
     if (output_builder.h0.size() == 0) {
@@ -281,6 +275,10 @@ Expression MorphologyOutputModel::Loss(const Expression& state, const Word* cons
   losses.push_back(pick(model_probs, 3) - char_loss);
   Expression total_loss = -logsumexp(losses);
   return total_loss;
+}
+
+bool MorphologyOutputModel::IsDone(RNNPointer p) const {
+  return false;
 }
 
 RnngOutputModel::RnngOutputModel() {}
@@ -408,3 +406,8 @@ Expression RnngOutputModel::Loss(const Expression& source_context, const Word* c
 Action RnngOutputModel::Convert(WordId w) const {
   return w2a[w];
 }
+
+bool RnngOutputModel::IsDone(RNNPointer p) const {
+  return false;
+}
+

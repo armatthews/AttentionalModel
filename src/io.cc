@@ -141,6 +141,18 @@ vector<OutputSentence*> RnngOutputReader::Read(const string& filename) {
   return vector<OutputSentence*>(corpus.begin(), corpus.end());
 }
 
+string StandardOutputReader::ToString(const Word* word) {
+  assert (false);
+}
+
+string MorphologyOutputReader::ToString(const Word* word) {
+  assert (false);
+}
+
+string RnngOutputReader::ToString(const Word* word) {
+  assert (false);
+}
+
 Bitext ReadBitext(const string& source_filename, const string& target_filename, InputReader* input_reader, OutputReader* output_reader) {
   vector<InputSentence*> source = input_reader->Read(source_filename);
   vector<OutputSentence*> target = output_reader->Read(target_filename);

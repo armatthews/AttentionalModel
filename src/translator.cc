@@ -32,23 +32,20 @@ Expression Translator::BuildGraph(const InputSentence* const source, const Outpu
     const Word* prev_word = target->at(i - 1);
     const Word* curr_word = target->at(i); 
     Expression prev_state = output_model->GetState();
-    Expression context = dynamic_cast<StandardAttentionModel*>(attention_model)->GetContext(encodings, prev_state); /// XXX: WTF?
+    Expression context = dynamic_cast<StandardAttentionModel*>(attention_model)->GetContext(encodings, prev_state); /// XXX: WTF? Why must this be a Standard model and not e.g. a SparseMax model?
     Expression new_state = output_model->AddInput(prev_word, context);
     word_losses[i] = output_model->Loss(new_state, curr_word);
   }
   return sum(word_losses);
 }
 
-void Translator::Sample(const vector<Expression>& encodings, OutputSentence* prefix, RNNPointer state_pointer, unsigned sample_count, Word* BOS, Word* EOS, unsigned max_length, ComputationGraph& cg, vector<OutputSentence*>& samples) {
-  Word* prev_word = prefix->size() > 0 ? prefix->back() : BOS;
-  Expression prev_state = output_model->GetState(state_pointer);
-  Expression context = attention_model->GetContext(encodings, prev_state);
-  Expression new_state = output_model->AddInput(prev_word, context, state_pointer);
-  RNNPointer new_pointer = output_model->GetStatePointer();
+void Translator::Sample(const vector<Expression>& encodings, OutputSentence* prefix, RNNPointer state_pointer, unsigned sample_count, unsigned max_length, ComputationGraph& cg, vector<OutputSentence*>& samples) {
+  Expression output_state = output_model->GetState(state_pointer);
+  Expression context = attention_model->GetContext(encodings, output_state);
 
   unordered_map<Word*, unsigned> continuations;
   for (unsigned i = 0; i < sample_count; ++i) {
-    Word* w = output_model->Sample(new_state);
+    Word* w = output_model->Sample(output_state);
     if (continuations.find(w) != continuations.end()) {
       continuations[w]++;
     }
@@ -60,25 +57,30 @@ void Translator::Sample(const vector<Expression>& encodings, OutputSentence* pre
   for (auto it = continuations.begin(); it != continuations.end(); ++it) {
     Word* w = it->first;
     prefix->push_back(w);
-    if (w != EOS) { // XXX: Comparing pointers
-      Sample(encodings, prefix, new_pointer, it->second, BOS, EOS, max_length - 1, cg, samples);
+    output_model->AddInput(w, context, state_pointer);
+    RNNPointer new_pointer = output_model->GetStatePointer();
+
+    if (!output_model->IsDone()) {
+      Sample(encodings, prefix, new_pointer, it->second, max_length - 1, cg, samples);
     }
     else {
       for (unsigned i = 0; i < it->second; ++i) {
-        samples.push_back(prefix); // TODO: Create new sample, push_back, or find a better algorithm to do this
+        samples.push_back(new OutputSentence(*prefix));
       }
     }
     prefix->pop_back();
   }
 }
 
-vector<OutputSentence*> Translator::Sample(const InputSentence* const source, unsigned sample_count, Word* BOS, Word* EOS, unsigned max_length) {
+vector<OutputSentence*> Translator::Sample(const InputSentence* const source, unsigned sample_count, unsigned max_length) {
   ComputationGraph cg;
   NewGraph(cg);
   vector<Expression> encodings = encoder_model->Encode(source);
-  OutputSentence* prefix = nullptr;
+  attention_model->NewSentence(source);
+
+  OutputSentence* prefix = new OutputSentence();
   vector<OutputSentence*> samples;
-  Sample(encodings, prefix, output_model->GetStatePointer(), sample_count, BOS, EOS, max_length, cg, samples);
+  Sample(encodings, prefix, output_model->GetStatePointer(), sample_count, max_length, cg, samples);
   return samples;
 }
 
