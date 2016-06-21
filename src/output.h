@@ -60,6 +60,8 @@ public:
 protected:
   unsigned state_dim;
   LSTMBuilder output_builder;
+  Parameter p_output_builder_initial_state;
+  Expression output_builder_initial_state;
   LookupParameter embeddings;
   SoftmaxBuilder* fsb;
   ComputationGraph* pcg;

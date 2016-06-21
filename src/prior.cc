@@ -74,14 +74,14 @@ void DiagonalPrior::NewSentence(const InputSentence* sent) {
     if (i == 0) { // <s>
       source_percentages_v[i] = 0.0;
     }
-    else if (i == source_length - 1) { // </s>
+    else if (i == input_size - 1) { // </s>
      source_percentages_v[i] = 1.0;
     }
     else {
-      source_percentages_v[i] = 1.0 * (i - 1) / (source_length - 2);
+      source_percentages_v[i] = 1.0 * (i - 1) / (input_size - 2);
     }
   }
-  source_percentages = input(*pcg, {source_length}, &source_percentages_v);
+  source_percentages = input(*pcg, {input_size}, &source_percentages_v);
 }
 
 Expression DiagonalPrior::Compute(const vector<Expression>& inputs, unsigned target_index) {
