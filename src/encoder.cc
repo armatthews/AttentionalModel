@@ -37,17 +37,25 @@ vector<Expression> TrivialEncoder::Encode(const InputSentence* const input) {
 
 BidirectionalSentenceEncoder::BidirectionalSentenceEncoder() {}
 
-BidirectionalSentenceEncoder::BidirectionalSentenceEncoder(Model& model, unsigned vocab_size, unsigned input_dim, unsigned output_dim) {
+BidirectionalSentenceEncoder::BidirectionalSentenceEncoder(Model& model, unsigned vocab_size, unsigned input_dim, unsigned output_dim) : output_dim(output_dim) {
   assert (output_dim % 2 == 0);
   embeddings = model.add_lookup_parameters(vocab_size, {input_dim});
   forward_builder = LSTMBuilder(lstm_layer_count, input_dim, output_dim / 2, &model);
   reverse_builder = LSTMBuilder(lstm_layer_count, input_dim, output_dim / 2, &model);
+  forward_lstm_init = model.add_parameters({lstm_layer_count * output_dim / 2});
+  reverse_lstm_init = model.add_parameters({lstm_layer_count * output_dim / 2});
 }
 
 void BidirectionalSentenceEncoder::NewGraph(ComputationGraph& cg) {
   pcg = &cg;
   forward_builder.new_graph(cg);
   reverse_builder.new_graph(cg);
+
+  Expression forward_lstm_init_expr = parameter(cg, forward_lstm_init);
+  forward_lstm_init_v = MakeLSTMInitialState(forward_lstm_init_expr, output_dim / 2, lstm_layer_count);
+
+  Expression reverse_lstm_init_expr = parameter(cg, reverse_lstm_init);
+  reverse_lstm_init_v = MakeLSTMInitialState(reverse_lstm_init_expr, output_dim / 2, lstm_layer_count);
 }
 
 void BidirectionalSentenceEncoder::SetDropout(float rate) {
@@ -75,7 +83,7 @@ Expression BidirectionalSentenceEncoder::Embed(const Word* const word) {
 }
 
 vector<Expression> BidirectionalSentenceEncoder::EncodeForward(const LinearSentence& sentence) {
-  forward_builder.start_new_sequence();
+  forward_builder.start_new_sequence(forward_lstm_init_v);
   vector<Expression> forward_encodings(sentence.size());
   for (unsigned i = 0; i < sentence.size(); ++i) {
     Expression x = Embed(sentence[i]);
@@ -86,7 +94,7 @@ vector<Expression> BidirectionalSentenceEncoder::EncodeForward(const LinearSente
 }
 
 vector<Expression> BidirectionalSentenceEncoder::EncodeReverse(const LinearSentence& sentence) {
-  reverse_builder.start_new_sequence();
+  reverse_builder.start_new_sequence(reverse_lstm_init_v);
   vector<Expression> reverse_encodings(sentence.size());
   for (unsigned i = 0; i < sentence.size(); ++i) {
     Expression x = Embed(sentence[i]);

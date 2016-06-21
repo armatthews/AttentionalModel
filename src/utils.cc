@@ -51,7 +51,9 @@ vector<string> tokenize(string input, string delimiter, unsigned max_times) {
     tokens.push_back(input.substr(last, next-last));
     last = next + delimiter.length();
   }
-  tokens.push_back(input.substr(last));
+  if (last != input.length()) {
+    tokens.push_back(input.substr(last));
+  }
   return tokens;
 }
 

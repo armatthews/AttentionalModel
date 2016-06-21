@@ -63,8 +63,13 @@ public:
   vector<Expression> EncodeReverse(const LinearSentence& sentence);
   Expression Embed(const Word* const word);
 private:
+  unsigned output_dim;
   LSTMBuilder forward_builder;
   LSTMBuilder reverse_builder;
+  Parameter forward_lstm_init;
+  vector<Expression> forward_lstm_init_v;
+  Parameter reverse_lstm_init;
+  vector<Expression> reverse_lstm_init_v;
   LookupParameter embeddings;
   ComputationGraph* pcg;
 
@@ -72,6 +77,7 @@ private:
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {
     ar & boost::serialization::base_object<EncoderModel>(*this);
+    ar & output_dim;
     ar & forward_builder;
     ar & reverse_builder;
     ar & embeddings;
