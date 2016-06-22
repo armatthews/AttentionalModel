@@ -123,7 +123,7 @@ Word* MlpSoftmaxOutputModel::Sample(const Expression& state) {
 
 MorphologyOutputModel::MorphologyOutputModel() {}
 
-MorphologyOutputModel::MorphologyOutputModel(Model& model, unsigned word_vocab_size, unsigned root_vocab_size, unsigned affix_vocab_size, unsigned char_vocab_size, unsigned word_emb_dim, unsigned root_emb_dim, unsigned affix_emb_dim, unsigned char_emb_dim, unsigned model_chooser_hidden_dim, unsigned affix_init_hidden_dim, unsigned char_init_hidden_dim, unsigned state_dim, unsigned affix_lstm_dim, unsigned char_lstm_dim, unsigned context_dim) : state_dim(state_dim), affix_lstm_dim(affix_lstm_dim), char_lstm_dim(char_lstm_dim), pcg(nullptr) {
+MorphologyOutputModel::MorphologyOutputModel(Model& model, Dict& word_vocab, Dict& root_vocab, unsigned affix_vocab_size, unsigned char_vocab_size, unsigned word_emb_dim, unsigned root_emb_dim, unsigned affix_emb_dim, unsigned char_emb_dim, unsigned model_chooser_hidden_dim, unsigned affix_init_hidden_dim, unsigned char_init_hidden_dim, unsigned state_dim, unsigned affix_lstm_dim, unsigned char_lstm_dim, unsigned context_dim, const string& word_clusters, const string& root_clusters) : state_dim(state_dim), affix_lstm_dim(affix_lstm_dim), char_lstm_dim(char_lstm_dim), pcg(nullptr) {
   unsigned mode_count = 4; // EOS, char, morph, word
   model_chooser = MLP(model, context_dim, model_chooser_hidden_dim, mode_count);
 
@@ -139,18 +139,28 @@ MorphologyOutputModel::MorphologyOutputModel(Model& model, unsigned word_vocab_s
   // The main LSTM takes in the context as well as the char, affix, and word embeddings of the current word. The state is included implicitly.
   output_builder = LSTMBuilder(lstm_layer_count, char_lstm_dim + affix_lstm_dim + word_emb_dim + context_dim, state_dim, &model);
   output_lstm_init = model.add_parameters({state_dim * lstm_layer_count});
-  embedder = MorphologyEmbedder(model, word_vocab_size, root_vocab_size, affix_vocab_size, char_vocab_size, word_emb_dim, affix_emb_dim, char_emb_dim, affix_lstm_dim, char_lstm_dim);
+  embedder = MorphologyEmbedder(model, word_vocab.size(), root_vocab.size(), affix_vocab_size, char_vocab_size, word_emb_dim, affix_emb_dim, char_emb_dim, affix_lstm_dim, char_lstm_dim);
 
   // Unlike on the encoder side, we need a separate root_emb_dim here. This is because we want to use three things to initialize
   // the affix lstm: the state, the context, and the root. On the input side we have root_emb_dim = lstm_layer_count * affix_lstm_dim
   // but here we would need root_emb_dim = lstm_layer_count * (affix_lstm_dim + state_dim + context_dim) which is far too much,
   // so instead we add an affine transform to transform the larger amount of available information into something manageable.
-  root_embeddings = model.add_lookup_parameters(root_vocab_size, {root_emb_dim});
+  root_embeddings = model.add_lookup_parameters(root_vocab.size(), {root_emb_dim});
   affix_embeddings = model.add_lookup_parameters(affix_vocab_size, {affix_emb_dim});
   char_embeddings = model.add_lookup_parameters(char_vocab_size, {char_emb_dim});
 
-  word_softmax = new StandardSoftmaxBuilder(state_dim, word_vocab_size, &model);
-  root_softmax = new StandardSoftmaxBuilder(state_dim, root_vocab_size, &model);
+  if (word_clusters.length() > 0) {
+    word_softmax = new ClassFactoredSoftmaxBuilder(state_dim, word_clusters, &word_vocab, &model);
+  }
+  else {
+    word_softmax = new StandardSoftmaxBuilder(state_dim, word_vocab.size(), &model);
+  }
+  if (root_clusters.length() > 0) {
+    root_softmax = new ClassFactoredSoftmaxBuilder(state_dim, word_clusters, &root_vocab, &model);
+  }
+  else {
+    root_softmax = new StandardSoftmaxBuilder(state_dim, root_vocab.size(), &model);
+  }
   affix_softmax = new StandardSoftmaxBuilder(affix_lstm_dim, affix_vocab_size, &model);
   char_softmax = new StandardSoftmaxBuilder(char_lstm_dim, char_vocab_size, &model);
 }

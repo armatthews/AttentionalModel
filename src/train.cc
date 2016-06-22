@@ -253,7 +253,7 @@ int main(int argc, char** argv) {
       output_model = new MlpSoftmaxOutputModel(cnn_model, embedding_dim, annotation_dim, output_state_dim, final_hidden_size, &target_vocab, clusters_filename);
     }
     else if (target_type == kMorphology) {
-      const MorphologyOutputReader* reader = dynamic_cast<const MorphologyOutputReader*>(output_reader);
+      MorphologyOutputReader* reader = dynamic_cast<MorphologyOutputReader*>(output_reader);
       const unsigned word_vocab_size = reader->word_vocab.size();
       const unsigned root_vocab_size = reader->root_vocab.size();
       const unsigned affix_vocab_size = reader->affix_vocab.size();
@@ -268,7 +268,9 @@ int main(int argc, char** argv) {
       const unsigned state_dim = hidden_size;
       const unsigned affix_lstm_dim = embedding_dim;
       const unsigned char_lstm_dim = 32;
-      output_model = new MorphologyOutputModel(cnn_model, word_vocab_size, root_vocab_size, affix_vocab_size, char_vocab_size, word_emb_dim, root_emb_dim, affix_emb_dim, char_emb_dim, model_chooser_hidden_dim, affix_init_hidden_dim, char_init_hidden_dim, state_dim, affix_lstm_dim, char_lstm_dim, annotation_dim);
+      const string word_clusters_file = vm["clusters"].as<string>();
+      const string root_clusters_file = vm["root_clusters"].as<string>();
+      output_model = new MorphologyOutputModel(cnn_model, reader->word_vocab, reader->root_vocab, affix_vocab_size, char_vocab_size, word_emb_dim, root_emb_dim, affix_emb_dim, char_emb_dim, model_chooser_hidden_dim, affix_init_hidden_dim, char_init_hidden_dim, state_dim, affix_lstm_dim, char_lstm_dim, annotation_dim, word_clusters_file, root_clusters_file);
     }
     else if (target_type == kRNNG) {
       unsigned hidden_dim = hidden_size;
