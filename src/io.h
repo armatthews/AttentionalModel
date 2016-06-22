@@ -82,6 +82,8 @@ BOOST_CLASS_EXPORT_KEY(MorphologyInputReader)
 
 class StandardOutputReader : public OutputReader {
 public:
+  StandardOutputReader();
+  explicit StandardOutputReader(const string& vocab_file);
   vector<OutputSentence*> Read(const string& filename);
   string ToString(const Word* word);
   Dict vocab;
@@ -97,6 +99,8 @@ BOOST_CLASS_EXPORT_KEY(StandardOutputReader)
 
 class MorphologyOutputReader : public OutputReader {
 public:
+  MorphologyOutputReader();
+  MorphologyOutputReader(const string& vocab_file, const string& morph_vocab_file);
   vector<OutputSentence*> Read(const string& filename);
   string ToString(const Word* word);
 
@@ -133,6 +137,7 @@ private:
 };
 BOOST_CLASS_EXPORT_KEY(RnngOutputReader)
 
+void ReadDict(const string& filename, Dict& dict);
 Bitext ReadBitext(const string& source_filename, const string& target_filename, InputReader* SourceReader, OutputReader* TargetReader);
 
 void Serialize(const InputReader* const input_reader, const OutputReader* const output_reader, const Translator& translator, Model& cnn_model);

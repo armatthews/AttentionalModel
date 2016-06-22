@@ -7,15 +7,6 @@ BOOST_CLASS_EXPORT_IMPLEMENT(RnngOutputModel)
 
 const unsigned lstm_layer_count = 2;
 
-vector<Expression> MakeLSTMInitialState(Expression c, unsigned lstm_dim, unsigned lstm_layer_count) {
-  vector<Expression> hinit(lstm_layer_count * 2);
-  for (unsigned i = 0; i < lstm_layer_count; ++i) {
-    hinit[i] = pickrange(c, i * lstm_dim, (i + 1) * lstm_dim);
-    hinit[i + lstm_layer_count] = tanh(hinit[i]);
-  }
-  return hinit;
-}
-
 OutputModel::~OutputModel() {}
 
 bool OutputModel::IsDone() const {

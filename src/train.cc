@@ -70,7 +70,8 @@ private:
   bool quiet;
 };
 
-InputReader* CreateInputReader(InputType input_type) {
+InputReader* CreateInputReader(const po::variables_map& vm) {
+  InputType input_type = vm["source_type"].as<InputType>();
   switch (input_type) {
     case kStandard:
       return new StandardInputReader();
@@ -87,13 +88,14 @@ InputReader* CreateInputReader(InputType input_type) {
   return nullptr;
 }
 
-OutputReader* CreateOutputReader(InputType input_type) {
+OutputReader* CreateOutputReader(const po::variables_map& vm) {
+  InputType input_type = vm["target_type"].as<InputType>();
   switch (input_type) {
     case kStandard:
-      return new StandardOutputReader();
+      return new StandardOutputReader(vm["vocab"].as<string>());
       break;
     case kMorphology:
-      return new MorphologyOutputReader();
+      return new MorphologyOutputReader(vm["vocab"].as<string>(), vm["root_vocab"].as<string>());
       break;
     case kRNNG:
       return new RnngOutputReader();
@@ -135,7 +137,10 @@ int main(int argc, char** argv) {
   ("source_type", po::value<InputType>()->default_value(kStandard), "Source input type. One of \"standard\", for standard linear sentences, \"syntax\" for syntax trees, \"morph\" for morphologically analyzed sentences, \"rnng\" for recurrent neural network grammars")
   ("target_type", po::value<InputType>()->default_value(kStandard), "Target input type. One of the same choices as above")
 
-  ("clusters,c", po::value<string>()->default_value(""), "Vocabulary clusters file")
+  ("vocab,v", po::value<string>()->default_value(""), "Target vocabulary file. If specified, anything outside this list will be UNK'd. If unspecified, nothing will be UNK'd on the training set.")
+  ("root_vocab", po::value<string>()->default_value(""), "Target root vocabulary file. Only used with the morphological output type")
+  ("clusters,c", po::value<string>()->default_value(""), "Target vocabulary clusters file")
+  ("root_clusters", po::value<string>()->default_value(""), "Target root vocabulary clusters file")
   ("cores,j", po::value<unsigned>()->default_value(1), "Number of CPU cores to use for training")
 
   ("sparsemax", "Use Sparsemax (rather than Softmax) for computing attention")
@@ -178,16 +183,14 @@ int main(int argc, char** argv) {
   Translator* translator = nullptr;
   Trainer* trainer = nullptr;
 
-  const InputType source_type = vm["source_type"].as<InputType>();
-  const InputType target_type = vm["target_type"].as<InputType>();
   if (vm.count("model")) {
     string model_filename = vm["model"].as<string>();
     translator = new Translator();
     Deserialize(model_filename, input_reader, output_reader, *translator, cnn_model);
   }
   else {
-    input_reader = CreateInputReader(source_type);
-    output_reader = CreateOutputReader(target_type);
+    input_reader = CreateInputReader(vm);
+    output_reader = CreateOutputReader(vm);
   }
 
   const string train_source_filename = vm["train_source"].as<string>();
@@ -197,6 +200,9 @@ int main(int argc, char** argv) {
   const string dev_source_filename = vm["dev_source"].as<string>();
   const string dev_target_filename = vm["dev_target"].as<string>();
   Bitext dev_bitext = ReadBitext(dev_source_filename, dev_target_filename, input_reader, output_reader);
+
+  const InputType source_type = vm["source_type"].as<InputType>();
+  const InputType target_type = vm["target_type"].as<InputType>();
 
   if (!vm.count("model")) {
     const unsigned hidden_size = vm["hidden_size"].as<unsigned>();
@@ -252,7 +258,17 @@ int main(int argc, char** argv) {
       const unsigned root_vocab_size = reader->root_vocab.size();
       const unsigned affix_vocab_size = reader->affix_vocab.size();
       const unsigned char_vocab_size = reader->char_vocab.size();
-      output_model = new MorphologyOutputModel(cnn_model, word_vocab_size, root_vocab_size, affix_vocab_size, char_vocab_size, embedding_dim, embedding_dim, 64, 32, hidden_size, hidden_size, hidden_size, hidden_size, embedding_dim, 32, annotation_dim);
+      const unsigned word_emb_dim = embedding_dim;
+      const unsigned root_emb_dim = embedding_dim;
+      const unsigned affix_emb_dim = 64;
+      const unsigned char_emb_dim = 32;
+      const unsigned model_chooser_hidden_dim = hidden_size;
+      const unsigned affix_init_hidden_dim = hidden_size;
+      const unsigned char_init_hidden_dim = hidden_size;
+      const unsigned state_dim = hidden_size;
+      const unsigned affix_lstm_dim = embedding_dim;
+      const unsigned char_lstm_dim = 32;
+      output_model = new MorphologyOutputModel(cnn_model, word_vocab_size, root_vocab_size, affix_vocab_size, char_vocab_size, word_emb_dim, root_emb_dim, affix_emb_dim, char_emb_dim, model_chooser_hidden_dim, affix_init_hidden_dim, char_init_hidden_dim, state_dim, affix_lstm_dim, char_lstm_dim, annotation_dim);
     }
     else if (target_type == kRNNG) {
       unsigned hidden_dim = hidden_size;
