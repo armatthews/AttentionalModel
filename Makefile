@@ -13,7 +13,7 @@ OBJDIR=obj
 SRCDIR=src
 
 .PHONY: clean
-all: make_dirs $(BINDIR)/train $(BINDIR)/sample $(BINDIR)/align $(BINDIR)/loss $(BINDIR)/predict $(BINDIR)/train-rnng
+all: make_dirs $(BINDIR)/train $(BINDIR)/sample $(BINDIR)/align $(BINDIR)/loss $(BINDIR)/predict
 
 make_dirs:
 	mkdir -p $(OBJDIR)
