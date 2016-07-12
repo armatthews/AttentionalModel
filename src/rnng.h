@@ -128,7 +128,32 @@ protected:
 private:
   friend class boost::serialization::access;
   template<class Archive>
-  void serialize(Archive& ar, const unsigned int) {}
+  void serialize(Archive& ar, const unsigned int) {
+    ar & stack_lstm;
+    ar & term_lstm;
+    ar & action_lstm;
+    ar & const_lstm_fwd;
+    ar & const_lstm_rev;
+
+    ar & p_w;
+    ar & p_nt;
+    ar & p_ntup;
+    ar & p_a;
+
+    ar & p_pbias;
+    ar & p_A;
+    ar & p_S;
+    ar & p_T;
+    ar & p_cW;
+    ar & p_cbias;
+    ar & p_p2a;
+    ar & p_action_start;
+    ar & p_abias;
+    ar & p_stack_guard;
+
+    ar & cfsm;
+    ar & nt_vocab_size;
+  }
 };
 
 struct SourceConditionedParserBuilder : public ParserBuilder {
@@ -148,6 +173,7 @@ private:
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {
     ar & boost::serialization::base_object<ParserBuilder>(*this);
+    ar & p_W;
   }
 };
 BOOST_CLASS_EXPORT_KEY(SourceConditionedParserBuilder)
