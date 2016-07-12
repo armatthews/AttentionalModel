@@ -72,6 +72,9 @@ private:
     ar & boost::serialization::base_object<OutputModel>(*this);
     ar & state_dim;
     ar & output_builder;
+    ar & p_output_builder_initial_state;
+    //Parameter& prev = output_builder.params.back().back(); // XXX: Super hacky
+    //p_output_builder_initial_state = Parameter(prev.mp, prev.index + 1);
     ar & embeddings;
     ar & fsb;
   }

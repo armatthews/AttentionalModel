@@ -41,5 +41,8 @@ private:
     ar & char_embeddings;
     ar & char_lstm;
     ar & morph_lstm;
+    ar & char_lstm_init;
+    //Parameter& prev = char_lstm.params.back().back();
+    //char_lstm_init = Parameter(prev.mp, prev.index + 1); // XXX: Super duper hacky
   }
 };
