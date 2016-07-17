@@ -52,10 +52,10 @@ void BidirectionalSentenceEncoder::NewGraph(ComputationGraph& cg) {
   reverse_builder.new_graph(cg);
 
   Expression forward_lstm_init_expr = parameter(cg, forward_lstm_init);
-  forward_lstm_init_v = MakeLSTMInitialState(forward_lstm_init_expr, output_dim / 2, lstm_layer_count);
+  forward_lstm_init_v = MakeLSTMInitialState(forward_lstm_init_expr, output_dim / 2, forward_builder.layers);
 
   Expression reverse_lstm_init_expr = parameter(cg, reverse_lstm_init);
-  reverse_lstm_init_v = MakeLSTMInitialState(reverse_lstm_init_expr, output_dim / 2, lstm_layer_count);
+  reverse_lstm_init_v = MakeLSTMInitialState(reverse_lstm_init_expr, output_dim / 2, reverse_builder.layers);
 }
 
 void BidirectionalSentenceEncoder::SetDropout(float rate) {
@@ -125,10 +125,10 @@ void MorphologyEncoder::NewGraph(ComputationGraph& cg) {
   embedder.NewGraph(cg);
 
   Expression forward_lstm_init_expr = parameter(cg, forward_lstm_init);
-  forward_lstm_init_v = MakeLSTMInitialState(forward_lstm_init_expr, main_lstm_dim / 2, lstm_layer_count);
+  forward_lstm_init_v = MakeLSTMInitialState(forward_lstm_init_expr, main_lstm_dim / 2, forward_builder.layers);
 
   Expression reverse_lstm_init_expr = parameter(cg, reverse_lstm_init);
-  reverse_lstm_init_v = MakeLSTMInitialState(reverse_lstm_init_expr, main_lstm_dim / 2, lstm_layer_count);
+  reverse_lstm_init_v = MakeLSTMInitialState(reverse_lstm_init_expr, main_lstm_dim / 2, reverse_builder.layers);
 }
 
 void MorphologyEncoder::SetDropout(float rate) {}

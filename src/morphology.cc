@@ -22,7 +22,7 @@ void MorphologyEmbedder::NewGraph(ComputationGraph& cg) {
   morph_lstm.new_graph(cg);
 
   Expression char_lstm_init_expr = parameter(cg, char_lstm_init);
-  char_lstm_init_v = MakeLSTMInitialState(char_lstm_init_expr, char_lstm_dim, lstm_layer_count);
+  char_lstm_init_v = MakeLSTMInitialState(char_lstm_init_expr, char_lstm_dim, char_lstm.layers);
 }
 
 void MorphologyEmbedder::SetDropout(float rate) {}
@@ -35,7 +35,7 @@ Expression MorphologyEmbedder::Embed(const Word* const word) {
   vector<Expression> analysis_embs;
   for (const Analysis analysis : mword->analyses) {
     Expression root_emb = lookup(*pcg, root_embeddings, analysis.root);
-    vector<Expression> init = MakeLSTMInitialState(root_emb, affix_lstm_dim, lstm_layer_count);
+    vector<Expression> init = MakeLSTMInitialState(root_emb, affix_lstm_dim, morph_lstm.layers);
     morph_lstm.start_new_sequence(init);
     for (WordId affix : analysis.affixes) {
       Expression affix_emb = lookup(*pcg, affix_embeddings, affix);

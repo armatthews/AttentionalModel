@@ -34,7 +34,7 @@ SoftmaxOutputModel::SoftmaxOutputModel(Model& model, unsigned embedding_dim, uns
 void SoftmaxOutputModel::NewGraph(ComputationGraph& cg) {
   output_builder.new_graph(cg);
   output_builder_initial_state = parameter(cg, p_output_builder_initial_state);
-  vector<Expression> h0 = MakeLSTMInitialState(output_builder_initial_state, state_dim, lstm_layer_count);
+  vector<Expression> h0 = MakeLSTMInitialState(output_builder_initial_state, state_dim, output_builder.layers);
   output_builder.start_new_sequence(h0);
   fsb->new_graph(cg);
   pcg = &cg;
@@ -180,7 +180,7 @@ void MorphologyOutputModel::NewGraph(ComputationGraph& cg) {
   char_softmax->new_graph(cg);
 
   Expression output_lstm_init_expr = parameter(cg, output_lstm_init);
-  output_lstm_init_v = MakeLSTMInitialState(output_lstm_init_expr, state_dim, lstm_layer_count);
+  output_lstm_init_v = MakeLSTMInitialState(output_lstm_init_expr, state_dim, output_builder.layers);
   output_builder.start_new_sequence(output_lstm_init_v);
 }
 
@@ -234,7 +234,7 @@ Expression MorphologyOutputModel::AnalysisLoss(const Expression& state, const An
   Expression root_emb = lookup(*pcg, root_embeddings, ref.root);
   Expression mlp_input = concatenate({state, root_emb});
   Expression affix_lstm_init_expr = affix_lstm_init.Feed(mlp_input);
-  vector<Expression> affix_lstm_init_v = MakeLSTMInitialState(affix_lstm_init_expr, affix_lstm_dim, lstm_layer_count);
+  vector<Expression> affix_lstm_init_v = MakeLSTMInitialState(affix_lstm_init_expr, affix_lstm_dim, affix_lstm.layers);
   affix_lstm.start_new_sequence(affix_lstm_init_v);
 
   vector<Expression> affix_losses;
@@ -261,7 +261,7 @@ Expression MorphologyOutputModel::CharLoss(const Expression& state, const vector
   assert(ref.size() > 0);
 
   Expression char_lstm_init_expr = char_lstm_init.Feed(state);
-  vector<Expression> char_lstm_init_v = MakeLSTMInitialState(char_lstm_init_expr, char_lstm_dim, lstm_layer_count);
+  vector<Expression> char_lstm_init_v = MakeLSTMInitialState(char_lstm_init_expr, char_lstm_dim, char_lstm.layers);
   char_lstm.start_new_sequence(char_lstm_init_v);
 
   vector<Expression> char_losses;
