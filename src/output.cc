@@ -29,6 +29,8 @@ SoftmaxOutputModel::SoftmaxOutputModel(Model& model, unsigned embedding_dim, uns
   embeddings = model.add_lookup_parameters(vocab->size(), {embedding_dim});
   output_builder = LSTMBuilder(lstm_layer_count, embedding_dim + context_dim, state_dim, &model);
   p_output_builder_initial_state = model.add_parameters({lstm_layer_count * 2 * state_dim});
+
+  kEOS = vocab->convert("</s>");
 }
 
 void SoftmaxOutputModel::NewGraph(ComputationGraph& cg) {
@@ -38,6 +40,7 @@ void SoftmaxOutputModel::NewGraph(ComputationGraph& cg) {
   output_builder.start_new_sequence(h0);
   fsb->new_graph(cg);
   pcg = &cg;
+  done.clear();
 }
 
 void SoftmaxOutputModel::SetDropout(float rate) {
@@ -64,15 +67,17 @@ Expression SoftmaxOutputModel::AddInput(const Word* prev_word, const Expression&
   return AddInput(prev_word, context, output_builder.state());
 }
 
-Expression SoftmaxOutputModel::Embed(const Word* w) {
-  const StandardWord* word = dynamic_cast<const StandardWord*>(w);
+Expression SoftmaxOutputModel::Embed(const StandardWord* word) {
   return lookup(*pcg, embeddings, word->id);
 }
 
-Expression SoftmaxOutputModel::AddInput(const Word* prev_word, const Expression& context, const RNNPointer& p) {
+Expression SoftmaxOutputModel::AddInput(const Word* prev_word_, const Expression& context, const RNNPointer& p) {
+  const StandardWord* prev_word = dynamic_cast<const StandardWord*>(prev_word_);
+  done.push_back(prev_word->id == kEOS);
   Expression prev_embedding = Embed(prev_word);
   Expression input = concatenate({prev_embedding, context});
   Expression state = output_builder.add_input(p, input);
+  assert (done.size() == (size_t)output_builder.state() + 1);
   return state;
 }
 
@@ -90,7 +95,12 @@ Word* SoftmaxOutputModel::Sample(const Expression& state) {
 }
 
 bool SoftmaxOutputModel::IsDone(RNNPointer p) const {
-  return false;
+  if (p == -1) {
+    return false;
+  }
+
+  assert (p < done.size());
+  return done[p];
 }
 
 MlpSoftmaxOutputModel::MlpSoftmaxOutputModel() {}
@@ -321,12 +331,12 @@ void RnngOutputModel::InitializeDictionaries(const Dict& raw_vocab) {
   this->raw_vocab = raw_vocab;
 
   for (WordId i = 0; i < (WordId)raw_vocab.size(); ++i) {
-    const string& s = raw_vocab.Convert(i);
+    const string& s = raw_vocab.convert(i);
     assert (s.length() >= 3);
     if (boost::starts_with(s, "NT(")) {
       assert (s[s.length() - 1] == ')');
       string subtype = s.substr(3, s.length() - 4);
-      WordId sub_id = nt_vocab.Convert(subtype);
+      WordId sub_id = nt_vocab.convert(subtype);
 
       assert (w2a.size() == (unsigned)i);
       Action a = {Action::kNT, sub_id};
@@ -336,7 +346,7 @@ void RnngOutputModel::InitializeDictionaries(const Dict& raw_vocab) {
     else if (boost::starts_with(s, "SHIFT(")) {
       assert (s[s.length() - 1] == ')');
       string subtype = s.substr(6, s.length() - 7);
-      WordId sub_id = term_vocab.Convert(subtype);
+      WordId sub_id = term_vocab.convert(subtype);
 
       assert (w2a.size() == (unsigned)i);
       Action a = {Action::kShift, sub_id};

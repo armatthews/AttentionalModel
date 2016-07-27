@@ -49,7 +49,7 @@ public:
   void SetDropout(float rate);
   Expression GetState(RNNPointer p) const;
   RNNPointer GetStatePointer() const;
-  Expression Embed(const Word* word);
+  Expression Embed(const StandardWord* word);
   Expression AddInput(const Word* const prev_word, const Expression& context);
   Expression AddInput(const Word* const prev_word, const Expression& context, const RNNPointer& p);
   Expression PredictLogDistribution(const Expression& state);
@@ -57,7 +57,9 @@ public:
   Expression Loss(const Expression& state, const Word* const ref);
 
   bool IsDone(RNNPointer p) const;
+  WordId kEOS;
 protected:
+  vector<bool> done;
   unsigned state_dim;
   LSTMBuilder output_builder;
   Parameter p_output_builder_initial_state;
@@ -70,6 +72,7 @@ private:
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {
     ar & boost::serialization::base_object<OutputModel>(*this);
+    ar & kEOS;
     ar & state_dim;
     ar & output_builder;
     ar & p_output_builder_initial_state;
