@@ -23,23 +23,41 @@ void Translator::SetDropout(float rate) {
 Expression Translator::BuildGraph(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg) {
   NewGraph(cg);
   vector<Expression> word_losses(target->size());
-  word_losses[0] = input(cg, 0.0f); // <s>
 
   vector<Expression> encodings = encoder_model->Encode(source);
 
+  /*cerr << "Source:";
+  for (const Word* wp : *dynamic_cast<const LinearSentence*>(source)) {
+    const StandardWord* w = dynamic_cast<const StandardWord*>(wp);
+    cerr << " " << w->id;
+  }
+  cerr << endl;
+
+  cerr << "Target:";
+  for (const Word* wp : *target) {
+    const StandardWord* w = dynamic_cast<const StandardWord*>(wp);
+    cerr << " " << w->id;
+  }
+  cerr << endl;*/
+
   attention_model->NewSentence(source);
-  for (unsigned i = 1; i < target->size(); ++i) {
-    const Word* prev_word = target->at(i - 1);
-    const Word* curr_word = target->at(i); 
-    Expression prev_state = output_model->GetState();
-    Expression context = dynamic_cast<StandardAttentionModel*>(attention_model)->GetContext(encodings, prev_state); /// XXX: WTF? Why must this be a Standard model and not e.g. a SparseMax model?
-    Expression new_state = output_model->AddInput(prev_word, context);
-    word_losses[i] = output_model->Loss(new_state, curr_word);
+  for (unsigned i = 0; i < target->size(); ++i) {
+    const Word* word = target->at(i);
+    Expression state = output_model->GetState();
+    word_losses[i] = output_model->Loss(state, word);
+
+    Expression context = dynamic_cast<StandardAttentionModel*>(attention_model)->GetContext(encodings, state); /// XXX: WTF? Why must this be a Standard model and not e.g. a SparseMax model?
+    output_model->AddInput(word, context);
   }
   return sum(word_losses);
 }
 
 void Translator::Sample(const vector<Expression>& encodings, OutputSentence* prefix, RNNPointer state_pointer, unsigned sample_count, unsigned max_length, ComputationGraph& cg, vector<OutputSentence*>& samples) {
+  if (max_length == 0) {
+    samples.push_back(new OutputSentence(*prefix));
+    return;
+  }
+
   Expression output_state = output_model->GetState(state_pointer);
   Expression context = attention_model->GetContext(encodings, output_state);
 
@@ -60,13 +78,13 @@ void Translator::Sample(const vector<Expression>& encodings, OutputSentence* pre
     output_model->AddInput(w, context, state_pointer);
     RNNPointer new_pointer = output_model->GetStatePointer();
 
-    if (!output_model->IsDone()) {
-      Sample(encodings, prefix, new_pointer, it->second, max_length - 1, cg, samples);
-    }
-    else {
+    if (output_model->IsDone()) {
       for (unsigned i = 0; i < it->second; ++i) {
         samples.push_back(new OutputSentence(*prefix));
       }
+    }
+    else {
+      Sample(encodings, prefix, new_pointer, it->second, max_length - 1, cg, samples);
     }
     prefix->pop_back();
   }
@@ -138,7 +156,7 @@ KBestList<OutputSentence*> Translator::Translate(const InputSentence* const sour
         double new_score = hyp_score + word_score;
         OutputSentence* new_sentence = new OutputSentence(*hyp_sentence);
         new_sentence->push_back(word);
-        if (word != EOS) {
+        if (!output_model->IsDone()) {
           new_hyps.add(new_score, make_pair(new_sentence, new_pointer));
         }
         else {
