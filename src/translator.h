@@ -19,7 +19,7 @@ public:
 
   // This could be used if your loss is over alignment matrices, for example
   // Expression Align(const InputSentence* const source, const OutputSentence* target, ComputationGraph& cg);
-  KBestList<OutputSentence*> Translate(const InputSentence* const source, unsigned K, unsigned beam_size, Word* BOS, Word* EOS, unsigned max_length);
+  KBestList<OutputSentence*> Translate(const InputSentence* const source, unsigned K, unsigned beam_size, unsigned max_length);
 
 private:
   EncoderModel* encoder_model;

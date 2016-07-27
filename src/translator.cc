@@ -118,7 +118,7 @@ vector<Expression> Translator::Align(const InputSentence* const source, const Ou
   return alignments;
 }
 
-KBestList<OutputSentence*> Translator::Translate(const InputSentence* const source, unsigned K, unsigned beam_size, Word* BOS, Word* EOS, unsigned max_length) {
+KBestList<OutputSentence*> Translator::Translate(const InputSentence* const source, unsigned K, unsigned beam_size, unsigned max_length) {
   assert (beam_size >= K);
   ComputationGraph cg;
   NewGraph(cg);
@@ -135,7 +135,7 @@ KBestList<OutputSentence*> Translator::Translate(const InputSentence* const sour
       double hyp_score = get<0>(hyp);
       OutputSentence* hyp_sentence = get<0>(get<1>(hyp));
       RNNPointer state_pointer = get<1>(get<1>(hyp));
-      Word* prev_word = hyp_sentence->size() > 0 ? hyp_sentence->back() : BOS;
+      Word* prev_word = hyp_sentence->size() > 0 ? hyp_sentence->back() : /*BOS*/nullptr;
       assert (hyp_sentence->size() == length);
 
       Expression prev_state = output_model->GetState(state_pointer);
