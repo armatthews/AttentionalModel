@@ -52,7 +52,7 @@ public:
     if (learn) {
       cg.backward();
     }
-    // TODO: Subtract 1 if we added EOS
+
     return SufficientStats(loss, output->size(), 1);
   }
 
@@ -124,7 +124,7 @@ void ctrlc_handler(int signal) {
 
 int main(int argc, char** argv) {
   signal (SIGINT, ctrlc_handler);
-  cnn::Initialize(argc, argv, true);
+  cnn::initialize(argc, argv, true);
 
   po::options_description desc("description");
   desc.add_options()
@@ -196,6 +196,8 @@ int main(int argc, char** argv) {
   const string train_source_filename = vm["train_source"].as<string>();
   const string train_target_filename = vm["train_target"].as<string>();
   Bitext train_bitext = ReadBitext(train_source_filename, train_target_filename, input_reader, output_reader);
+  input_reader->Freeze();
+  output_reader->Freeze();
 
   const string dev_source_filename = vm["dev_source"].as<string>();
   const string dev_target_filename = vm["dev_target"].as<string>();
@@ -318,10 +320,10 @@ int main(int argc, char** argv) {
   unsigned dev_frequency = vm["dev_frequency"].as<unsigned>();
   unsigned report_frequency = vm["report_frequency"].as<unsigned>();
   if (num_cores > 1) {
-    RunMultiProcess<SentencePair>(num_cores, &learner, trainer, train_bitext, dev_bitext, num_iterations, dev_frequency, report_frequency);
+    run_multi_process<SentencePair>(num_cores, &learner, trainer, train_bitext, dev_bitext, num_iterations, dev_frequency, report_frequency);
   }
   else {
-    RunSingleProcess<SentencePair>(&learner, trainer, train_bitext, dev_bitext, num_iterations, dev_frequency, report_frequency);
+    run_single_process<SentencePair>(&learner, trainer, train_bitext, dev_bitext, num_iterations, dev_frequency, report_frequency);
   }
 
   return 0;

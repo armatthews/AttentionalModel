@@ -11,13 +11,13 @@ LinearSentence* ReadStandardSentence(const string& line, Dict& dict, bool add_bo
   vector<string> words = tokenize(strip(line), " ");
   LinearSentence* r = new LinearSentence();
   if (add_bos_eos) {
-    r->push_back(new StandardWord(dict.Convert("<s>")));
+    r->push_back(new StandardWord(dict.convert("<s>")));
   }
   for (const string& w : words) {
-    r->push_back(new StandardWord(dict.Convert(w)));
+    r->push_back(new StandardWord(dict.convert(w)));
   }
   if (add_bos_eos) {
-    r->push_back(new StandardWord(dict.Convert("</s>")));
+    r->push_back(new StandardWord(dict.convert("</s>")));
   }
   return r;
 }
@@ -38,15 +38,15 @@ MorphoWord* ReadMorphoWord(const string& line, Dict& word_vocab, Dict& root_voca
   MorphoWord* word = new MorphoWord();
   vector<string> parts = tokenize(strip(line), "\t");
   string& word_str = parts[0];
-  word->word = word_vocab.Convert(word_str);
+  word->word = word_vocab.convert(word_str);
 
   for (unsigned i = 1; i < parts.size(); ++i) {
     vector<string> morphemes = tokenize(parts[i], "+");
     assert (morphemes.size() > 0);
     Analysis analysis;
-    analysis.root = root_vocab.Convert(morphemes[0]);
+    analysis.root = root_vocab.convert(morphemes[0]);
     for (unsigned j = 1; j < morphemes.size(); ++j) {
-      analysis.affixes.push_back(affix_vocab.Convert(morphemes[j]));
+      analysis.affixes.push_back(affix_vocab.convert(morphemes[j]));
     }
     word->analyses.push_back(analysis);
   }
@@ -54,7 +54,7 @@ MorphoWord* ReadMorphoWord(const string& line, Dict& word_vocab, Dict& root_voca
   for (unsigned i = 0; i < word_str.length(); ) {
     unsigned len = UTF8Len(parts[0][i]);
     string c = parts[0].substr(i, len);
-    word->chars.push_back(char_vocab.Convert(c));
+    word->chars.push_back(char_vocab.convert(c));
     i += len;
   }
   return word;
@@ -107,6 +107,11 @@ vector<InputSentence*> StandardInputReader::Read(const string& filename) {
   return vector<InputSentence*>(corpus.begin(), corpus.end());
 }
 
+void StandardInputReader::Freeze() {
+  vocab.freeze();
+  vocab.set_unk("UNK");
+}
+
 vector<InputSentence*> SyntaxInputReader::Read(const string& filename) {
   ifstream f(filename);
   assert (f.is_open());
@@ -121,20 +126,38 @@ vector<InputSentence*> SyntaxInputReader::Read(const string& filename) {
   return sentences;
 }
 
+void SyntaxInputReader::Freeze() {
+  terminal_vocab.freeze();
+  terminal_vocab.set_unk("UNK");
+  nonterminal_vocab.freeze();
+  nonterminal_vocab.set_unk("UNK");
+}
+
 vector<InputSentence*> MorphologyInputReader::Read(const string& filename) {
   vector<LinearSentence*> corpus = ReadMorphologySentences(filename, word_vocab, root_vocab, affix_vocab, char_vocab, true);
   return vector<InputSentence*>(corpus.begin(), corpus.end());
 }
 
+void MorphologyInputReader::Freeze() {
+  word_vocab.freeze();
+  word_vocab.set_unk("UNK");
+  root_vocab.freeze();
+  root_vocab.set_unk("UNK");
+  affix_vocab.freeze();
+  affix_vocab.set_unk("UNK");
+  char_vocab.freeze();
+  char_vocab.set_unk("UNK");
+}
+
 StandardOutputReader::StandardOutputReader() {}
 StandardOutputReader::StandardOutputReader(const string& vocab_file) {
-  vocab.Convert("UNK");
-  vocab.Convert("<s>");
-  vocab.Convert("</s>");
+  vocab.convert("UNK");
+  vocab.convert("<s>");
+  vocab.convert("</s>");
   if (vocab_file.length() > 0) {
     ReadDict(vocab_file, vocab);
-    vocab.Freeze();
-    vocab.SetUnk("UNK");
+    vocab.freeze();
+    vocab.set_unk("UNK");
   }
 }
 
@@ -143,24 +166,29 @@ vector<OutputSentence*> StandardOutputReader::Read(const string& filename) {
   return vector<OutputSentence*>(corpus.begin(), corpus.end());
 }
 
+void StandardOutputReader::Freeze() {
+  vocab.freeze();
+  vocab.set_unk("UNK");
+}
+
 MorphologyOutputReader::MorphologyOutputReader() {}
 MorphologyOutputReader::MorphologyOutputReader(const string& vocab_file, const string& root_vocab_file) {
-  word_vocab.Convert("UNK");
-  word_vocab.Convert("<s>");
-  word_vocab.Convert("</s>");
-  root_vocab.Convert("UNK");
-  root_vocab.Convert("<s>");
-  root_vocab.Convert("</s>");
+  word_vocab.convert("UNK");
+  word_vocab.convert("<s>");
+  word_vocab.convert("</s>");
+  root_vocab.convert("UNK");
+  root_vocab.convert("<s>");
+  root_vocab.convert("</s>");
   if (vocab_file.length() > 0) {
     ReadDict(vocab_file, word_vocab);
-    word_vocab.Freeze();
-    word_vocab.SetUnk("UNK");
+    word_vocab.freeze();
+    word_vocab.set_unk("UNK");
   }
 
   if (root_vocab_file.length() > 0) {
     ReadDict(root_vocab_file, root_vocab);
-    root_vocab.Freeze();
-    root_vocab.SetUnk("UNK");
+    root_vocab.freeze();
+    root_vocab.set_unk("UNK");
   }
 }
 
@@ -169,13 +197,30 @@ vector<OutputSentence*> MorphologyOutputReader::Read(const string& filename) {
   return vector<OutputSentence*>(corpus.begin(), corpus.end());
 }
 
+void MorphologyOutputReader::Freeze() {
+  word_vocab.freeze();
+  word_vocab.set_unk("UNK");
+  root_vocab.freeze();
+  root_vocab.set_unk("UNK");
+  affix_vocab.freeze();
+  affix_vocab.set_unk("UNK");
+  char_vocab.freeze();
+  char_vocab.set_unk("UNK");
+}
+
 vector<OutputSentence*> RnngOutputReader::Read(const string& filename) {
   vector<LinearSentence*> corpus = ReadStandardSentences(filename, vocab, false);
   return vector<OutputSentence*>(corpus.begin(), corpus.end());
 }
 
+void RnngOutputReader::Freeze() {
+  vocab.freeze();
+  vocab.set_unk("UNK");
+}
+
 string StandardOutputReader::ToString(const Word* word) {
-  assert (false);
+  const StandardWord* w = dynamic_cast<const StandardWord*>(word);
+  return vocab.convert(w->id);
 }
 
 string MorphologyOutputReader::ToString(const Word* word) {
@@ -190,7 +235,7 @@ void ReadDict(const string& filename, Dict& dict) {
   ifstream f(filename);
 
   for (string line; getline(f, line);) {
-    dict.Convert(strip(line));
+    dict.convert(strip(line));
   }
 }
 

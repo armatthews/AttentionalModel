@@ -18,14 +18,14 @@ SyntaxTree::SyntaxTree(string tree, Dict* word_dict, Dict* label_dict) : word_di
     assert (tree.find("(") == string::npos);
     assert (tree.find(")") == string::npos);
     assert (tree.find(" ") == string::npos);
-    label_ = word_dict->Convert(tree);
+    label_ = word_dict->convert(tree);
   }
   else {
     assert (tree[tree.length() - 1] == ')');
     unsigned first_space = tree.find(" ");
     assert (first_space != string::npos);
     assert (first_space != 1);
-    label_ = label_dict->Convert(tree.substr(1, first_space - 1));
+    label_ = label_dict->convert(tree.substr(1, first_space - 1));
 
     vector<string> child_strings;
     unsigned start = first_space + 1;
@@ -157,11 +157,11 @@ LinearSentence SyntaxTree::GetTerminals() const {
 
 string SyntaxTree::ToString() const {
   if (IsTerminal()) {
-    return word_dict->Convert(label_);
+    return word_dict->convert(label_);
   }
 
   stringstream ss;
-  ss << "(" << label_dict->Convert(label_);
+  ss << "(" << label_dict->convert(label_);
   for (const SyntaxTree& child : children) {
     ss << " " << child.ToString();
   }

@@ -16,6 +16,7 @@ using namespace cnn;
 class InputReader {
 public:
   virtual vector<InputSentence*> Read(const string& filename) = 0;
+  virtual void Freeze() = 0;
   friend class boost::serialization::access;
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {}
@@ -25,6 +26,7 @@ class OutputReader {
 public:
   virtual vector<OutputSentence*> Read(const string& filename) = 0;
   virtual string ToString(const Word* word) = 0;
+  virtual void Freeze() = 0;
   friend class boost::serialization::access;
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {}
@@ -33,6 +35,7 @@ public:
 class StandardInputReader : public InputReader {
 public:
   vector<InputSentence*> Read(const string& filename);
+  void Freeze();
   Dict vocab;
 private:
   friend class boost::serialization::access;
@@ -47,6 +50,7 @@ BOOST_CLASS_EXPORT_KEY(StandardInputReader)
 class SyntaxInputReader : public InputReader {
 public:
   vector<InputSentence*> Read(const string& filename);
+  void Freeze();
   Dict terminal_vocab;
   Dict nonterminal_vocab;
 private:
@@ -63,6 +67,7 @@ BOOST_CLASS_EXPORT_KEY(SyntaxInputReader)
 class MorphologyInputReader : public InputReader {
 public:
   vector<InputSentence*> Read(const string& filename);
+  void Freeze();
   Dict word_vocab;
   Dict root_vocab;
   Dict affix_vocab;
@@ -86,6 +91,7 @@ public:
   explicit StandardOutputReader(const string& vocab_file);
   vector<OutputSentence*> Read(const string& filename);
   string ToString(const Word* word);
+  void Freeze();
   Dict vocab;
 private:
   friend class boost::serialization::access;
@@ -103,6 +109,7 @@ public:
   MorphologyOutputReader(const string& vocab_file, const string& morph_vocab_file);
   vector<OutputSentence*> Read(const string& filename);
   string ToString(const Word* word);
+  void Freeze();
 
   Dict word_vocab;
   Dict root_vocab;
@@ -125,6 +132,7 @@ class RnngOutputReader : public OutputReader {
 public:
   vector<OutputSentence*> Read(const string& filename);
   string ToString(const Word* word);
+  void Freeze();
 
   Dict vocab;
 private:
