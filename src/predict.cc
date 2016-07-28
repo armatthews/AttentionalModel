@@ -71,7 +71,6 @@ int main(int argc, char** argv) {
     InputSentence* source = source_sentences[sentence_number];
     KBestList<OutputSentence*> kbest = translator.Translate(source, kbest_size, beam_size, max_length);
     OutputKBestList(sentence_number, kbest, output_reader);
-    sentence_number++;
   }
 
   return 0;

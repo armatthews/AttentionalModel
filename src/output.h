@@ -11,6 +11,7 @@
 #include "morphology.h"
 #include "utils.h"
 #include "rnng.h"
+#include "kbestlist.h"
 
 using namespace std;
 using namespace cnn;
@@ -28,6 +29,7 @@ public:
   virtual Expression AddInput(const Word* const prev_word, const Expression& context) = 0;
   virtual Expression AddInput(const Word* const prev_word, const Expression& context, const RNNPointer& p) = 0;
   virtual Expression PredictLogDistribution(const Expression& state) = 0;
+  virtual KBestList<Word*> PredictKBest(const Expression& state, unsigned K) = 0;
   virtual Word* Sample(const Expression& state) = 0;
   virtual Expression Loss(const Expression& state, const Word* const ref) = 0;
 
@@ -53,6 +55,7 @@ public:
   Expression AddInput(const Word* const prev_word, const Expression& context);
   Expression AddInput(const Word* const prev_word, const Expression& context, const RNNPointer& p);
   Expression PredictLogDistribution(const Expression& state);
+  KBestList<Word*> PredictKBest(const Expression& state, unsigned K);
   Word* Sample(const Expression& state);
   Expression Loss(const Expression& state, const Word* const ref);
 
@@ -103,7 +106,7 @@ private:
     ar & boost::serialization::base_object<SoftmaxOutputModel>(*this);
     ar & p_W;
     ar & p_b;
-  }  
+  }
 };
 BOOST_CLASS_EXPORT_KEY(MlpSoftmaxOutputModel)
 
@@ -118,6 +121,7 @@ public:
   Expression AddInput(const Word* const prev_word, const Expression& context);
   Expression AddInput(const Word* const prev_word, const Expression& context, const RNNPointer& p);
   Expression PredictLogDistribution(const Expression& state);
+  KBestList<Word*> PredictKBest(const Expression& state, unsigned K);
   Word* Sample(const Expression& state);
 
   Expression WordLoss(const Expression& state, const WordId ref);
@@ -184,6 +188,7 @@ public:
   Expression AddInput(const Word* const prev_word, const Expression& context);
   Expression AddInput(const Word* const prev_word, const Expression& context, const RNNPointer& p);
   Expression PredictLogDistribution(const Expression& source_context);
+  KBestList<Word*> PredictKBest(const Expression& state, unsigned K);
   Word* Sample(const Expression& source_context);
   Expression Loss(const Expression& source_context, const Word* const ref);
 

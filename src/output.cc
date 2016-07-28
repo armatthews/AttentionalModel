@@ -85,6 +85,26 @@ Expression SoftmaxOutputModel::PredictLogDistribution(const Expression& state) {
   return fsb->full_log_distribution(state);
 }
 
+KBestList<Word*> SoftmaxOutputModel::PredictKBest(const Expression& state, unsigned K) {
+  Expression dist_expr = PredictLogDistribution(state);
+  dist_expr.pg->incremental_forward();
+  vector<cnn::real> dist = as_vector(dist_expr.value());
+
+  KBestList<unsigned> best_indices(K);
+  for (unsigned i = 0; i < dist.size(); ++i) {
+    best_indices.add(dist[i], i);
+  }
+
+  KBestList<Word*> kbest(K);
+  for (const pair<double, unsigned>& pair : best_indices.hypothesis_list()) {
+    double p = get<0>(pair);
+    unsigned i = get<1>(pair);
+    kbest.add(p, new StandardWord(i));
+  }
+
+  return kbest;
+}
+
 Expression SoftmaxOutputModel::Loss(const Expression& state, const Word* const ref) {
   const StandardWord* r = dynamic_cast<const StandardWord*>(ref);
   return fsb->neg_log_softmax(state, r->id);
@@ -195,11 +215,11 @@ void MorphologyOutputModel::NewGraph(ComputationGraph& cg) {
 }
 
 void MorphologyOutputModel::SetDropout(float rate) {}
- 
+
 Expression MorphologyOutputModel::GetState(RNNPointer p) const {
   if (p == -1) {
     if (output_builder.h0.size() == 0) {
-      return zeroes(*pcg, {state_dim});  
+      return zeroes(*pcg, {state_dim});
     }
     else {
       return output_builder.back();
@@ -224,6 +244,10 @@ Expression MorphologyOutputModel::AddInput(const Word* const prev_word, const Ex
 }
 
 Expression MorphologyOutputModel::PredictLogDistribution(const Expression& state) {
+  assert (false);
+}
+
+KBestList<Word*> MorphologyOutputModel::PredictKBest(const Expression& state, unsigned K) {
   assert (false);
 }
 
@@ -408,6 +432,10 @@ Expression RnngOutputModel::AddInput(const Word* prev_word_, const Expression& c
 }
 
 Expression RnngOutputModel::PredictLogDistribution(const Expression& source_context) {
+  assert (false);
+}
+
+KBestList<Word*> RnngOutputModel::PredictKBest(const Expression& state, unsigned K) {
   assert (false);
 }
 
