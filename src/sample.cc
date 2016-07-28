@@ -13,7 +13,7 @@ using namespace cnn;
 using namespace std;
 namespace po = boost::program_options;
 
-int main(int argc, char** argv) {  
+int main(int argc, char** argv) {
   cnn::initialize(argc, argv);
 
   po::options_description desc("description");

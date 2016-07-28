@@ -30,7 +30,7 @@ DecoderState::DecoderState(unsigned n) {
 }
 
 Decoder::Decoder(Translator* translator) {
-  translators.push_back(translator); 
+  translators.push_back(translator);
 }
 
 Decoder::Decoder(const vector<Translator*>& translators) : translators(translators) {
@@ -62,7 +62,7 @@ vector<OutputSentence*> Decoder::SampleTranslations(const InputSentence* const s
         Translator* translator = translators[i];
         vector<Expression>& encodings = source_encodings[i];
         Expression prev_state = translator->output_model->GetState();
-        Expression context = translator->attention_model->GetContext(encodings, prev_state); 
+        Expression context = translator->attention_model->GetContext(encodings, prev_state);
         Expression new_state = translator->output_model->AddInput(prev_word, context);
         log_distributions[i] = translator->output_model->FullLogDistribution(new_state);
       }

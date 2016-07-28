@@ -107,7 +107,7 @@ vector<Expression> BidirectionalSentenceEncoder::EncodeReverse(const LinearSente
 MorphologyEncoder::MorphologyEncoder() {}
 
 MorphologyEncoder::MorphologyEncoder(Model& model, unsigned word_vocab_size, unsigned root_vocab_size, unsigned affix_vocab_size, unsigned char_vocab_size, unsigned word_emb_dim, unsigned affix_emb_dim, unsigned char_emb_dim,
-    unsigned affix_lstm_dim, unsigned char_lstm_dim, unsigned main_lstm_dim) 
+    unsigned affix_lstm_dim, unsigned char_lstm_dim, unsigned main_lstm_dim)
   : main_lstm_dim(main_lstm_dim), embedder(MorphologyEmbedder(model, word_vocab_size, root_vocab_size, affix_vocab_size, char_vocab_size, word_emb_dim, affix_emb_dim, char_emb_dim, affix_lstm_dim, char_lstm_dim)) {
   assert (main_lstm_dim % 2 == 0);
   unsigned total_dim = word_emb_dim + affix_lstm_dim + char_lstm_dim;

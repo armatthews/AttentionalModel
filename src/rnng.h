@@ -86,7 +86,7 @@ protected:
   LSTMBuilder stack_lstm; // Stack
   LSTMBuilder term_lstm; // Sequence of generated terminals
   LSTMBuilder action_lstm; // Generated action sequence
-  LSTMBuilder const_lstm_fwd; // Used to compose children of a node into a representation of the node 
+  LSTMBuilder const_lstm_fwd; // Used to compose children of a node into a representation of the node
   LSTMBuilder const_lstm_rev; // Used to compose children of a node into a representation of the node
 
   LookupParameter p_w; // word embeddings
@@ -168,7 +168,7 @@ struct SourceConditionedParserBuilder : public ParserBuilder {
 private:
   Parameter p_W;
   Expression W;
- 
+
   friend class boost::serialization::access;
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {
