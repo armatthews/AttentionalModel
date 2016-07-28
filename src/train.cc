@@ -155,6 +155,7 @@ int main(int argc, char** argv) {
   ("dropout_rate", po::value<float>()->default_value(0.0f), "Dropout rate (should be >= 0.0 and < 1)")
   ("num_iterations,i", po::value<unsigned>()->default_value(UINT_MAX), "Number of epochs to train for")
   ("quiet,q", "Don't output model at all (useful during debugging)")
+  ("batch_size,b", po::value<unsigned>()->default_value(1), "Batch size (has no effect when using > 1 core)")
   ("report_frequency,r", po::value<unsigned>()->default_value(100), "Show the training loss of every r examples")
   ("dev_frequency,d", po::value<unsigned>()->default_value(10000), "Run the dev set every d examples. Save the model if the score is a new best")
   ("model", po::value<string>(), "Reload this model and continue learning");
@@ -214,7 +215,7 @@ int main(int argc, char** argv) {
     unsigned output_state_dim = hidden_size;
     unsigned final_hidden_size = hidden_size;
 
-    const string clusters_filename = vm["clusters"].as<string>(); 
+    const string clusters_filename = vm["clusters"].as<string>();
 
     EncoderModel* encoder_model = nullptr;
     if (source_type == kStandard) {
@@ -317,13 +318,14 @@ int main(int argc, char** argv) {
 
   const unsigned num_cores = vm["cores"].as<unsigned>();
   const unsigned num_iterations = vm["num_iterations"].as<unsigned>();
+  const unsigned batch_size = vm["batch_size"].as<unsigned>();
   unsigned dev_frequency = vm["dev_frequency"].as<unsigned>();
   unsigned report_frequency = vm["report_frequency"].as<unsigned>();
   if (num_cores > 1) {
     run_multi_process<SentencePair>(num_cores, &learner, trainer, train_bitext, dev_bitext, num_iterations, dev_frequency, report_frequency);
   }
   else {
-    run_single_process<SentencePair>(&learner, trainer, train_bitext, dev_bitext, num_iterations, dev_frequency, report_frequency);
+    run_single_process<SentencePair>(&learner, trainer, train_bitext, dev_bitext, num_iterations, dev_frequency, report_frequency, batch_size);
   }
 
   return 0;
