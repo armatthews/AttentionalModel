@@ -234,7 +234,11 @@ int main(int argc, char** argv) {
       const unsigned root_vocab_size = reader->root_vocab.size();
       const unsigned affix_vocab_size = reader->affix_vocab.size();
       const unsigned char_vocab_size = reader->char_vocab.size();
-      encoder_model = new MorphologyEncoder(cnn_model, word_vocab_size, root_vocab_size, affix_vocab_size, char_vocab_size, embedding_dim, 64, 32, embedding_dim, 32, annotation_dim); // XXX: Hard coded layer sizes
+      const unsigned affix_emb_dim = 64;
+      const unsigned char_emb_dim = 32;
+      const unsigned affix_lstm_dim = embedding_dim;
+      const unsigned char_lstm_dim = 32;
+      encoder_model = new MorphologyEncoder(cnn_model, word_vocab_size, root_vocab_size, affix_vocab_size, char_vocab_size, embedding_dim, affix_emb_dim, char_emb_dim, affix_lstm_dim, char_lstm_dim, annotation_dim);
     }
     else {
       assert (false && "Unknown input type");
