@@ -6,7 +6,7 @@ MorphologyEmbedder::MorphologyEmbedder() {}
 
 MorphologyEmbedder::MorphologyEmbedder(Model& model, unsigned word_vocab_size, unsigned root_vocab_size, unsigned affix_vocab_size, unsigned char_vocab_size, unsigned word_emb_dim, unsigned affix_emb_dim, unsigned char_emb_dim, unsigned affix_lstm_dim, unsigned char_lstm_dim) : affix_lstm_dim(affix_lstm_dim), char_lstm_dim(char_lstm_dim) {
   word_embeddings = model.add_lookup_parameters(word_vocab_size, {word_emb_dim});
-  root_embeddings = model.add_lookup_parameters(root_vocab_size, {2 * affix_emb_dim});
+  root_embeddings = model.add_lookup_parameters(root_vocab_size, {2 * affix_lstm_dim});
   affix_embeddings = model.add_lookup_parameters(affix_vocab_size, {affix_emb_dim});
   char_embeddings = model.add_lookup_parameters(char_vocab_size, {char_emb_dim});
 
