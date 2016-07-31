@@ -123,6 +123,12 @@ void ctrlc_handler(int signal) {
 }
 
 int main(int argc, char** argv) {
+  cerr << "Invoked as:";
+  for (int i = 0; i < argc; ++i) {
+    cerr << " " << argv[i];
+  }
+  cerr << "\n";
+
   signal (SIGINT, ctrlc_handler);
   cnn::initialize(argc, argv, true);
 
@@ -234,10 +240,10 @@ int main(int argc, char** argv) {
       const unsigned root_vocab_size = reader->root_vocab.size();
       const unsigned affix_vocab_size = reader->affix_vocab.size();
       const unsigned char_vocab_size = reader->char_vocab.size();
-      const unsigned affix_emb_dim = 64;
-      const unsigned char_emb_dim = 32;
-      const unsigned affix_lstm_dim = embedding_dim;
-      const unsigned char_lstm_dim = 32;
+      const unsigned affix_emb_dim = 1;
+      const unsigned char_emb_dim = embedding_dim;
+      const unsigned affix_lstm_dim = 1;
+      const unsigned char_lstm_dim = embedding_dim;
       encoder_model = new MorphologyEncoder(cnn_model, word_vocab_size, root_vocab_size, affix_vocab_size, char_vocab_size, embedding_dim, affix_emb_dim, char_emb_dim, affix_lstm_dim, char_lstm_dim, annotation_dim);
     }
     else {
