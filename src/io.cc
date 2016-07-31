@@ -108,8 +108,10 @@ vector<InputSentence*> StandardInputReader::Read(const string& filename) {
 }
 
 void StandardInputReader::Freeze() {
-  vocab.freeze();
-  vocab.set_unk("UNK");
+  if (!vocab.is_frozen()) {
+    vocab.freeze();
+    vocab.set_unk("UNK");
+  }
 }
 
 vector<InputSentence*> SyntaxInputReader::Read(const string& filename) {
@@ -127,10 +129,14 @@ vector<InputSentence*> SyntaxInputReader::Read(const string& filename) {
 }
 
 void SyntaxInputReader::Freeze() {
-  terminal_vocab.freeze();
-  terminal_vocab.set_unk("UNK");
-  nonterminal_vocab.freeze();
-  nonterminal_vocab.set_unk("UNK");
+  if (!terminal_vocab.is_frozen()) {
+    terminal_vocab.freeze();
+    terminal_vocab.set_unk("UNK");
+  }
+  if (!nonterminal_vocab.is_frozen()) {
+    nonterminal_vocab.freeze();
+    nonterminal_vocab.set_unk("UNK");
+  }
 }
 
 vector<InputSentence*> MorphologyInputReader::Read(const string& filename) {
@@ -139,14 +145,16 @@ vector<InputSentence*> MorphologyInputReader::Read(const string& filename) {
 }
 
 void MorphologyInputReader::Freeze() {
-  word_vocab.freeze();
-  word_vocab.set_unk("UNK");
-  root_vocab.freeze();
-  root_vocab.set_unk("UNK");
-  affix_vocab.freeze();
-  affix_vocab.set_unk("UNK");
-  char_vocab.freeze();
-  char_vocab.set_unk("UNK");
+  if (!word_vocab.is_frozen()) {
+    word_vocab.freeze();
+    word_vocab.set_unk("UNK");
+    root_vocab.freeze();
+    root_vocab.set_unk("UNK");
+    affix_vocab.freeze();
+    affix_vocab.set_unk("UNK");
+    char_vocab.freeze();
+    char_vocab.set_unk("UNK");
+  }
 }
 
 StandardOutputReader::StandardOutputReader() {}
@@ -167,8 +175,10 @@ vector<OutputSentence*> StandardOutputReader::Read(const string& filename) {
 }
 
 void StandardOutputReader::Freeze() {
-  vocab.freeze();
-  vocab.set_unk("UNK");
+  if (!vocab.is_frozen()) {
+    vocab.freeze();
+    vocab.set_unk("UNK");
+  }
 }
 
 MorphologyOutputReader::MorphologyOutputReader() {}
@@ -179,13 +189,13 @@ MorphologyOutputReader::MorphologyOutputReader(const string& vocab_file, const s
   root_vocab.convert("UNK");
   root_vocab.convert("<s>");
   root_vocab.convert("</s>");
-  if (vocab_file.length() > 0) {
+  if (vocab_file.length() > 0 && !word_vocab.is_frozen()) {
     ReadDict(vocab_file, word_vocab);
     word_vocab.freeze();
     word_vocab.set_unk("UNK");
   }
 
-  if (root_vocab_file.length() > 0) {
+  if (root_vocab_file.length() > 0 && !root_vocab.is_frozen()) {
     ReadDict(root_vocab_file, root_vocab);
     root_vocab.freeze();
     root_vocab.set_unk("UNK");
@@ -198,14 +208,16 @@ vector<OutputSentence*> MorphologyOutputReader::Read(const string& filename) {
 }
 
 void MorphologyOutputReader::Freeze() {
-  word_vocab.freeze();
-  word_vocab.set_unk("UNK");
-  root_vocab.freeze();
-  root_vocab.set_unk("UNK");
-  affix_vocab.freeze();
-  affix_vocab.set_unk("UNK");
-  char_vocab.freeze();
-  char_vocab.set_unk("UNK");
+  if (!word_vocab.is_frozen()) {
+    word_vocab.freeze();
+    word_vocab.set_unk("UNK");
+    root_vocab.freeze();
+    root_vocab.set_unk("UNK");
+    affix_vocab.freeze();
+    affix_vocab.set_unk("UNK");
+    char_vocab.freeze();
+    char_vocab.set_unk("UNK");
+  }
 }
 
 vector<OutputSentence*> RnngOutputReader::Read(const string& filename) {
@@ -214,8 +226,10 @@ vector<OutputSentence*> RnngOutputReader::Read(const string& filename) {
 }
 
 void RnngOutputReader::Freeze() {
-  vocab.freeze();
-  vocab.set_unk("UNK");
+  if (!vocab.is_frozen()) {
+    vocab.freeze();
+    vocab.set_unk("UNK");
+  }
 }
 
 string StandardOutputReader::ToString(const Word* word) {
