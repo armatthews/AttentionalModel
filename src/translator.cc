@@ -32,7 +32,7 @@ Expression Translator::BuildGraph(const InputSentence* const source, const Outpu
     Expression state = output_model->GetState();
     word_losses[i] = output_model->Loss(state, word);
 
-    Expression context = dynamic_cast<StandardAttentionModel*>(attention_model)->GetContext(encodings, state); /// XXX: WTF? Why must this be a Standard model and not e.g. a SparseMax model?
+    Expression context = attention_model->GetContext(encodings, state);
     output_model->AddInput(word, context);
   }
   return sum(word_losses);
