@@ -37,8 +37,8 @@ istream& operator>>(istream& in, InputType& input_type)
 
 class Learner : public ILearner<SentencePair, SufficientStats> {
 public:
-  Learner(const InputReader* const input_reader, const OutputReader* const output_reader, Translator& translator, Model& cnn_model, float dropout_rate, bool quiet) :
-    input_reader(input_reader), output_reader(output_reader), translator(translator), cnn_model(cnn_model), dropout_rate(dropout_rate), quiet(quiet) {}
+  Learner(const InputReader* const input_reader, const OutputReader* const output_reader, Translator& translator, Model& cnn_model, const Trainer* const trainer, float dropout_rate, bool quiet) :
+    input_reader(input_reader), output_reader(output_reader), translator(translator), cnn_model(cnn_model), trainer(trainer), dropout_rate(dropout_rate), quiet(quiet) {}
   ~Learner() {}
   SufficientStats LearnFromDatum(const SentencePair& datum, bool learn) {
     ComputationGraph cg;
@@ -58,7 +58,7 @@ public:
 
   void SaveModel() {
     if (!quiet) {
-      Serialize(input_reader, output_reader, translator, cnn_model);
+      Serialize(input_reader, output_reader, translator, cnn_model, trainer);
     }
   }
 private:
@@ -66,6 +66,7 @@ private:
   const OutputReader* const output_reader;
   Translator& translator;
   Model& cnn_model;
+  const Trainer* const trainer;
   float dropout_rate;
   bool quiet;
 };
@@ -193,7 +194,7 @@ int main(int argc, char** argv) {
   if (vm.count("model")) {
     string model_filename = vm["model"].as<string>();
     translator = new Translator();
-    Deserialize(model_filename, input_reader, output_reader, *translator, cnn_model);
+    Deserialize(model_filename, input_reader, output_reader, *translator, cnn_model, trainer);
   }
   else {
     input_reader = CreateInputReader(vm);
@@ -226,7 +227,7 @@ int main(int argc, char** argv) {
     EncoderModel* encoder_model = nullptr;
     if (source_type == kStandard) {
       const Dict& source_vocab = dynamic_cast<const StandardInputReader*>(input_reader)->vocab;
-      //encoder_model = new TrivialEncoder(cnn_model, source_vocab->size(), embedding_dim, annotation_dim);
+      //encoder_model = new TrivialEncoder(cnn_model, source_vocab.size(), embedding_dim, annotation_dim);
       encoder_model = new BidirectionalSentenceEncoder(cnn_model, source_vocab.size(), embedding_dim, annotation_dim);
     }
     else if (source_type == kSyntaxTree) {
@@ -257,12 +258,12 @@ int main(int argc, char** argv) {
     else {
       attention_model = new SparsemaxAttentionModel(cnn_model, annotation_dim, output_state_dim, alignment_hidden_dim);
     }
-    // attention_model = new EncoderDecoderAttentionModel(cnn_model, annotation_dim, output_state_dim);
+    //attention_model = new EncoderDecoderAttentionModel(cnn_model, annotation_dim, output_state_dim);
 
     OutputModel* output_model = nullptr;
     if (target_type == kStandard) {
       Dict& target_vocab = dynamic_cast<StandardOutputReader*>(output_reader)->vocab;
-      // output_model = new SoftmaxOutputModel(cnn_model, embedding_dim, annotation_dim, output_state_dim, target_vocab, clusters_filename);
+      //output_model = new SoftmaxOutputModel(cnn_model, embedding_dim, annotation_dim, output_state_dim, &target_vocab, clusters_filename);
       output_model = new MlpSoftmaxOutputModel(cnn_model, embedding_dim, annotation_dim, output_state_dim, final_hidden_size, &target_vocab, clusters_filename);
     }
     else if (target_type == kMorphology) {
@@ -315,16 +316,16 @@ int main(int argc, char** argv) {
     if (vm.count("syntax_prior")) {
       attention_model->AddPrior(new SyntaxPrior(cnn_model));
     }
+
+    trainer = CreateTrainer(cnn_model, vm);
   }
 
   //cerr << "Vocabulary sizes: " << source_vocab->size() << " / " << target_vocab->size() << endl;
   cerr << "Total parameters: " << cnn_model.parameter_count() << endl;
 
-  trainer = CreateTrainer(cnn_model, vm);
-
   const float dropout_rate = vm["dropout_rate"].as<float>();
   const bool quiet = vm.count("quiet");
-  Learner learner(input_reader, output_reader, *translator, cnn_model, dropout_rate, quiet);
+  Learner learner(input_reader, output_reader, *translator, cnn_model, trainer, dropout_rate, quiet);
 
   const unsigned num_cores = vm["cores"].as<unsigned>();
   const unsigned num_iterations = vm["num_iterations"].as<unsigned>();

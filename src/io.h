@@ -6,6 +6,7 @@
 #include <vector>
 #include <functional>
 #include "cnn/dict.h"
+#include "cnn/training.h"
 #include "syntax_tree.h"
 #include "translator.h"
 #include "utils.h"
@@ -148,5 +149,5 @@ BOOST_CLASS_EXPORT_KEY(RnngOutputReader)
 void ReadDict(const string& filename, Dict& dict);
 Bitext ReadBitext(const string& source_filename, const string& target_filename, InputReader* SourceReader, OutputReader* TargetReader);
 
-void Serialize(const InputReader* const input_reader, const OutputReader* const output_reader, const Translator& translator, Model& cnn_model);
-void Deserialize(const string& filename, InputReader*& input_reader, OutputReader*& output_reader, Translator& translator, Model& cnn_model);
+void Serialize(const InputReader* const input_reader, const OutputReader* const output_reader, const Translator& translator, Model& cnn_model, const Trainer* const trainer);
+void Deserialize(const string& filename, InputReader*& input_reader, OutputReader*& output_reader, Translator& translator, Model& cnn_model, Trainer*& trainer);
