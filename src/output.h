@@ -62,13 +62,14 @@ public:
   bool IsDone(RNNPointer p) const;
   WordId kEOS;
 protected:
-  vector<bool> done;
   unsigned state_dim;
   LSTMBuilder output_builder;
   Parameter p_output_builder_initial_state;
-  Expression output_builder_initial_state;
   LookupParameter embeddings;
   SoftmaxBuilder* fsb;
+
+  vector<bool> done;
+  Expression output_builder_initial_state;
   ComputationGraph* pcg;
 private:
   friend class boost::serialization::access;
@@ -136,6 +137,7 @@ private:
   unsigned state_dim;
   unsigned affix_lstm_dim;
   unsigned char_lstm_dim;
+
   MLP model_chooser;
   MLP affix_lstm_init;
   MLP char_lstm_init;
@@ -143,7 +145,7 @@ private:
   LSTMBuilder char_lstm;
   LSTMBuilder output_builder;
   Parameter output_lstm_init;
-  vector<Expression> output_lstm_init_v;
+
   MorphologyEmbedder embedder;
   LookupParameter root_embeddings;
   LookupParameter affix_embeddings;
@@ -152,6 +154,8 @@ private:
   SoftmaxBuilder* root_softmax;
   SoftmaxBuilder* affix_softmax;
   SoftmaxBuilder* char_softmax;
+
+  vector<Expression> output_lstm_init_v;
   ComputationGraph* pcg;
 
   friend class boost::serialization::access;
@@ -159,13 +163,18 @@ private:
   void serialize(Archive& ar, const unsigned int) {
     ar & boost::serialization::base_object<OutputModel>(*this);
     ar & state_dim & affix_lstm_dim & char_lstm_dim;
+
     ar & model_chooser;
     ar & affix_lstm_init;
     ar & char_lstm_init;
+    ar & affix_lstm;
+    ar & char_lstm;
     ar & output_builder;
+    ar & output_lstm_init;
+
     ar & embedder;
     ar & root_embeddings;
-    ar & char_embeddings;
+    ar & affix_embeddings;
     ar & char_embeddings;
     ar & word_softmax;
     ar & root_softmax;
@@ -195,16 +204,18 @@ public:
   bool IsDone(RNNPointer p) const;
 
 private:
-  SourceConditionedParserBuilder* builder;
   Action Convert(const WordId w) const;
   WordId Convert(const Action& a) const;
-  Expression most_recent_source_thing; // XXX
+
+  SourceConditionedParserBuilder* builder;
   unsigned hidden_dim;
-  ComputationGraph* pcg;
 
   vector<Action> w2a;
   unordered_map<Action, WordId, ActionHash> a2w;
   Dict raw_vocab, term_vocab, nt_vocab;
+
+  Expression most_recent_source_thing; // XXX
+  ComputationGraph* pcg;
 
   friend class boost::serialization::access;
   template<class Archive>
