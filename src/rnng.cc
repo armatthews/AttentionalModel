@@ -1,8 +1,8 @@
-#include "cnn/expr.h"
+#include "dynet/expr.h"
 #include "rnng.h"
 BOOST_CLASS_EXPORT_IMPLEMENT(SourceConditionedParserBuilder)
 
-using namespace cnn::expr;
+using namespace dynet::expr;
 const unsigned lstm_layer_count = 2;
 
 unsigned Action::GetIndex() const {

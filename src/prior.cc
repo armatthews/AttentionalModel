@@ -44,7 +44,6 @@ void CoveragePrior::NewSentence(const InputSentence* input) {
 
 Expression CoveragePrior::Compute(const vector<Expression>& inputs, unsigned target_index) {
   Expression prior = softmax(1 - coverage);
-  prior.pg->incremental_forward();
   return pow(prior, weight);
 }
 

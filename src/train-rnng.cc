@@ -3,13 +3,13 @@
 
 typedef vector<Action> ActionSequence;
 
-using namespace cnn;
-using namespace cnn::expr;
-using namespace cnn::mp;
+using namespace dynet;
+using namespace dynet::expr;
+using namespace dynet::mp;
 using namespace std;
 namespace po = boost::program_options;
 
-void SerializeRNNG(const vector<Dict*>& dicts, ParserBuilder& parser, Model& cnn_model) {
+void SerializeRNNG(const vector<Dict*>& dicts, ParserBuilder& parser, Model& dynet_model) {
 }
 
 vector<ActionSequence> ReadOracleActions(const string& filename, Dict& term_vocab, Dict& nt_vocab) {
@@ -27,11 +27,11 @@ vector<ActionSequence> ReadOracleActions(const string& filename, Dict& term_voca
         string action_type_str = action_string.substr(0, open_paren_loc);
         string subtype_str = action_string.substr(open_paren_loc + 1, action_string.length() - open_paren_loc - 2);
         if (action_type_str == "SHIFT") {
-          WordId subtype = term_vocab.Convert(subtype_str);
+          WordId subtype = term_vocab.convert(subtype_str);
           actions.push_back({Action::kShift, subtype});
         }
         else if (action_type_str == "NT") {
-          WordId subtype = nt_vocab.Convert(subtype_str);
+          WordId subtype = nt_vocab.convert(subtype_str);
           actions.push_back({Action::kNT, subtype});
         }
         else {
@@ -51,29 +51,29 @@ vector<ActionSequence> ReadOracleActions(const string& filename, Dict& term_voca
 
 class Learner : public ILearner<ActionSequence, SufficientStats> {
 public:
-  Learner(const vector<Dict*>& dicts, ParserBuilder& parser, Model& cnn_model, bool quiet) :
-    dicts(dicts), parser(parser), cnn_model(cnn_model), quiet(quiet) {}
+  Learner(const vector<Dict*>& dicts, ParserBuilder& parser, Model& dynet_model, bool quiet) :
+    dicts(dicts), parser(parser), dynet_model(dynet_model), quiet(quiet) {}
   ~Learner() {}
   SufficientStats LearnFromDatum(const ActionSequence& datum, bool learn) {
     ComputationGraph cg;
     parser.NewGraph(cg);
-    parser.BuildGraph(datum);
-    cnn::real loss = as_scalar(cg.forward());
+    Expression loss_expr = parser.BuildGraph(datum);
+    dynet::real loss = as_scalar(loss_expr.value());
     if (learn) {
-      cg.backward();
+      cg.backward(loss_expr);
     }
     return SufficientStats(loss, datum.size(), 1);
   }
 
   void SaveModel() {
     if (!quiet) {
-      SerializeRNNG(dicts, parser, cnn_model);
+      SerializeRNNG(dicts, parser, dynet_model);
     }
   }
 private:
   const vector<Dict*>& dicts;
   ParserBuilder& parser;
-  Model& cnn_model;
+  Model& dynet_model;
   bool quiet;
 };
 
@@ -90,13 +90,13 @@ void ctrlc_handler(int signal) {
   else {
     cerr << "Ctrl-c pressed!" << endl;
     ctrlc_pressed = true;
-    cnn::mp::stop_requested = true;
+    dynet::mp::stop_requested = true;
   }
 }
 
 int main(int argc, char** argv) {
   signal (SIGINT, ctrlc_handler);
-  cnn::Initialize(argc, argv, true);
+  dynet::initialize(argc, argv, true);
 
   po::options_description desc("description");
   desc.add_options()
@@ -137,14 +137,14 @@ int main(int argc, char** argv) {
   const unsigned hidden_size = vm["hidden_size"].as<unsigned>();
 
   vector<Dict*> dicts;
-  Model cnn_model;
+  Model dynet_model;
   ParserBuilder* parser = nullptr;
   Trainer* trainer = nullptr;
 
   if (vm.count("model")) {
     parser = new ParserBuilder();
     string model_filename = vm["model"].as<string>();
-    //DeserializeRNNG(model_filename, dicts, *parser, cnn_model); // XXX
+    //DeserializeRNNG(model_filename, dicts, *parser, dynet_model); // XXX
     for (Dict* dict : dicts) {
       assert (dict->is_frozen());
     }
@@ -157,9 +157,9 @@ int main(int argc, char** argv) {
   }
 
   for (Dict* dict : dicts) {
-    dict->Convert("UNK");
-    dict->Convert("<s>");
-    dict->Convert("</s>");
+    dict->convert("UNK");
+    dict->convert("<s>");
+    dict->convert("</s>");
   }
 
   Dict* term_vocab = dicts[0];
@@ -177,13 +177,13 @@ int main(int argc, char** argv) {
     const string clusters_filename = vm["clusters"].as<string>();
     SoftmaxBuilder* cfsm = nullptr;
     if (clusters_filename.length() > 0) {
-      cfsm = new ClassFactoredSoftmaxBuilder(hidden_dim, clusters_filename, term_vocab, &cnn_model);
+      cfsm = new ClassFactoredSoftmaxBuilder(hidden_dim, clusters_filename, term_vocab, &dynet_model);
     }
     else {
-      cfsm = new StandardSoftmaxBuilder(hidden_dim, term_vocab->size(), &cnn_model);
+      cfsm = new StandardSoftmaxBuilder(hidden_dim, term_vocab->size(), &dynet_model);
     }
 
-    parser = new ParserBuilder(cnn_model, cfsm, term_vocab->size(), nt_vocab->size(), nt_vocab->size() + 2, hidden_dim, term_emb_dim, nt_emb_dim, action_emb_dim);
+    parser = new ParserBuilder(dynet_model, cfsm, term_vocab->size(), nt_vocab->size(), nt_vocab->size() + 2, hidden_dim, term_emb_dim, nt_emb_dim, action_emb_dim);
 
     for (Dict* dict : dicts) {
       dict->Freeze();
@@ -196,10 +196,10 @@ int main(int argc, char** argv) {
   }
 
   cerr << "Vocabulary sizes: " << nt_vocab->size() << " NTs / " << term_vocab->size() << " terminals" << endl;
-  cerr << "Total parameters: " << cnn_model.parameter_count() << endl;
+  cerr << "Total parameters: " << dynet_model.parameter_count() << endl;
 
-  trainer = CreateTrainer(cnn_model, vm);
-  Learner learner(dicts, *parser, cnn_model, quiet);
+  trainer = CreateTrainer(dynet_model, vm);
+  Learner learner(dicts, *parser, dynet_model, quiet);
   unsigned dev_frequency = vm["dev_frequency"].as<unsigned>();
   unsigned report_frequency = vm["report_frequency"].as<unsigned>();
   if (num_cores > 1) {

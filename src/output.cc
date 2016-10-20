@@ -86,22 +86,12 @@ Expression SoftmaxOutputModel::PredictLogDistribution(const Expression& state) {
 }
 
 KBestList<Word*> SoftmaxOutputModel::PredictKBest(const Expression& state, unsigned K) {
-  Expression dist_expr = PredictLogDistribution(state);
-  dist_expr.pg->incremental_forward();
-  vector<cnn::real> dist = as_vector(dist_expr.value());
-
-  KBestList<unsigned> best_indices(K);
-  for (unsigned i = 0; i < dist.size(); ++i) {
-    best_indices.add(dist[i], i);
-  }
-
+  // TODO: Manange memory better. Don't just create a bajillion new words and then never delete them
+  vector<float> dist = as_vector(PredictLogDistribution(state).value());
   KBestList<Word*> kbest(K);
-  for (const pair<double, unsigned>& pair : best_indices.hypothesis_list()) {
-    double p = get<0>(pair);
-    unsigned i = get<1>(pair);
-    kbest.add(p, new StandardWord(i));
+  for (unsigned i = 0; i < dist.size(); ++i) {
+    kbest.add(dist[i], new StandardWord(i));
   }
-
   return kbest;
 }
 
@@ -435,7 +425,7 @@ Expression RnngOutputModel::PredictLogDistribution(const Expression& source_cont
   assert (false);
 }
 
-KBestList<Word*> RnngOutputModel::PredictKBest(const Expression& state, unsigned K) {
+KBestList<Word*> RnngOutputModel::PredictKBest(const Expression& source_context, unsigned K) {
   assert (false);
 }
 

@@ -2,15 +2,20 @@
 #include <vector>
 #include <boost/serialization/export.hpp>
 #include <boost/serialization/access.hpp>
-#include "cnn/cnn.h"
-#include "cnn/lstm.h"
-#include "cnn/expr.h"
+#include <boost/serialization/base_object.hpp>
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/archive/text_oarchive.hpp>
+#include "dynet/dynet.h"
+#include "dynet/lstm.h"
+#include "dynet/expr.h"
 #include "utils.h"
 #include "morphology.h"
 
 using namespace std;
-using namespace cnn;
-using namespace cnn::expr;
+using namespace dynet;
+using namespace dynet::expr;
 
 class EncoderModel {
 public:

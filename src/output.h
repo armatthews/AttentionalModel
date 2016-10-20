@@ -3,19 +3,26 @@
 #include <boost/serialization/export.hpp>
 #include <boost/serialization/access.hpp>
 #include <boost/serialization/unordered_map.hpp>
-#include "cnn/cnn.h"
-#include "cnn/lstm.h"
-#include "cnn/expr.h"
-#include "cnn/cfsm-builder.h"
+#include <boost/serialization/vector.hpp>
+#include <boost/serialization/base_object.hpp>
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/archive/text_oarchive.hpp>
+#include "dynet/dynet.h"
+#include "dynet/lstm.h"
+#include "dynet/expr.h"
+#include "dynet/cfsm-builder.h"
 #include "mlp.h"
 #include "morphology.h"
 #include "utils.h"
+#include "kbestlist.h"
 #include "rnng.h"
 #include "kbestlist.h"
 
 using namespace std;
-using namespace cnn;
-using namespace cnn::expr;
+using namespace dynet;
+using namespace dynet::expr;
 
 class OutputModel {
 public:
@@ -80,8 +87,6 @@ private:
     ar & state_dim;
     ar & output_builder;
     ar & p_output_builder_initial_state;
-    //Parameter& prev = output_builder.params.back().back(); // XXX: Super hacky
-    //p_output_builder_initial_state = Parameter(prev.mp, prev.index + 1);
     ar & embeddings;
     ar & fsb;
   }

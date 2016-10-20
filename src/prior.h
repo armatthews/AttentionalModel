@@ -2,9 +2,10 @@
 #include <vector>
 #include <boost/serialization/export.hpp>
 #include <boost/serialization/access.hpp>
-#include "cnn/cnn.h"
-#include "cnn/lstm.h"
-#include "cnn/expr.h"
+#include <boost/serialization/base_object.hpp>
+#include "dynet/dynet.h"
+#include "dynet/lstm.h"
+#include "dynet/expr.h"
 #include "utils.h"
 #include "syntax_tree.h"
 #include <stack>

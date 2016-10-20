@@ -106,7 +106,7 @@ vector<vector<WordId>> AttentionalDecoder::SampleTranslations(DecoderState& ds, 
 
       Expression total_log_output_distribution = sum(model_log_output_distributions);
       Expression output_distribution = softmax(total_log_output_distribution);
-      vector<float> dist = as_vector(cg.incremental_forward());
+      vector<float> dist = as_vector(output_distribution.value());
       double r = rand01();
       unsigned w = 0;
       while (true) {
@@ -166,7 +166,7 @@ KBestList<vector<WordId>> AttentionalDecoder::TranslateKBest(DecoderState& ds, u
       if (models.size() > 1) {
         overall_distribution = log(softmax(overall_distribution)); // Renormalize
       }
-      vector<float> dist = as_vector(cg.incremental_forward());
+      vector<float> dist = as_vector(overall_distribution.value());
 
       // Take the K best-looking words
       KBestList<WordId> best_words(beam_size);
@@ -201,7 +201,7 @@ KBestList<vector<WordId>> AttentionalDecoder::TranslateKBest(DecoderState& ds, u
   return completed_hyps;
 }
 
-vector<vector<cnn::real>> AttentionalDecoder::Align(DecoderState& ds, const vector<WordId>& target, ComputationGraph& cg) const {
+vector<vector<dynet::real>> AttentionalDecoder::Align(DecoderState& ds, const vector<WordId>& target, ComputationGraph& cg) const {
   assert (target.size() >= 2 && target[0] == 1 && target[target.size() - 1] == 2);
   assert (ds.model_annotations.size() == models.size());
   assert (models.size() > 0);
@@ -213,7 +213,7 @@ vector<vector<cnn::real>> AttentionalDecoder::Align(DecoderState& ds, const vect
     MLP& aligner = ds.model_aligners[i];
     Expression prev_state = ds.model_output_states[i];
     for (unsigned t = 1; t < target.size(); ++t) {
-      vector<cnn::real> a;
+      vector<dynet::real> a;
       WordId prev_word = target[t - 1];
       Expression prev_embedding = lookup(cg, model->p_Et, prev_word);
       Expression alignment = model->GetAlignments(t, prev_state, annotations, aligner, cg, &a);
@@ -226,7 +226,7 @@ vector<vector<cnn::real>> AttentionalDecoder::Align(DecoderState& ds, const vect
     }
   }
 
-  vector<vector<cnn::real>> alignment(target.size());
+  vector<vector<dynet::real>> alignment(target.size());
   for (unsigned i = 0; i < target.size(); ++i) {
     alignment[i].resize(source_size);
   }
@@ -240,7 +240,7 @@ vector<vector<cnn::real>> AttentionalDecoder::Align(DecoderState& ds, const vect
   }
 
   for (unsigned j = 0; j < target.size() - 1; ++j) {
-    cnn::real Z = logsumexp(alignment[j]);
+    dynet::real Z = logsumexp(alignment[j]);
     for (unsigned k = 0; k < source_size; ++k) {
       alignment[j][k] = exp(alignment[j][k] - Z);
     }
@@ -249,9 +249,9 @@ vector<vector<cnn::real>> AttentionalDecoder::Align(DecoderState& ds, const vect
   return alignment;
 }
 
-vector<cnn::real> AttentionalDecoder::Loss(DecoderState& ds, const vector<WordId>& target, ComputationGraph& cg) const {
+vector<dynet::real> AttentionalDecoder::Loss(DecoderState& ds, const vector<WordId>& target, ComputationGraph& cg) const {
   assert (target.size() >= 2 && target[0] == 1 && target[target.size() - 1] == 2);
-  vector<cnn::real> losses(target.size() - 1);
+  vector<dynet::real> losses(target.size() - 1);
   const unsigned source_length = ds.model_annotations[0].size();
 
   for (unsigned i = 0; i < models.size(); ++i) {
@@ -268,7 +268,7 @@ vector<cnn::real> AttentionalDecoder::Loss(DecoderState& ds, const vector<WordId
       Expression state = model->GetNextOutputState(context, prev_embedding, cg);
       Expression distribution = model->ComputeOutputDistribution(source_length, t, prev_embedding, state, context, final_mlp, cg);
       Expression error = pickneglogsoftmax(distribution, target[t]);
-      losses[t - 1] += as_scalar(cg.incremental_forward());
+      losses[t - 1] += as_scalar(error.value());
       prev_state = state;
     }
   }
@@ -313,7 +313,7 @@ DecoderState AttentionalDecoder::InitializeGivenAnnotations(const vector<vector<
   vector<MLP> model_aligners;
   vector<MLP> model_final_mlps;
   vector<Expression> model_output_states;
-  vector<vector<vector<cnn::real>>> model_alignments(models.size());
+  vector<vector<vector<dynet::real>>> model_alignments(models.size());
 
   for (unsigned i = 0; i < models.size(); ++i) {
     AttentionalModel* model = models[i];

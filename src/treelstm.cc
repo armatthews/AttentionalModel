@@ -5,11 +5,11 @@
 #include <vector>
 #include <iostream>
 
-#include "cnn/nodes.h"
+#include "dynet/nodes.h"
 
 using namespace std;
-using namespace cnn;
-using namespace cnn::expr;
+using namespace dynet;
+using namespace dynet::expr;
 
 BOOST_CLASS_EXPORT_IMPLEMENT(TreeLSTMBuilder)
 BOOST_CLASS_EXPORT_IMPLEMENT(SocherTreeLSTMBuilder)
@@ -360,6 +360,8 @@ Expression BidirectionalTreeLSTMBuilder2::add_input(int id, vector<int> children
 
   return embedding;
 }
+
+Expression BidirectionalTreeLSTMBuilder2::set_h_impl(int prev, const vector<Expression>& h_new) { assert (false); }
 
 DerpTreeLSTMBuilder::DerpTreeLSTMBuilder(Model* model) : cg(nullptr) {}
 

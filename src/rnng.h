@@ -1,12 +1,15 @@
 #pragma once
 #include <vector>
-#include "cnn/cnn.h"
-#include "cnn/lstm.h"
-#include "cnn/cfsm-builder.h"
+#include <boost/serialization/export.hpp>
+#include <boost/serialization/access.hpp>
+#include <boost/serialization/base_object.hpp>
+#include "dynet/dynet.h"
+#include "dynet/lstm.h"
+#include "dynet/cfsm-builder.h"
 #include "utils.h"
 
 using namespace std;
-using namespace cnn;
+using namespace dynet;
 
 struct Action {
   enum ActionType {kNone, kShift, kNT, kReduce};

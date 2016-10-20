@@ -1,11 +1,11 @@
 #pragma once
 #include <boost/serialization/access.hpp>
-#include "cnn/cnn.h"
-#include "cnn/expr.h"
+#include "dynet/dynet.h"
+#include "dynet/expr.h"
 
 using namespace std;
-using namespace cnn;
-using namespace cnn::expr;
+using namespace dynet;
+using namespace dynet::expr;
 
 class MLP {
 public:

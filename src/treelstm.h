@@ -1,12 +1,15 @@
 #pragma once
-#include "cnn/cnn.h"
-#include "cnn/rnn.h"
-#include "cnn/expr.h"
-#include "cnn/lstm.h"
+#include <boost/serialization/export.hpp>
+#include <boost/serialization/access.hpp>
+#include <boost/serialization/base_object.hpp>
+#include "dynet/dynet.h"
+#include "dynet/rnn.h"
+#include "dynet/expr.h"
+#include "dynet/lstm.h"
 
-using namespace cnn;
+using namespace dynet;
 using namespace std;
-using namespace cnn::expr;
+using namespace dynet::expr;
 
 struct TreeLSTMBuilder : public RNNBuilder {
 public:
@@ -120,6 +123,7 @@ struct BidirectionalTreeLSTMBuilder2 : public TreeLSTMBuilder {
  protected:
   void new_graph_impl(ComputationGraph& cg) override;
   void start_new_sequence_impl(const std::vector<Expression>& h0) override;
+  Expression set_h_impl(int prev, const vector<Expression>& h_new) override;
 
  public:
   LSTMBuilder fwd_node_builder;

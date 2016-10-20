@@ -1,6 +1,6 @@
 #pragma once
-#include "cnn/cnn.h"
-#include "cnn/mp.h"
+#include "dynet/dynet.h"
+#include "dynet/mp.h"
 #include <boost/program_options.hpp>
 
 #include <iostream>
@@ -11,21 +11,21 @@
 #include "io.h"
 #include "utils.h"
 
-using namespace cnn;
-using namespace cnn::expr;
-using namespace cnn::mp;
+using namespace dynet;
+using namespace dynet::expr;
+using namespace dynet::mp;
 using namespace std;
 namespace po = boost::program_options;
 
 class SufficientStats {
 public:
-  cnn::real loss;
+  dynet::real loss;
   unsigned word_count;
   unsigned sentence_count;
 
   SufficientStats() : loss(), word_count(), sentence_count() {}
 
-  SufficientStats(cnn::real loss, unsigned word_count, unsigned sentence_count) : loss(loss), word_count(word_count), sentence_count(sentence_count) {}
+  SufficientStats(dynet::real loss, unsigned word_count, unsigned sentence_count) : loss(loss), word_count(word_count), sentence_count(sentence_count) {}
 
   SufficientStats& operator+=(const SufficientStats& rhs) {
     loss += rhs.loss;
@@ -66,7 +66,7 @@ void AddTrainerOptions(po::options_description& desc) {
   ("no_clipping", "Disable clipping of gradients");
 }
 
-Trainer* CreateTrainer(Model& cnn_model, const po::variables_map& vm) {
+Trainer* CreateTrainer(Model& dynet_model, const po::variables_map& vm) {
   double eta_decay = vm["eta_decay"].as<double>();
   bool clipping_enabled = (vm.count("no_clipping") == 0);
   unsigned learner_count = vm.count("sgd") + vm.count("momentum") + vm.count("adagrad") + vm.count("adadelta") + vm.count("rmsprop") + vm.count("adam");
@@ -79,34 +79,34 @@ Trainer* CreateTrainer(Model& cnn_model, const po::variables_map& vm) {
   if (vm.count("momentum")) {
     double learning_rate = (vm.count("learning_rate")) ? vm["learning_rate"].as<double>() : 0.01;
     double momentum = vm["momentum"].as<double>();
-    trainer = new MomentumSGDTrainer(&cnn_model, learning_rate, momentum);
+    trainer = new MomentumSGDTrainer(&dynet_model, learning_rate, momentum);
   }
   else if (vm.count("adagrad")) {
     double learning_rate = (vm.count("learning_rate")) ? vm["learning_rate"].as<double>() : 0.1;
     double eps = (vm.count("epsilon")) ? vm["epsilon"].as<double>() : 1e-20;
-    trainer = new AdagradTrainer(&cnn_model, learning_rate, eps);
+    trainer = new AdagradTrainer(&dynet_model, learning_rate, eps);
   }
   else if (vm.count("adadelta")) {
     double eps = (vm.count("epsilon")) ? vm["epsilon"].as<double>() : 1e-6;
     double rho = (vm.count("rho")) ? vm["rho"].as<double>() : 0.95;
-    trainer = new AdadeltaTrainer(&cnn_model, eps, rho);
+    trainer = new AdadeltaTrainer(&dynet_model, eps, rho);
   }
   else if (vm.count("rmsprop")) {
     double learning_rate = (vm.count("learning_rate")) ? vm["learning_rate"].as<double>() : 0.1;
     double eps = (vm.count("epsilon")) ? vm["epsilon"].as<double>() : 1e-20;
     double rho = (vm.count("rho")) ? vm["rho"].as<double>() : 0.95;
-    trainer = new RmsPropTrainer(&cnn_model, learning_rate, eps, rho);
+    trainer = new RmsPropTrainer(&dynet_model, learning_rate, eps, rho);
   }
   else if (vm.count("adam")) {
     double alpha = (vm.count("alpha")) ? vm["alpha"].as<double>() : 0.001;
     double beta1 = (vm.count("beta1")) ? vm["beta1"].as<double>() : 0.9;
     double beta2 = (vm.count("beta2")) ? vm["beta2"].as<double>() : 0.999;
     double eps = (vm.count("epsilon")) ? vm["epsilon"].as<double>() : 1e-8;
-    trainer = new AdamTrainer(&cnn_model, alpha, beta1, beta2, eps);
+    trainer = new AdamTrainer(&dynet_model, alpha, beta1, beta2, eps);
   }
   else { /* sgd */
     double learning_rate = (vm.count("learning_rate")) ? vm["learning_rate"].as<double>() : 0.1;
-    trainer = new SimpleSGDTrainer(&cnn_model, learning_rate);
+    trainer = new SimpleSGDTrainer(&dynet_model, learning_rate);
   }
   assert (trainer != nullptr);
 

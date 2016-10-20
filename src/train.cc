@@ -1,8 +1,8 @@
 #include "train.h"
 
-using namespace cnn;
-using namespace cnn::expr;
-using namespace cnn::mp;
+using namespace dynet;
+using namespace dynet::expr;
+using namespace dynet::mp;
 using namespace std;
 namespace po = boost::program_options;
 
@@ -37,8 +37,8 @@ istream& operator>>(istream& in, InputType& input_type)
 
 class Learner : public ILearner<SentencePair, SufficientStats> {
 public:
-  Learner(const InputReader* const input_reader, const OutputReader* const output_reader, Translator& translator, Model& cnn_model, const Trainer* const trainer, float dropout_rate, bool quiet) :
-    input_reader(input_reader), output_reader(output_reader), translator(translator), cnn_model(cnn_model), trainer(trainer), dropout_rate(dropout_rate), quiet(quiet) {}
+  Learner(const InputReader* const input_reader, const OutputReader* const output_reader, Translator& translator, Model& dynet_model, const Trainer* const trainer, float dropout_rate, bool quiet) :
+    input_reader(input_reader), output_reader(output_reader), translator(translator), dynet_model(dynet_model), trainer(trainer), dropout_rate(dropout_rate), quiet(quiet) {}
   ~Learner() {}
   SufficientStats LearnFromDatum(const SentencePair& datum, bool learn) {
     ComputationGraph cg;
@@ -46,11 +46,11 @@ public:
     OutputSentence* output = get<1>(datum);
 
     translator.SetDropout(learn ? dropout_rate : 0.0f);
-    translator.BuildGraph(input, output, cg);
-    cnn::real loss = as_scalar(cg.forward());
+    Expression loss_expr = translator.BuildGraph(input, output, cg);
+    dynet::real loss = as_scalar(loss_expr.value());
 
     if (learn) {
-      cg.backward();
+      cg.backward(loss_expr);
     }
 
     return SufficientStats(loss, output->size(), 1);
@@ -58,14 +58,14 @@ public:
 
   void SaveModel() {
     if (!quiet) {
-      Serialize(input_reader, output_reader, translator, cnn_model, trainer);
+      Serialize(input_reader, output_reader, translator, dynet_model, trainer);
     }
   }
 private:
   const InputReader* const input_reader;
   const OutputReader* const output_reader;
   Translator& translator;
-  Model& cnn_model;
+  Model& dynet_model;
   const Trainer* const trainer;
   float dropout_rate;
   bool quiet;
@@ -119,7 +119,7 @@ void ctrlc_handler(int signal) {
   else {
     cerr << "Ctrl-c pressed!" << endl;
     ctrlc_pressed = true;
-    cnn::mp::stop_requested = true;
+    dynet::mp::stop_requested = true;
   }
 }
 
@@ -131,7 +131,7 @@ int main(int argc, char** argv) {
   cerr << "\n";
 
   signal (SIGINT, ctrlc_handler);
-  cnn::initialize(argc, argv, true);
+  dynet::initialize(argc, argv, true);
 
   po::options_description desc("description");
   desc.add_options()
@@ -185,7 +185,7 @@ int main(int argc, char** argv) {
 
   //bool use_fertility = vm.count("use_fertility"); // TODO: Currently unused
 
-  Model cnn_model;
+  Model dynet_model;
   InputReader* input_reader = nullptr;
   OutputReader* output_reader = nullptr;
   Translator* translator = nullptr;
@@ -194,7 +194,7 @@ int main(int argc, char** argv) {
   if (vm.count("model")) {
     string model_filename = vm["model"].as<string>();
     translator = new Translator();
-    Deserialize(model_filename, input_reader, output_reader, *translator, cnn_model, trainer);
+    Deserialize(model_filename, input_reader, output_reader, *translator, dynet_model, trainer);
   }
   else {
     input_reader = CreateInputReader(vm);
@@ -227,13 +227,13 @@ int main(int argc, char** argv) {
     EncoderModel* encoder_model = nullptr;
     if (source_type == kStandard) {
       const Dict& source_vocab = dynamic_cast<const StandardInputReader*>(input_reader)->vocab;
-      //encoder_model = new TrivialEncoder(cnn_model, source_vocab.size(), embedding_dim, annotation_dim);
-      encoder_model = new BidirectionalSentenceEncoder(cnn_model, source_vocab.size(), embedding_dim, annotation_dim);
+      //encoder_model = new TrivialEncoder(dynet_model, source_vocab->size(), embedding_dim, annotation_dim);
+      encoder_model = new BidirectionalSentenceEncoder(dynet_model, source_vocab.size(), embedding_dim, annotation_dim);
     }
     else if (source_type == kSyntaxTree) {
       const Dict& source_vocab = dynamic_cast<const SyntaxInputReader*>(input_reader)->terminal_vocab;
       const Dict& label_vocab = dynamic_cast<const SyntaxInputReader*>(input_reader)->nonterminal_vocab;
-      encoder_model = new TreeEncoder(cnn_model, source_vocab.size(), label_vocab.size(), embedding_dim, annotation_dim);
+      encoder_model = new TreeEncoder(dynet_model, source_vocab.size(), label_vocab.size(), embedding_dim, annotation_dim);
     }
     else if (source_type == kMorphology) {
       const MorphologyInputReader* reader = dynamic_cast<const MorphologyInputReader*>(input_reader);
@@ -241,11 +241,11 @@ int main(int argc, char** argv) {
       const unsigned root_vocab_size = reader->root_vocab.size();
       const unsigned affix_vocab_size = reader->affix_vocab.size();
       const unsigned char_vocab_size = reader->char_vocab.size();
-      const unsigned affix_emb_dim = 1;
+      const unsigned affix_emb_dim = 64;
       const unsigned char_emb_dim = embedding_dim;
-      const unsigned affix_lstm_dim = 1;
+      const unsigned affix_lstm_dim = 32;
       const unsigned char_lstm_dim = embedding_dim;
-      encoder_model = new MorphologyEncoder(cnn_model, word_vocab_size, root_vocab_size, affix_vocab_size, char_vocab_size, embedding_dim, affix_emb_dim, char_emb_dim, affix_lstm_dim, char_lstm_dim, annotation_dim);
+      encoder_model = new MorphologyEncoder(dynet_model, word_vocab_size, root_vocab_size, affix_vocab_size, char_vocab_size, embedding_dim, affix_emb_dim, char_emb_dim, affix_lstm_dim, char_lstm_dim, annotation_dim);
     }
     else {
       assert (false && "Unknown input type");
@@ -253,18 +253,18 @@ int main(int argc, char** argv) {
 
     AttentionModel* attention_model = nullptr;
     if (!vm.count("sparsemax")) {
-      attention_model = new StandardAttentionModel(cnn_model, annotation_dim, output_state_dim, alignment_hidden_dim);
+      attention_model = new StandardAttentionModel(dynet_model, annotation_dim, output_state_dim, alignment_hidden_dim);
     }
     else {
-      attention_model = new SparsemaxAttentionModel(cnn_model, annotation_dim, output_state_dim, alignment_hidden_dim);
+      attention_model = new SparsemaxAttentionModel(dynet_model, annotation_dim, output_state_dim, alignment_hidden_dim);
     }
-    //attention_model = new EncoderDecoderAttentionModel(cnn_model, annotation_dim, output_state_dim);
+    // attention_model = new EncoderDecoderAttentionModel(dynet_model, annotation_dim, output_state_dim);
 
     OutputModel* output_model = nullptr;
     if (target_type == kStandard) {
       Dict& target_vocab = dynamic_cast<StandardOutputReader*>(output_reader)->vocab;
-      //output_model = new SoftmaxOutputModel(cnn_model, embedding_dim, annotation_dim, output_state_dim, &target_vocab, clusters_filename);
-      output_model = new MlpSoftmaxOutputModel(cnn_model, embedding_dim, annotation_dim, output_state_dim, final_hidden_size, &target_vocab, clusters_filename);
+      // output_model = new SoftmaxOutputModel(dynet_model, embedding_dim, annotation_dim, output_state_dim, target_vocab, clusters_filename);
+      output_model = new MlpSoftmaxOutputModel(dynet_model, embedding_dim, annotation_dim, output_state_dim, final_hidden_size, &target_vocab, clusters_filename);
     }
     else if (target_type == kMorphology) {
       MorphologyOutputReader* reader = dynamic_cast<MorphologyOutputReader*>(output_reader);
@@ -284,7 +284,7 @@ int main(int argc, char** argv) {
       const unsigned char_lstm_dim = 32;
       const string word_clusters_file = vm["clusters"].as<string>();
       const string root_clusters_file = vm["root_clusters"].as<string>();
-      output_model = new MorphologyOutputModel(cnn_model, reader->word_vocab, reader->root_vocab, affix_vocab_size, char_vocab_size, word_emb_dim, root_emb_dim, affix_emb_dim, char_emb_dim, model_chooser_hidden_dim, affix_init_hidden_dim, char_init_hidden_dim, state_dim, affix_lstm_dim, char_lstm_dim, annotation_dim, word_clusters_file, root_clusters_file);
+      output_model = new MorphologyOutputModel(dynet_model, reader->word_vocab, reader->root_vocab, affix_vocab_size, char_vocab_size, word_emb_dim, root_emb_dim, affix_emb_dim, char_emb_dim, model_chooser_hidden_dim, affix_init_hidden_dim, char_init_hidden_dim, state_dim, affix_lstm_dim, char_lstm_dim, annotation_dim, word_clusters_file, root_clusters_file);
     }
     else if (target_type == kRNNG) {
       unsigned hidden_dim = hidden_size;
@@ -292,7 +292,7 @@ int main(int argc, char** argv) {
       unsigned nt_emb_dim = embedding_dim;
       unsigned action_emb_dim = embedding_dim;
       Dict& target_vocab = dynamic_cast<RnngOutputReader*>(output_reader)->vocab;
-      output_model = new RnngOutputModel(cnn_model, term_emb_dim, nt_emb_dim, action_emb_dim, annotation_dim, hidden_dim, &target_vocab, clusters_filename);
+      output_model = new RnngOutputModel(dynet_model, term_emb_dim, nt_emb_dim, action_emb_dim, annotation_dim, hidden_dim, &target_vocab, clusters_filename);
     }
     else {
       assert (false && "Unknown output type");
@@ -301,31 +301,30 @@ int main(int argc, char** argv) {
     translator = new Translator(encoder_model, attention_model, output_model);
 
     if (vm.count("coverage_prior")) {
-      attention_model->AddPrior(new CoveragePrior(cnn_model));
+      attention_model->AddPrior(new CoveragePrior(dynet_model));
     }
 
     if (vm.count("diagonal_prior")) {
-      attention_model->AddPrior(new DiagonalPrior(cnn_model));
+      attention_model->AddPrior(new DiagonalPrior(dynet_model));
     }
 
     if (vm.count("markov_prior")) {
       unsigned window_size = vm["markov_prior_window_size"].as<unsigned>();
-      attention_model->AddPrior(new MarkovPrior(cnn_model, window_size));
+      attention_model->AddPrior(new MarkovPrior(dynet_model, window_size));
     }
 
     if (vm.count("syntax_prior")) {
-      attention_model->AddPrior(new SyntaxPrior(cnn_model));
+      attention_model->AddPrior(new SyntaxPrior(dynet_model));
     }
-
-    trainer = CreateTrainer(cnn_model, vm);
+    trainer = CreateTrainer(dynet_model, vm);
   }
 
   //cerr << "Vocabulary sizes: " << source_vocab->size() << " / " << target_vocab->size() << endl;
-  cerr << "Total parameters: " << cnn_model.parameter_count() << endl;
+  cerr << "Total parameters: " << dynet_model.parameter_count() << endl;
 
   const float dropout_rate = vm["dropout_rate"].as<float>();
   const bool quiet = vm.count("quiet");
-  Learner learner(input_reader, output_reader, *translator, cnn_model, trainer, dropout_rate, quiet);
+  Learner learner(input_reader, output_reader, *translator, dynet_model, trainer, dropout_rate, quiet);
 
   const unsigned num_cores = vm["cores"].as<unsigned>();
   const unsigned num_iterations = vm["num_iterations"].as<unsigned>();

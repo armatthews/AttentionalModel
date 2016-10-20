@@ -7,12 +7,12 @@
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>*/
-#include "cnn/dict.h"
-#include "cnn/expr.h"
+#include "dynet/dict.h"
+#include "dynet/expr.h"
 
 using namespace std;
-using namespace cnn;
-using namespace cnn::expr;
+using namespace dynet;
+using namespace dynet::expr;
 
 typedef int WordId;
 

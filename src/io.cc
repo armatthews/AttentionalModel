@@ -265,27 +265,27 @@ Bitext ReadBitext(const string& source_filename, const string& target_filename, 
   return bitext;
 }
 
-void Serialize(const InputReader* const input_reader, const OutputReader* const output_reader, const Translator& translator, Model& cnn_model, const Trainer* const trainer) {
+
+void Serialize(const InputReader* const input_reader, const OutputReader* const output_reader, const Translator& translator, Model& dynet_model, const Trainer* const trainer) {
   int r = ftruncate(fileno(stdout), 0);
   if (r != 0) {}
   fseek(stdout, 0, SEEK_SET);
 
   boost::archive::binary_oarchive oa(cout);
-  oa & cnn_model;
+  oa & dynet_model;
   oa & input_reader;
   oa & output_reader;
   oa & translator;
   oa & trainer;
 }
 
-void Deserialize(const string& filename, InputReader*& input_reader, OutputReader*& output_reader, Translator& translator, Model& cnn_model, Trainer*& trainer) {
+void Deserialize(const string& filename, InputReader*& input_reader, OutputReader*& output_reader, Translator& translator, Model& dynet_model, Trainer*& trainer) {
   ifstream f(filename);
   boost::archive::binary_iarchive ia(f);
-  ia & cnn_model;
+  ia & dynet_model;
   ia & input_reader;
   ia & output_reader;
   ia & translator;
   ia & trainer;
   f.close();
 }
-

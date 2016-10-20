@@ -19,7 +19,7 @@ public:
   OutputSentence* Translate(const InputSentence* const source, unsigned beam_size) const;
   KBestList<OutputSentence*> TranslateKBest(const InputSentence* const source, unsigned K, unsigned beam_size) const;
   vector<vector<float>> Align(const InputSentence* const source, const OutputSentence* const target) const;
-  vector<cnn::real> Loss(const InputSentence* const source, const OutputSentence* const target) const;
+  vector<dynet::real> Loss(const InputSentence* const source, const OutputSentence* const target) const;
 
 private:
   vector<Translator*> translators;

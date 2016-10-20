@@ -1,10 +1,10 @@
 #pragma once
 #include <deque>
 #include <utility>
-#include "cnn/dict.h"
+#include "dynet/dict.h"
 #include "utils.h"
 
-using namespace cnn;
+using namespace dynet;
 using namespace std;
 
 template <typename T>
@@ -54,3 +54,6 @@ public:
 private:
   deque<pair<double, T>> hypotheses;
 };
+
+class OutputReader;
+void OutputKBestList(unsigned sentence_number, KBestList<OutputSentence*> kbest, OutputReader* output_reader);

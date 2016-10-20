@@ -124,10 +124,9 @@ KBestList<OutputSentence*> Translator::Translate(const InputSentence* const sour
       OutputSentence* hyp_sentence = get<0>(get<1>(hyp));
       RNNPointer state_pointer = get<1>(get<1>(hyp));
       assert (hyp_sentence->size() == length);
-
-      Expression state = output_model->GetState(state_pointer);
-      Expression context = attention_model->GetContext(encodings, state);
-      KBestList<Word*> best_words = output_model->PredictKBest(state, beam_size);
+      Expression output_state = output_model->GetState(state_pointer);
+      Expression context = attention_model->GetContext(encodings, output_state);
+      KBestList<Word*> best_words = output_model->PredictKBest(output_state, beam_size);
 
       for (auto& w : best_words.hypothesis_list()) {
         double word_score = get<0>(w);
@@ -135,12 +134,9 @@ KBestList<OutputSentence*> Translator::Translate(const InputSentence* const sour
         double new_score = hyp_score + word_score;
         OutputSentence* new_sentence = new OutputSentence(*hyp_sentence);
         new_sentence->push_back(word);
-
-        Expression new_state = output_model->AddInput(word, context, state_pointer);
-        RNNPointer new_pointer = output_model->GetStatePointer();
-
+        output_model->AddInput(word, context, state_pointer);
         if (!output_model->IsDone()) {
-          new_hyps.add(new_score, make_pair(new_sentence, new_pointer));
+          new_hyps.add(new_score, make_pair(new_sentence, output_model->GetStatePointer()));
         }
         else {
           complete_hyps.add(new_score, new_sentence);
@@ -153,7 +149,6 @@ KBestList<OutputSentence*> Translator::Translate(const InputSentence* const sour
   for (auto& hyp : top_hyps.hypothesis_list()) {
     double score = get<0>(hyp);
     OutputSentence* sentence = get<0>(get<1>(hyp));
-    // TODO: Account for </s> in the score
     complete_hyps.add(score, sentence);
   }
   return complete_hyps;

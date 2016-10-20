@@ -2,9 +2,15 @@
 #include <vector>
 #include <boost/serialization/export.hpp>
 #include <boost/serialization/access.hpp>
-#include "cnn/cnn.h"
-#include "cnn/lstm.h"
-#include "cnn/expr.h"
+#include <boost/serialization/vector.hpp>
+#include <boost/serialization/base_object.hpp>
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/archive/text_oarchive.hpp>
+#include "dynet/dynet.h"
+#include "dynet/lstm.h"
+#include "dynet/expr.h"
 #include "utils.h"
 #include "syntax_tree.h"
 #include "prior.h"
@@ -12,8 +18,8 @@
 #include <map>
 
 using namespace std;
-using namespace cnn;
-using namespace cnn::expr;
+using namespace dynet;
+using namespace dynet::expr;
 
 class AttentionModel {
 public:
@@ -60,7 +66,7 @@ private:
   friend class boost::serialization::access;
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {
-    ar & boost::serialization::base_object<AttentionModel>(*this);
+    ar & boost::serialization::base_object<AttentionModel>(*this); 
     ar & p_U;
     ar & p_V;
     ar & p_W;

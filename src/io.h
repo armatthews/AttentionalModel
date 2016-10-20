@@ -3,16 +3,17 @@
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
+#include <boost/serialization/base_object.hpp>
 #include <vector>
 #include <functional>
-#include "cnn/dict.h"
-#include "cnn/training.h"
+#include "dynet/dict.h"
+#include "dynet/training.h"
 #include "syntax_tree.h"
 #include "translator.h"
 #include "utils.h"
 
 using namespace std;
-using namespace cnn;
+using namespace dynet;
 
 class InputReader {
 public:

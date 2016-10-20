@@ -1,4 +1,4 @@
-#include "cnn/cnn.h"
+#include "dynet/dynet.h"
 
 #include <boost/program_options.hpp>
 #include <boost/algorithm/string/join.hpp>
@@ -9,12 +9,12 @@
 #include "io.h"
 #include "utils.h"
 
-using namespace cnn;
+using namespace dynet;
 using namespace std;
 namespace po = boost::program_options;
 
-int main(int argc, char** argv) {
-  cnn::initialize(argc, argv);
+int main(int argc, char** argv) {  
+  dynet::initialize(argc, argv);
 
   po::options_description desc("description");
   desc.add_options()
@@ -45,9 +45,9 @@ int main(int argc, char** argv) {
   InputReader* input_reader = nullptr;
   OutputReader* output_reader = nullptr;
   Translator translator;
-  Model cnn_model;
+  Model dynet_model;
   Trainer* trainer = nullptr;
-  Deserialize(model_filename, input_reader, output_reader, translator, cnn_model, trainer);
+  Deserialize(model_filename, input_reader, output_reader, translator, dynet_model, trainer);
   translator.SetDropout(0.0f);
 
   vector<InputSentence*> source_sentences = input_reader->Read(vm["input_source"].as<string>());
@@ -63,7 +63,6 @@ int main(int argc, char** argv) {
       cout << sentence_number << " ||| " << boost::algorithm::join(words, " ") << endl;
     }
     cout.flush();
-    sentence_number++;
   }
 
   return 0;

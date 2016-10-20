@@ -2,11 +2,11 @@
 #include <vector>
 #include <string>
 #include <stack>
-#include "cnn/dict.h"
+#include "dynet/dict.h"
 #include "utils.h"
 
 using namespace std;
-using namespace cnn;
+using namespace dynet;
 
 class SyntaxTree;
 

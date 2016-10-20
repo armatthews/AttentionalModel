@@ -16,9 +16,6 @@ public:
   Expression BuildGraph(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg);
   vector<OutputSentence*> Sample(const InputSentence* const source, unsigned samples, unsigned max_length);
   vector<Expression> Align(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg);
-
-  // This could be used if your loss is over alignment matrices, for example
-  // Expression Align(const InputSentence* const source, const OutputSentence* target, ComputationGraph& cg);
   KBestList<OutputSentence*> Translate(const InputSentence* const source, unsigned K, unsigned beam_size, unsigned max_length);
 
 private:
