@@ -24,7 +24,10 @@ LinearSentence* ReadStandardSentence(const string& line, Dict& dict, bool add_bo
 
 vector<LinearSentence*> ReadStandardSentences(const string& filename, Dict& dict, bool add_bos_eos) {
   ifstream f(filename);
-  assert (f.is_open());
+  if (!f.is_open()) {
+    cerr << "Unable to open " << filename << " for reading." << endl;
+    assert (f.is_open());
+  }
 
   vector<LinearSentence*> sentences;
   for (string line; getline(f, line);) {
@@ -78,7 +81,10 @@ LinearSentence* ReadMorphologySentence(const vector<string>& lines, Dict& word_v
 
 vector<LinearSentence*> ReadMorphologySentences(const string& filename, Dict& word_vocab, Dict& root_vocab, Dict& affix_vocab, Dict& char_vocab, bool add_bos_eos) {
   ifstream f(filename);
-  assert (f.is_open());
+  if (!f.is_open()) {
+    cerr << "Unable to open " << filename << " for reading." << endl;
+    assert (f.is_open());
+  }
 
   vector<string> current_sentence;
   vector<LinearSentence*> sentences;
@@ -116,7 +122,10 @@ void StandardInputReader::Freeze() {
 
 vector<InputSentence*> SyntaxInputReader::Read(const string& filename) {
   ifstream f(filename);
-  assert (f.is_open());
+  if (!f.is_open()) {
+    cerr << "Unable to open " << filename << " for reading." << endl;
+    assert (f.is_open());
+  }
 
   vector<InputSentence*> sentences;
   for (string line; getline(f, line);) {
