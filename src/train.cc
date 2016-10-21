@@ -195,6 +195,9 @@ int main(int argc, char** argv) {
     string model_filename = vm["model"].as<string>();
     translator = new Translator();
     Deserialize(model_filename, input_reader, output_reader, *translator, dynet_model, trainer);
+    if (vm.count("sgd") || vm.count("adagrad") || vm.count("adam") || vm.count("rmsprop") || vm.count("momentum")) {
+      trainer = CreateTrainer(dynet_model, vm);
+    }
   }
   else {
     input_reader = CreateInputReader(vm);
