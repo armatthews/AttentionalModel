@@ -38,9 +38,9 @@ Expression Translator::BuildGraph(const InputSentence* const source, const Outpu
   return sum(word_losses);
 }
 
-void Translator::Sample(const vector<Expression>& encodings, OutputSentence* prefix, RNNPointer state_pointer, unsigned sample_count, unsigned max_length, ComputationGraph& cg, vector<OutputSentence*>& samples) {
+void Translator::Sample(const vector<Expression>& encodings, shared_ptr<OutputSentence> prefix, RNNPointer state_pointer, unsigned sample_count, unsigned max_length, ComputationGraph& cg, vector<shared_ptr<OutputSentence>>& samples) {
   if (max_length == 0) {
-    samples.push_back(new OutputSentence(*prefix));
+    samples.emplace_back(new OutputSentence(*prefix));
     return;
   }
 
@@ -66,7 +66,7 @@ void Translator::Sample(const vector<Expression>& encodings, OutputSentence* pre
 
     if (output_model->IsDone()) {
       for (unsigned i = 0; i < it->second; ++i) {
-        samples.push_back(new OutputSentence(*prefix));
+        samples.push_back(make_shared<OutputSentence>(*prefix));
       }
     }
     else {
@@ -76,14 +76,14 @@ void Translator::Sample(const vector<Expression>& encodings, OutputSentence* pre
   }
 }
 
-vector<OutputSentence*> Translator::Sample(const InputSentence* const source, unsigned sample_count, unsigned max_length) {
+vector<shared_ptr<OutputSentence>> Translator::Sample(const InputSentence* const source, unsigned sample_count, unsigned max_length) {
   ComputationGraph cg;
   NewGraph(cg);
   vector<Expression> encodings = encoder_model->Encode(source);
   attention_model->NewSentence(source);
 
-  OutputSentence* prefix = new OutputSentence();
-  vector<OutputSentence*> samples;
+  shared_ptr<OutputSentence> prefix = make_shared<OutputSentence>();
+  vector<shared_ptr<OutputSentence>> samples;
   Sample(encodings, prefix, output_model->GetStatePointer(), sample_count, max_length, cg, samples);
   return samples;
 }

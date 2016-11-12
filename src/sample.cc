@@ -54,8 +54,8 @@ int main(int argc, char** argv) {
   for (unsigned sentence_number = 0; sentence_number < source_sentences.size(); ++sentence_number) {
     InputSentence* source = source_sentences[sentence_number];
 
-    vector<OutputSentence*> samples = translator.Sample(source, num_samples, max_length);
-    for (OutputSentence* sample : samples) {
+    vector<shared_ptr<OutputSentence>> samples = translator.Sample(source, num_samples, max_length);
+    for (auto sample : samples) {
       vector<string> words;
       for (Word* w : *sample) {
         words.push_back(output_reader->ToString(w));
