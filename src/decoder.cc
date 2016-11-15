@@ -6,24 +6,6 @@
 #include "decoder.h"
 #include "utils.h"
 
-// Samples an item from a multinomial distribution
-// The values in dist should sum to one.
-unsigned Sample(const vector<float>& dist) {
-  double r = rand01();
-  unsigned w = 0;
-  for (; w < dist.size(); ++w) {
-    r -= dist[w];
-    if (r < 0.0) {
-      break;
-    }
-  }
-
-  if (w == dist.size()) {
-    --w;
-  }
-  return w;
-}
-
 DecoderState::DecoderState(unsigned n) {
   source_encodings.resize(n);
   output_states.resize(n);
@@ -106,16 +88,7 @@ vector<vector<WordId>> AttentionalDecoder::SampleTranslations(DecoderState& ds, 
 
       Expression total_log_output_distribution = sum(model_log_output_distributions);
       Expression output_distribution = softmax(total_log_output_distribution);
-      vector<float> dist = as_vector(output_distribution.value());
-      double r = rand01();
-      unsigned w = 0;
-      while (true) {
-        r -= dist[w];
-        if (r < 0.0) {
-          break;
-        }
-        ++w;
-      }
+      unsigned w = Sample(as_vector(output_distribution.value()));
       output.push_back(w);
       prev_word = w;
     }
