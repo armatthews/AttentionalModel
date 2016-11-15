@@ -1,6 +1,7 @@
 #pragma once
 #include <deque>
 #include <utility>
+#include <memory>
 #include "dynet/dict.h"
 #include "utils.h"
 
@@ -56,4 +57,4 @@ private:
 };
 
 class OutputReader;
-void OutputKBestList(unsigned sentence_number, KBestList<OutputSentence*> kbest, OutputReader* output_reader);
+void OutputKBestList(unsigned sentence_number, KBestList<shared_ptr<OutputSentence>> kbest, OutputReader* output_reader);
