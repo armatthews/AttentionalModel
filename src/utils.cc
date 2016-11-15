@@ -20,6 +20,24 @@ unsigned LinearSentence::NumNodes() const {
 Word::~Word() {}
 StandardWord::StandardWord(WordId id) : id(id) {}
 
+// Samples an item from a multinomial distribution
+// The values in dist should sum to one.
+unsigned Sample(const vector<float>& dist) {
+  double r = rand01();
+  unsigned w = 0;
+  for (; w < dist.size(); ++w) {
+    r -= dist[w];
+    if (r < 0.0) {
+      break;
+    }
+  }
+
+  if (w == dist.size()) {
+    --w;
+  }
+  return w;
+}
+
 // given the first character of a UTF8 block, find out how wide it is
 // see http://en.wikipedia.org/wiki/UTF-8 for more info
 unsigned int UTF8Len(unsigned char x) {

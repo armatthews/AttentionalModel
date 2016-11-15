@@ -54,6 +54,8 @@ public:
 typedef pair<InputSentence*, OutputSentence*> SentencePair;
 typedef vector<SentencePair> Bitext;
 
+unsigned Sample(const vector<float>& dist);
+
 unsigned int UTF8Len(unsigned char x);
 unsigned int UTF8StringLen(const string& x);
 
