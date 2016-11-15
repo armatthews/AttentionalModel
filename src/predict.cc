@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
   for (unsigned sentence_number = 0; sentence_number < source_sentences.size(); ++sentence_number) {
     InputSentence* source = source_sentences[sentence_number];
 
-    KBestList<OutputSentence*> kbest = translator.Translate(source, kbest_size, beam_size, max_length);
+    KBestList<shared_ptr<OutputSentence>> kbest = translator.Translate(source, kbest_size, beam_size, max_length);
     OutputKBestList(sentence_number, kbest, output_reader);
 
     cout.flush();
