@@ -104,24 +104,24 @@ vector<Expression> Translator::Align(const InputSentence* const source, const Ou
   return alignments;
 }
 
-KBestList<OutputSentence*> Translator::Translate(const InputSentence* const source, unsigned K, unsigned beam_size, unsigned max_length) {
+KBestList<shared_ptr<OutputSentence>> Translator::Translate(const InputSentence* const source, unsigned K, unsigned beam_size, unsigned max_length) {
   assert (beam_size >= K);
   ComputationGraph cg;
   NewGraph(cg);
 
-  KBestList<OutputSentence*> complete_hyps(K);
-  KBestList<pair<OutputSentence*, RNNPointer>> top_hyps(beam_size);
-  top_hyps.add(0.0, make_pair(new OutputSentence(), output_model->GetStatePointer()));
+  KBestList<shared_ptr<OutputSentence>> complete_hyps(K);
+  KBestList<pair<shared_ptr<OutputSentence>, RNNPointer>> top_hyps(beam_size);
+  top_hyps.add(0.0, make_pair(make_shared<OutputSentence>(), output_model->GetStatePointer())); 
 
   vector<Expression> encodings = encoder_model->Encode(source);
   attention_model->NewSentence(source);
 
   for (unsigned length = 0; length < max_length; ++length) {
-    KBestList<pair<OutputSentence*, RNNPointer>> new_hyps(beam_size);
+    KBestList<pair<shared_ptr<OutputSentence>, RNNPointer>> new_hyps(beam_size);
 
     for (auto& hyp : top_hyps.hypothesis_list()) {
       double hyp_score = get<0>(hyp);
-      OutputSentence* hyp_sentence = get<0>(get<1>(hyp));
+      shared_ptr<OutputSentence> hyp_sentence = get<0>(get<1>(hyp));
       RNNPointer state_pointer = get<1>(get<1>(hyp));
       assert (hyp_sentence->size() == length);
       Expression output_state = output_model->GetState(state_pointer);
@@ -132,7 +132,7 @@ KBestList<OutputSentence*> Translator::Translate(const InputSentence* const sour
         double word_score = get<0>(w);
         Word* word = get<1>(w);
         double new_score = hyp_score + word_score;
-        OutputSentence* new_sentence = new OutputSentence(*hyp_sentence);
+        shared_ptr<OutputSentence> new_sentence(new OutputSentence(*hyp_sentence));
         new_sentence->push_back(word);
         output_model->AddInput(word, context, state_pointer);
         if (!output_model->IsDone()) {
@@ -148,7 +148,7 @@ KBestList<OutputSentence*> Translator::Translate(const InputSentence* const sour
 
   for (auto& hyp : top_hyps.hypothesis_list()) {
     double score = get<0>(hyp);
-    OutputSentence* sentence = get<0>(get<1>(hyp));
+    shared_ptr<OutputSentence> sentence = get<0>(get<1>(hyp));
     complete_hyps.add(score, sentence);
   }
   return complete_hyps;
