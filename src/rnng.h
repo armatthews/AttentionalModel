@@ -74,8 +74,6 @@ public:
   virtual void PerformAction(const Action& action, RNNPointer p);
   virtual vector<unsigned> GetValidActionList() const;
 
-  virtual vector<Action> Sample(const vector<WordId>& sentence);
-  virtual vector<Action> Predict(const vector<WordId>& sentence);
   virtual Expression BuildGraph(const vector<Action>& correct_actions);
 
   virtual Expression EmbedNonterminal(WordId nt, const vector<Expression>& children);

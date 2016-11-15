@@ -181,14 +181,6 @@ void ParserBuilder::NewGraph(ComputationGraph& cg) {
   stack_guard = parameter(cg, p_stack_guard);
 }
 
-vector<Action> ParserBuilder::Sample(const vector<WordId>& sentence) {
-  assert (false);
-}
-
-vector<Action> ParserBuilder::Predict(const vector<WordId>& sentence) {
-  assert (false);
-}
-
 Expression ParserBuilder::Summarize(const LSTMBuilder& builder) const {
   Expression summary = builder.back();
   if (dropout_rate != 0.0f) {
