@@ -6,6 +6,7 @@
 #include "dynet/dynet.h"
 #include "dynet/lstm.h"
 #include "dynet/cfsm-builder.h"
+#include "kbestlist.h"
 #include "utils.h"
 
 using namespace std;
@@ -68,6 +69,7 @@ public:
   virtual Expression GetActionDistribution(Expression state_vector) const;
   virtual Expression Loss(Expression state_vector, const Action& ref) const;
   virtual Action Sample(Expression state_pointer) const;
+  virtual KBestList<Action> PredictKBest(Expression state_vector, unsigned K) const;
 
   virtual RNNPointer state() const;
 

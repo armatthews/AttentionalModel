@@ -329,6 +329,29 @@ Action ParserBuilder::Sample(Expression state_vector) const {
   return r;
 }
 
+KBestList<Action> ParserBuilder::PredictKBest(Expression state_vector, unsigned K) const {
+  Expression action_dist = GetActionDistribution(state_vector);
+  Expression word_dist = cfsm->full_log_distribution(state_vector);
+
+  vector<float> type_dist = as_vector(softmax(action_dist).value());
+  vector<float> subtype_dist = as_vector(softmax(word_dist).value());
+
+  KBestList<Action> kbest(K);
+  for (unsigned i = 0; i < type_dist.size(); ++i) {
+    Action a = convert(i);
+    if (a.type == Action::kShift) {
+      for (unsigned j = 0; j < subtype_dist.size(); ++j) {
+        a.subtype = (WordId) j;
+        kbest.add(log(type_dist[i]) + log(subtype_dist[j]), a);
+      }
+    }
+    else {
+      kbest.add(log(type_dist[i]), a);
+    }
+  }
+  return kbest;
+}
+
 Expression ParserBuilder::Loss(Expression state_vector, const Action& ref) const {
   Expression action_dist = GetActionDistribution(state_vector);
   Expression neg_log_prob = -pick(action_dist, ref.GetIndex());

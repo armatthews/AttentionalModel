@@ -428,7 +428,13 @@ Expression RnngOutputModel::PredictLogDistribution(const Expression& source_cont
 }
 
 KBestList<Word*> RnngOutputModel::PredictKBest(const Expression& source_context, unsigned K) {
-  assert (false);
+  Expression state_vector = builder->GetStateVector(source_context);
+  KBestList<Action> kbest_action = builder->PredictKBest(state_vector, K);
+  KBestList<Word*> kbest_list(K);
+  for (auto score_action : kbest_action.hypothesis_list()) { 
+    kbest_list.add(get<0>(score_action), new StandardWord(Convert(get<1>(score_action))));
+  }
+  return kbest_list;
 }
 
 Word* RnngOutputModel::Sample(const Expression& source_context) {
