@@ -256,6 +256,9 @@ Expression ParserBuilder::GetStateVector(RNNPointer p) const {
 }
 
 Expression ParserBuilder::GetActionDistribution(Expression state_vector) const {
+  // XXX: This computes the action distribution w.r.t. the most recent state,
+  // even if we mean to call this from some preceding state, e.g.
+  // during decoding or sampling.
   Expression r_t = affine_transform({abias, p2a, state_vector});
   Expression adist = log_softmax(r_t, GetValidActionList());
   return adist;

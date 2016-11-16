@@ -390,24 +390,33 @@ void RnngOutputModel::NewGraph(ComputationGraph& cg) {
   builder->NewGraph(cg);
   builder->NewSentence();
   source_contexts.clear();
+  state_context_vectors.clear();
   // TODO: Maybe have an initial context instead of just 0s?
-  source_contexts.push_back(zeroes(cg, {hidden_dim}));
+  Expression initial_context = zeroes(cg, {hidden_dim});
+  source_contexts.push_back(initial_context);
+  state_context_vectors.push_back(builder->GetStateVector(initial_context));
 }
 
 void RnngOutputModel::SetDropout(float rate) {
   builder->SetDropout(rate);
 }
 
-Expression RnngOutputModel::GetState() const {
+/*Expression RnngOutputModel::GetState() const {
+  assert (source_contexts.size() == state_context_vectors.size());
+  assert ((unsigned)builder->state() == source_contexts.size() - 1);
   assert (source_contexts.size() > 0);
+  return this->GetState(GetStatePointer());
   return builder->GetStateVector(source_contexts.back());
-}
+}*/
 
 Expression RnngOutputModel::GetState(RNNPointer p) const {
+  return state_context_vectors[p];
   return builder->GetStateVector(source_contexts[p], p);
 }
 
 RNNPointer RnngOutputModel::GetStatePointer() const {
+  assert (source_contexts.size() == state_context_vectors.size());
+  assert ((unsigned)builder->state() == source_contexts.size() - 1);
   return builder->state();
 }
 
@@ -420,15 +429,16 @@ Expression RnngOutputModel::AddInput(const Word* prev_word_, const Expression& c
   source_contexts.push_back(context);
   Action action = Convert(prev_word->id);
   builder->PerformAction(action, p);
-  return builder->GetStateVector(context);
+  Expression state_context_vector = builder->GetStateVector(context);
+  state_context_vectors.push_back(state_context_vector);
+  return state_context_vector;
 }
 
 Expression RnngOutputModel::PredictLogDistribution(const Expression& source_context) {
   assert (false);
 }
 
-KBestList<Word*> RnngOutputModel::PredictKBest(const Expression& source_context, unsigned K) {
-  Expression state_vector = builder->GetStateVector(source_context);
+KBestList<Word*> RnngOutputModel::PredictKBest(const Expression& state_vector, unsigned K) {
   KBestList<Action> kbest_action = builder->PredictKBest(state_vector, K);
   KBestList<Word*> kbest_list(K);
   for (auto score_action : kbest_action.hypothesis_list()) { 
@@ -437,19 +447,18 @@ KBestList<Word*> RnngOutputModel::PredictKBest(const Expression& source_context,
   return kbest_list;
 }
 
-Word* RnngOutputModel::Sample(const Expression& source_context) {
-  Expression state_vector = builder->GetStateVector(source_context);
+Word* RnngOutputModel::Sample(const Expression& state_vector) {
   Action action = builder->Sample(state_vector);
   return new StandardWord(Convert(action)); 
 }
 
-Expression RnngOutputModel::Loss(const Expression& source_context, const Word* const ref) {
+Expression RnngOutputModel::Loss(const Expression& state_vector, const Word* const ref) {
   const StandardWord* r = dynamic_cast<const StandardWord*>(ref);
   Action ref_action = Convert(r->id);
   if (ref_action.type == Action::kNone) {
     return zeroes(*pcg, {1});
   }
-  Expression state_vector = builder->GetStateVector(source_context);
+
   Expression neg_log_prob = builder->Loss(state_vector, ref_action);
   return neg_log_prob;
 }

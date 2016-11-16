@@ -196,7 +196,7 @@ public:
   void InitializeDictionaries(const Dict& raw_vocab);
   void NewGraph(ComputationGraph& cg);
   void SetDropout(float rate);
-  Expression GetState() const;
+  //Expression GetState() const;
   Expression GetState(RNNPointer p) const;
   RNNPointer GetStatePointer() const;
   Expression AddInput(const Word* const prev_word, const Expression& context);
@@ -220,6 +220,7 @@ public:
   Dict raw_vocab, term_vocab, nt_vocab;
 
   vector<Expression> source_contexts;
+  vector<Expression> state_context_vectors;
   ComputationGraph* pcg;
 
   friend class boost::serialization::access;
