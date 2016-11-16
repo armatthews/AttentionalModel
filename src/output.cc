@@ -389,7 +389,9 @@ void RnngOutputModel::NewGraph(ComputationGraph& cg) {
   pcg = &cg;
   builder->NewGraph(cg);
   builder->NewSentence();
-  most_recent_source_thing = zeroes(cg, {hidden_dim});
+  source_contexts.clear();
+  // TODO: Maybe have an initial context instead of just 0s?
+  source_contexts.push_back(zeroes(cg, {hidden_dim}));
 }
 
 void RnngOutputModel::SetDropout(float rate) {
@@ -397,25 +399,25 @@ void RnngOutputModel::SetDropout(float rate) {
 }
 
 Expression RnngOutputModel::GetState() const {
-  return builder->GetStateVector(most_recent_source_thing);
+  assert (source_contexts.size() > 0);
+  return builder->GetStateVector(source_contexts.back());
 }
 
 Expression RnngOutputModel::GetState(RNNPointer p) const {
-  assert (false);
+  return builder->GetStateVector(source_contexts[p], p);
 }
 
 RNNPointer RnngOutputModel::GetStatePointer() const {
-  assert (false);
+  return builder->state();
 }
 
 Expression RnngOutputModel::AddInput(const Word* prev_word, const Expression& context) {
-  most_recent_source_thing = context;
   return AddInput(prev_word, context, builder->state());
 }
 
 Expression RnngOutputModel::AddInput(const Word* prev_word_, const Expression& context, const RNNPointer& p) {
   const StandardWord* prev_word = dynamic_cast<const StandardWord*>(prev_word_);
-  most_recent_source_thing = context;
+  source_contexts.push_back(context);
   Action action = Convert(prev_word->id);
   builder->PerformAction(action, p);
   return builder->GetStateVector(context);
@@ -430,7 +432,9 @@ KBestList<Word*> RnngOutputModel::PredictKBest(const Expression& source_context,
 }
 
 Word* RnngOutputModel::Sample(const Expression& source_context) {
-  assert (false);
+  Expression state_vector = builder->GetStateVector(source_context);
+  Action action = builder->Sample(state_vector);
+  return new StandardWord(Convert(action)); 
 }
 
 Expression RnngOutputModel::Loss(const Expression& source_context, const Word* const ref) {
@@ -448,7 +452,13 @@ Action RnngOutputModel::Convert(WordId w) const {
   return w2a[w];
 }
 
+WordId RnngOutputModel::Convert(const Action& action) const {
+  auto it = a2w.find(action);
+  assert (it != a2w.end());
+  return it->second;
+}
+
 bool RnngOutputModel::IsDone(RNNPointer p) const {
-  return false;
+  return builder->IsDone(p);
 }
 

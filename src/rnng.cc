@@ -1,5 +1,6 @@
 #include "dynet/expr.h"
 #include "rnng.h"
+#include "utils.h"
 BOOST_CLASS_EXPORT_IMPLEMENT(SourceConditionedParserBuilder)
 
 using namespace dynet::expr;
@@ -313,6 +314,19 @@ Action convert(unsigned id) {
   else {
     return Action {Action::kNT, (WordId)(id - 2)};
   }
+}
+
+Action ParserBuilder::Sample(Expression state_vector) const {
+  Expression action_dist = GetActionDistribution(state_vector);
+
+  vector<float> dist = as_vector(softmax(action_dist).value());
+  unsigned s = ::Sample(dist);
+
+  Action r = convert(s);
+  if (r.type == Action::kShift) {
+    r.subtype = cfsm->sample(state_vector);
+  }
+  return r;
 }
 
 Expression ParserBuilder::Loss(Expression state_vector, const Action& ref) const {

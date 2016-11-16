@@ -67,6 +67,7 @@ public:
   virtual Expression GetStateVector(RNNPointer p) const;
   virtual Expression GetActionDistribution(Expression state_vector) const;
   virtual Expression Loss(Expression state_vector, const Action& ref) const;
+  virtual Action Sample(Expression state_pointer) const;
 
   virtual RNNPointer state() const;
 

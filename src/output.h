@@ -219,7 +219,7 @@ private:
   unordered_map<Action, WordId, ActionHash> a2w;
   Dict raw_vocab, term_vocab, nt_vocab;
 
-  Expression most_recent_source_thing; // XXX
+  vector<Expression> source_contexts;
   ComputationGraph* pcg;
 
   friend class boost::serialization::access;
