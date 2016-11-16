@@ -208,7 +208,7 @@ public:
 
   bool IsDone(RNNPointer p) const;
 
-private:
+//private:
   Action Convert(const WordId w) const;
   WordId Convert(const Action& a) const;
 

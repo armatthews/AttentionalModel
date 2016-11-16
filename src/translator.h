@@ -18,7 +18,7 @@ public:
   vector<Expression> Align(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg);
   KBestList<shared_ptr<OutputSentence>> Translate(const InputSentence* const source, unsigned K, unsigned beam_size, unsigned max_length);
 
-private:
+//private:
   EncoderModel* encoder_model;
   AttentionModel* attention_model;
   OutputModel* output_model;

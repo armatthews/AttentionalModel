@@ -140,3 +140,13 @@ vector<Expression> MakeLSTMInitialState(Expression c, unsigned lstm_dim, unsigne
   }
   return hinit;
 }
+
+string vec2str(Expression expr) {
+  ostringstream oss;
+  bool first = true;
+  for (float f : as_vector(expr.value())) {
+    oss << (first ? "" : " ") << f;
+    first = false;
+  }
+  return oss.str();
+}
