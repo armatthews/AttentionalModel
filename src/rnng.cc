@@ -198,7 +198,7 @@ Expression ParserBuilder::Summarize(const LSTMBuilder& builder, RNNPointer p) co
 }
 
 void ParserBuilder::NewSentence() {
-  const WordId kSOS = 1; // XXX
+  const WordId kSOS = 1; // XXX: This may be wildly broken since now we don't even have SOS in our vocab... Maybe train a separate embedding for this...
   Expression SOS_embedding = lookup(*pcg, p_w, kSOS);
 
   prev_states.clear();
@@ -303,6 +303,18 @@ void ParserBuilder::PerformAction(const Action& action, const ParserState& state
   curr_state->action_lstm_pointer = action_lstm.state();
 }
 
+Action convert(unsigned id) {
+  if (id == 0) {
+    return Action {Action::kShift, 0};
+  }
+  else if (id == 1) {
+    return Action {Action::kReduce, 0};
+  }
+  else {
+    return Action {Action::kNT, (WordId)(id - 2)};
+  }
+}
+
 Expression ParserBuilder::Loss(Expression state_vector, const Action& ref) const {
   Expression action_dist = GetActionDistribution(state_vector);
   Expression neg_log_prob = -pick(action_dist, ref.GetIndex());
@@ -350,6 +362,16 @@ Expression ParserBuilder::EmbedNonterminal(WordId nt, const vector<Expression>& 
   return composed;
 }
 
+bool ParserBuilder::IsDone() const {
+  return IsDone(state());
+}
+
+bool ParserBuilder::IsDone(RNNPointer p) const {
+  assert (p >= 0 && (unsigned)p < prev_states.size());
+  const ParserState& ps = prev_states[p];
+  return ps.prev_action.type != Action::kNone && ps.nopen_parens == 0;
+}
+
 SourceConditionedParserBuilder::SourceConditionedParserBuilder() {}
 
 SourceConditionedParserBuilder::SourceConditionedParserBuilder(Model& model, SoftmaxBuilder* cfsm,
@@ -366,13 +388,6 @@ void SourceConditionedParserBuilder::NewGraph(ComputationGraph& cg) {
 
 Expression SourceConditionedParserBuilder::GetStateVector(Expression source_context) const {
   return GetStateVector(source_context, state());
-  Expression stack_summary = Summarize(stack_lstm);
-  Expression action_summary = Summarize(action_lstm);
-  Expression term_summary = Summarize(term_lstm);
-
-  Expression p_t = affine_transform({pbias, S, stack_summary, A, action_summary, T, term_summary, W, source_context});
-  Expression nlp_t = rectify(p_t);
-  return nlp_t;
 }
 
 Expression SourceConditionedParserBuilder::GetStateVector(Expression source_context, RNNPointer p) const {

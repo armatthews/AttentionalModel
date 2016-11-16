@@ -77,6 +77,8 @@ public:
   virtual Expression BuildGraph(const vector<Action>& correct_actions);
 
   virtual Expression EmbedNonterminal(WordId nt, const vector<Expression>& children);
+  virtual bool IsDone() const;
+  virtual bool IsDone(RNNPointer p) const;
 
 protected:
   ComputationGraph* pcg;
