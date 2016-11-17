@@ -66,16 +66,23 @@ public:
   virtual Expression Summarize(const LSTMBuilder& builder, RNNPointer p) const;
   virtual Expression GetStateVector() const;
   virtual Expression GetStateVector(RNNPointer p) const;
+
   virtual Expression GetActionDistribution(Expression state_vector) const;
   virtual Expression Loss(Expression state_vector, const Action& ref) const;
   virtual Action Sample(Expression state_pointer) const;
   virtual KBestList<Action> PredictKBest(Expression state_vector, unsigned K) const;
+
+  virtual Expression GetActionDistribution(RNNPointer p, Expression state_vector) const;
+  virtual Expression Loss(RNNPointer p, Expression state_vector, const Action& ref) const;
+  virtual Action Sample(RNNPointer p, Expression state_pointer) const;
+  virtual KBestList<Action> PredictKBest(RNNPointer p, Expression state_vector, unsigned K) const;
 
   virtual RNNPointer state() const;
 
   virtual void PerformAction(const Action& action);
   virtual void PerformAction(const Action& action, RNNPointer p);
   virtual vector<unsigned> GetValidActionList() const;
+  virtual vector<unsigned> GetValidActionList(RNNPointer p) const;
 
   virtual Expression BuildGraph(const vector<Action>& correct_actions);
 
@@ -86,8 +93,7 @@ public:
 protected:
   ComputationGraph* pcg;
   ParserState* curr_state;
-  vector<ParserState> prev_states;
-  vector<Expression> prev_outputs;
+  vector<ParserState> prev_states; 
 
   LSTMBuilder stack_lstm; // Stack
   LSTMBuilder term_lstm; // Sequence of generated terminals

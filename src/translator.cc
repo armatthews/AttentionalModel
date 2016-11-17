@@ -26,15 +26,25 @@ Expression Translator::BuildGraph(const InputSentence* const source, const Outpu
 
   vector<Expression> encodings = encoder_model->Encode(source);
 
+  // XXX:  Get rid of this debug crap. Should probably keep only
+  // the one called "state_debug", and remove "state" (obviously switch the names)
+  // since "state_debug" doesn't recompute stuff.
+  Expression state_debug = output_model->GetState();
   attention_model->NewSentence(source);
   for (unsigned i = 0; i < target->size(); ++i) {
     const Word* word = target->at(i);
     Expression state = output_model->GetState();
     word_losses[i] = output_model->Loss(state, word);
 
+    assert (same_value(state_debug, state));
+
     Expression context = attention_model->GetContext(encodings, state);
-    output_model->AddInput(word, context);
+    state_debug = output_model->AddInput(word, context);
   }
+  for (unsigned i = 0; i < word_losses.size(); ++i) {
+    cerr << (i == 0 ? "" : " ") << as_scalar(word_losses[i].value());
+  }
+  cerr << endl;
   return sum(word_losses);
 }
 
@@ -49,7 +59,7 @@ void Translator::Sample(const vector<Expression>& encodings, shared_ptr<OutputSe
 
   unordered_map<Word*, unsigned> continuations;
   for (unsigned i = 0; i < sample_count; ++i) {
-    Word* w = output_model->Sample(output_state);
+    Word* w = output_model->Sample(state_pointer, output_state);
     if (continuations.find(w) != continuations.end()) {
       continuations[w]++;
     }
@@ -126,7 +136,16 @@ KBestList<shared_ptr<OutputSentence>> Translator::Translate(const InputSentence*
       assert (hyp_sentence->size() == length);
       Expression output_state = output_model->GetState(state_pointer);
       Expression context = attention_model->GetContext(encodings, output_state);
-      KBestList<Word*> best_words = output_model->PredictKBest(output_state, beam_size);
+      KBestList<Word*> best_words = output_model->PredictKBest(state_pointer, output_state, beam_size);
+      cerr << "Best extensions to hyp (p=" << (int)state_pointer << ") ";
+      for (Word* xx : *hyp_sentence) {
+        cerr << dynamic_cast<StandardWord*>(xx)->id << " ";
+      }
+      cerr << "are:" << endl;
+      for (auto sxx : best_words.hypothesis_list()) {
+        float _s = get<0>(sxx);
+        cerr << dynamic_cast<StandardWord*>(get<1>(sxx))->id << " with score=" << _s << endl;
+      }
 
       for (auto& w : best_words.hypothesis_list()) {
         double word_score = get<0>(w);
@@ -135,6 +154,7 @@ KBestList<shared_ptr<OutputSentence>> Translator::Translate(const InputSentence*
         shared_ptr<OutputSentence> new_sentence(new OutputSentence(*hyp_sentence));
         new_sentence->push_back(word);
         output_model->AddInput(word, context, state_pointer);
+        cerr << new_score << endl;
         if (!output_model->IsDone()) {
           new_hyps.add(new_score, make_pair(new_sentence, output_model->GetStatePointer()));
         }

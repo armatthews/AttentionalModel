@@ -1,6 +1,7 @@
 #include "dynet/expr.h"
 #include "rnng.h"
 #include "utils.h"
+#include "io.h"
 BOOST_CLASS_EXPORT_IMPLEMENT(SourceConditionedParserBuilder)
 
 using namespace dynet::expr;
@@ -52,14 +53,19 @@ bool ParserState::IsActionForbidden(const Action& a) const {
 }
 
 vector<unsigned> ParserBuilder::GetValidActionList() const {
+  return GetValidActionList(state());
+}
+
+vector<unsigned> ParserBuilder::GetValidActionList(RNNPointer p) const {
   vector<unsigned> valid_actions;
-  if (!curr_state->IsActionForbidden({Action::kShift, 0})) {
+  const ParserState& state = prev_states[p];
+  if (!state.IsActionForbidden({Action::kShift, 0})) {
     valid_actions.push_back(0);
   }
-  if (!curr_state->IsActionForbidden({Action::kReduce, 0})) {
+  if (!state.IsActionForbidden({Action::kReduce, 0})) {
     valid_actions.push_back(1);
   }
-  if (!curr_state->IsActionForbidden({Action::kNT, 0})) {
+  if (!state.IsActionForbidden({Action::kNT, 0})) {
     for (unsigned i = 0; i < nt_vocab_size; ++i) {
       valid_actions.push_back(2 + i);
     }
@@ -69,8 +75,8 @@ vector<unsigned> ParserBuilder::GetValidActionList() const {
 
 void ParserBuilder::PerformShift(WordId wordid) {
   Expression word = lookup(*pcg, p_w, wordid);
-  term_lstm.add_input(word);
-  stack_lstm.add_input(word);
+  term_lstm.add_input(curr_state->terminal_lstm_pointer, word);
+  stack_lstm.add_input(curr_state->stack_lstm_pointer, word);
 
   curr_state->terms.push_back(word);
   curr_state->stack.push_back(word);
@@ -80,7 +86,7 @@ void ParserBuilder::PerformShift(WordId wordid) {
 void ParserBuilder::PerformNT(WordId ntid) {
   ++curr_state->nopen_parens;
   Expression nt_embedding = lookup(*pcg, p_nt, ntid);
-  stack_lstm.add_input(nt_embedding);
+  stack_lstm.add_input(curr_state->stack_lstm_pointer, nt_embedding);
 
   curr_state->stack.push_back(nt_embedding);
   curr_state->is_open_paren.push_back(ntid);
@@ -103,17 +109,17 @@ void ParserBuilder::PerformReduce() {
   vector<Expression> children(nchildren);
   curr_state->is_open_paren.pop_back(); // nt symbol
   curr_state->stack.pop_back(); // nonterminal dummy
-  stack_lstm.rewind_one_step(); // nt symbol
+  stack_lstm.rewind_one_step(); // nt symbol // XXX: How do we rewind one step from a pointer?
 
   for (unsigned i = 0; i < nchildren; ++i) {
     children[i] = curr_state->stack.back();
     curr_state->stack.pop_back();
     curr_state->is_open_paren.pop_back();
-    stack_lstm.rewind_one_step();
+    stack_lstm.rewind_one_step(); // XXX: How do we rewind one step from a pointer?
   }
 
   Expression composed = EmbedNonterminal(curr_state->is_open_paren[last_nt_index], children);
-  stack_lstm.add_input(composed);
+  stack_lstm.add_input(curr_state->stack_lstm_pointer, composed);
   curr_state->stack.push_back(composed);
   curr_state->is_open_paren.push_back(-1); // we just closed a paren at this position
 }
@@ -256,11 +262,17 @@ Expression ParserBuilder::GetStateVector(RNNPointer p) const {
 }
 
 Expression ParserBuilder::GetActionDistribution(Expression state_vector) const {
-  // XXX: This computes the action distribution w.r.t. the most recent state,
-  // even if we mean to call this from some preceding state, e.g.
-  // during decoding or sampling.
+  return GetActionDistribution(state(), state_vector);
+}
+
+Expression ParserBuilder::GetActionDistribution(RNNPointer p, Expression state_vector) const {
+  cerr << "p=" << (int)p << ", State vector:";
+  for (float f : as_vector(state_vector.value())) {
+    cerr << " " << f;
+  }
+  cerr << endl;
   Expression r_t = affine_transform({abias, p2a, state_vector});
-  Expression adist = log_softmax(r_t, GetValidActionList());
+  Expression adist = log_softmax(r_t, GetValidActionList(p));
   return adist;
 }
 
@@ -299,7 +311,7 @@ void ParserBuilder::PerformAction(const Action& action, const ParserState& state
   }
 
   Expression actione = lookup(*pcg, p_a, action.GetIndex());
-  action_lstm.add_input(actione);
+  action_lstm.add_input(curr_state->action_lstm_pointer, actione);
 
   curr_state->prev_action = action;
   curr_state->stack_lstm_pointer = stack_lstm.state();
@@ -307,7 +319,7 @@ void ParserBuilder::PerformAction(const Action& action, const ParserState& state
   curr_state->action_lstm_pointer = action_lstm.state();
 }
 
-Action convert(unsigned id) {
+Action convert(unsigned id) { 
   if (id == 0) {
     return Action {Action::kShift, 0};
   }
@@ -320,7 +332,12 @@ Action convert(unsigned id) {
 }
 
 Action ParserBuilder::Sample(Expression state_vector) const {
-  Expression action_dist = GetActionDistribution(state_vector);
+  assert(false);
+  return Sample(state(), state_vector);
+}
+
+Action ParserBuilder::Sample(RNNPointer p, Expression state_vector) const {
+  Expression action_dist = GetActionDistribution(p, state_vector);
 
   vector<float> dist = as_vector(softmax(action_dist).value());
   unsigned s = ::Sample(dist);
@@ -333,7 +350,12 @@ Action ParserBuilder::Sample(Expression state_vector) const {
 }
 
 KBestList<Action> ParserBuilder::PredictKBest(Expression state_vector, unsigned K) const {
-  Expression action_dist = GetActionDistribution(state_vector);
+  assert (false);
+  return PredictKBest(state(), state_vector, K);
+}
+
+KBestList<Action> ParserBuilder::PredictKBest(RNNPointer p, Expression state_vector, unsigned K) const {
+  Expression action_dist = GetActionDistribution(p, state_vector);
   Expression word_dist = cfsm->full_log_distribution(state_vector);
 
   vector<float> type_dist = as_vector(softmax(action_dist).value());
@@ -342,21 +364,34 @@ KBestList<Action> ParserBuilder::PredictKBest(Expression state_vector, unsigned 
   KBestList<Action> kbest(K);
   for (unsigned i = 0; i < type_dist.size(); ++i) {
     Action a = convert(i);
+    float score;
     if (a.type == Action::kShift) {
       for (unsigned j = 0; j < subtype_dist.size(); ++j) {
         a.subtype = (WordId) j;
-        kbest.add(log(type_dist[i]) + log(subtype_dist[j]), a);
+        score = log(type_dist[i]) + log(subtype_dist[j]);
+        kbest.add(score, a);
       }
     }
     else {
-      kbest.add(log(type_dist[i]), a);
+      score = log(type_dist[i]);
+      kbest.add(score, a);
     }
+  }
+  for (auto& thing : kbest.hypothesis_list()) {
+    float score = get<0>(thing);
+    Action a = get<1>(thing);
+    cerr << "Returning " << a.type << "-" << a.subtype << ": " << score << endl;
   }
   return kbest;
 }
 
 Expression ParserBuilder::Loss(Expression state_vector, const Action& ref) const {
-  Expression action_dist = GetActionDistribution(state_vector);
+  assert (false);
+  return Loss(state(), state_vector, ref);
+}
+
+Expression ParserBuilder::Loss(RNNPointer p, Expression state_vector, const Action& ref) const {
+  Expression action_dist = GetActionDistribution(p, state_vector);
   Expression neg_log_prob = -pick(action_dist, ref.GetIndex());
   if (ref.type == Action::kShift) {
     WordId wordid = ref.subtype;

@@ -150,3 +150,17 @@ string vec2str(Expression expr) {
   }
   return oss.str();
 }
+
+bool same_value(Expression e1, Expression e2) {
+  vector<float> v1 = as_vector(e1.value());
+  vector<float> v2 = as_vector(e2.value());
+  if (v1.size() != v2.size()) {
+    return false;
+  }
+  for (unsigned i = 0; i < v1.size(); ++i) {
+    if (v1[i] != v2[i]) {
+      return false;
+    }
+  }
+  return true;
+}
