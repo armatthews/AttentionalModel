@@ -133,15 +133,6 @@ KBestList<shared_ptr<OutputSentence>> Translator::Translate(const InputSentence*
       Expression output_state = output_model->GetState(state_pointer);
       Expression context = attention_model->GetContext(encodings, output_state);
       KBestList<Word*> best_words = output_model->PredictKBest(state_pointer, output_state, beam_size);
-      cerr << "Best extensions to hyp (p=" << (int)state_pointer << ") ";
-      for (Word* xx : *hyp_sentence) {
-        cerr << dynamic_cast<StandardWord*>(xx)->id << " ";
-      }
-      cerr << "are:" << endl;
-      for (auto sxx : best_words.hypothesis_list()) {
-        float _s = get<0>(sxx);
-        cerr << dynamic_cast<StandardWord*>(get<1>(sxx))->id << " with score=" << _s << endl;
-      }
 
       for (auto& w : best_words.hypothesis_list()) {
         double word_score = get<0>(w);
@@ -150,7 +141,6 @@ KBestList<shared_ptr<OutputSentence>> Translator::Translate(const InputSentence*
         shared_ptr<OutputSentence> new_sentence(new OutputSentence(*hyp_sentence));
         new_sentence->push_back(word);
         output_model->AddInput(word, context, state_pointer);
-        cerr << new_score << endl;
         if (!output_model->IsDone()) {
           new_hyps.add(new_score, make_pair(new_sentence, output_model->GetStatePointer()));
         }

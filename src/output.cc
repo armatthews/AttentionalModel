@@ -113,12 +113,10 @@ KBestList<Word*> SoftmaxOutputModel::PredictKBest(RNNPointer p, const Expression
 
 Expression SoftmaxOutputModel::Loss(RNNPointer p, const Expression& state, const Word* const ref) {
   const StandardWord* r = dynamic_cast<const StandardWord*>(ref);
-  //cerr << "SOM (Loss):" << same_value(state, GetState(p)) << endl;
   return fsb->neg_log_softmax(state, r->id);
 }
 
 Word* SoftmaxOutputModel::Sample(RNNPointer p, const Expression& state) {
-  //cerr << "SOM (Sample):" << same_value(state, GetState(p)) << endl;
   return new StandardWord(fsb->sample(state));
 }
 
@@ -469,13 +467,11 @@ KBestList<Word*> RnngOutputModel::PredictKBest(RNNPointer p, const Expression& s
 }
 
 Word* RnngOutputModel::Sample(RNNPointer p, const Expression& state_vector) {
-  //cerr << "ROM (Sample):" << same_value(state_vector, GetState(p)) << endl;
   Action action = builder->Sample(p, state_vector);
   return new StandardWord(Convert(action)); 
 }
 
 Expression RnngOutputModel::Loss(RNNPointer p, const Expression& state_vector, const Word* const ref) {
-  //cerr << "ROM (Loss):" << same_value(state_vector, GetState(p)) << endl;
   const StandardWord* r = dynamic_cast<const StandardWord*>(ref);
   Action ref_action = Convert(r->id);
   if (ref_action.type == Action::kNone) {
