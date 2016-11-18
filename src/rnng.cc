@@ -78,6 +78,9 @@ void ParserBuilder::PerformShift(WordId wordid) {
   term_lstm.add_input(curr_state->terminal_lstm_pointer, word);
   stack_lstm.add_input(curr_state->stack_lstm_pointer, word);
 
+  curr_state->terminal_lstm_pointer = term_lstm.state();
+  curr_state->stack_lstm_pointer = stack_lstm.state();
+
   curr_state->terms.push_back(word);
   curr_state->stack.push_back(word);
   curr_state->is_open_paren.push_back(-1);
@@ -88,6 +91,7 @@ void ParserBuilder::PerformNT(WordId ntid) {
   Expression nt_embedding = lookup(*pcg, p_nt, ntid);
   stack_lstm.add_input(curr_state->stack_lstm_pointer, nt_embedding);
 
+  curr_state->stack_lstm_pointer = stack_lstm.state();
   curr_state->stack.push_back(nt_embedding);
   curr_state->is_open_paren.push_back(ntid);
 }
@@ -120,6 +124,7 @@ void ParserBuilder::PerformReduce() {
 
   Expression composed = EmbedNonterminal(curr_state->is_open_paren[last_nt_index], children);
   stack_lstm.add_input(curr_state->stack_lstm_pointer, composed);
+  curr_state->stack_lstm_pointer = stack_lstm.state();
   curr_state->stack.push_back(composed);
   curr_state->is_open_paren.push_back(-1); // we just closed a paren at this position
 }
@@ -266,11 +271,6 @@ Expression ParserBuilder::GetActionDistribution(Expression state_vector) const {
 }
 
 Expression ParserBuilder::GetActionDistribution(RNNPointer p, Expression state_vector) const {
-  cerr << "p=" << (int)p << ", State vector:";
-  for (float f : as_vector(state_vector.value())) {
-    cerr << " " << f;
-  }
-  cerr << endl;
   Expression r_t = affine_transform({abias, p2a, state_vector});
   Expression adist = log_softmax(r_t, GetValidActionList(p));
   return adist;
@@ -314,8 +314,6 @@ void ParserBuilder::PerformAction(const Action& action, const ParserState& state
   action_lstm.add_input(curr_state->action_lstm_pointer, actione);
 
   curr_state->prev_action = action;
-  curr_state->stack_lstm_pointer = stack_lstm.state();
-  curr_state->terminal_lstm_pointer = term_lstm.state();
   curr_state->action_lstm_pointer = action_lstm.state();
 }
 
@@ -380,7 +378,6 @@ KBestList<Action> ParserBuilder::PredictKBest(RNNPointer p, Expression state_vec
   for (auto& thing : kbest.hypothesis_list()) {
     float score = get<0>(thing);
     Action a = get<1>(thing);
-    cerr << "Returning " << a.type << "-" << a.subtype << ": " << score << endl;
   }
   return kbest;
 }

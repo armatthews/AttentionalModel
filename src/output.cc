@@ -446,11 +446,6 @@ Expression RnngOutputModel::AddInput(const Word* prev_word_, const Expression& c
   source_contexts.push_back(context);
   word_sequences.push_back(word_sequences[p]);
   word_sequences.back().push_back(*prev_word);
-  cerr << "New sequence: ";
-  for (StandardWord& w : word_sequences.back()) {
-    cerr << w.id << " ";
-  }
-  cerr << endl;
   Action action = Convert(prev_word->id);
   builder->PerformAction(action, p);
   Expression state_context_vector = builder->GetStateVector(context);

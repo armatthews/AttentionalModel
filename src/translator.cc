@@ -41,10 +41,6 @@ Expression Translator::BuildGraph(const InputSentence* const source, const Outpu
     Expression context = attention_model->GetContext(encodings, state);
     state_debug = output_model->AddInput(word, context);
   }
-  for (unsigned i = 0; i < word_losses.size(); ++i) {
-    cerr << (i == 0 ? "" : " ") << as_scalar(word_losses[i].value());
-  }
-  cerr << endl;
   return sum(word_losses);
 }
 
