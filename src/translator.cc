@@ -26,20 +26,15 @@ Expression Translator::BuildGraph(const InputSentence* const source, const Outpu
 
   vector<Expression> encodings = encoder_model->Encode(source);
 
-  // XXX:  Get rid of this debug crap. Should probably keep only
-  // the one called "state_debug", and remove "state" (obviously switch the names)
-  // since "state_debug" doesn't recompute stuff.
-  Expression state_debug = output_model->GetState();
+  Expression state = output_model->GetState();
   attention_model->NewSentence(source);
   for (unsigned i = 0; i < target->size(); ++i) {
     const Word* word = target->at(i);
-    Expression state = output_model->GetState();
+    assert (same_value(state, output_model->GetState()));
     word_losses[i] = output_model->Loss(state, word);
 
-    assert (same_value(state_debug, state));
-
     Expression context = attention_model->GetContext(encodings, state);
-    state_debug = output_model->AddInput(word, context);
+    state = output_model->AddInput(word, context);
   }
   return sum(word_losses);
 }
