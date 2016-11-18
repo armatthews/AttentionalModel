@@ -401,13 +401,8 @@ void RnngOutputModel::NewGraph(ComputationGraph& cg) {
   pcg = &cg;
   builder->NewGraph(cg);
   builder->NewSentence();
-  source_contexts.clear();
-  state_context_vectors.clear();
-  word_sequences.clear();
-  word_sequences.push_back(vector<StandardWord>());
   // TODO: Maybe have an initial context instead of just 0s?
   Expression initial_context = zeroes(cg, {hidden_dim});
-  source_contexts.push_back(initial_context);
   state_context_vectors.push_back(builder->GetStateVector(initial_context));
 }
 
@@ -415,22 +410,16 @@ void RnngOutputModel::SetDropout(float rate) {
   builder->SetDropout(rate);
 }
 
-/*Expression RnngOutputModel::GetState() const {
-  assert (source_contexts.size() == state_context_vectors.size());
-  assert ((unsigned)builder->state() == source_contexts.size() - 1);
-  assert (source_contexts.size() > 0);
+Expression RnngOutputModel::GetState() const {
   return this->GetState(GetStatePointer());
-  return builder->GetStateVector(source_contexts.back());
-}*/
+}
 
 Expression RnngOutputModel::GetState(RNNPointer p) const {
   return state_context_vectors[p];
-  return builder->GetStateVector(source_contexts[p], p);
 }
 
 RNNPointer RnngOutputModel::GetStatePointer() const {
-  assert (source_contexts.size() == state_context_vectors.size());
-  assert ((unsigned)builder->state() == source_contexts.size() - 1);
+  assert ((unsigned)builder->state() == state_context_vectors.size() - 1);
   return builder->state();
 }
 
@@ -441,9 +430,6 @@ Expression RnngOutputModel::AddInput(const Word* prev_word, const Expression& co
 
 Expression RnngOutputModel::AddInput(const Word* prev_word_, const Expression& context, const RNNPointer& p) {
   const StandardWord* prev_word = dynamic_cast<const StandardWord*>(prev_word_);
-  source_contexts.push_back(context);
-  word_sequences.push_back(word_sequences[p]);
-  word_sequences.back().push_back(*prev_word);
   Action action = Convert(prev_word->id);
   builder->PerformAction(action, p);
   Expression state_context_vector = builder->GetStateVector(context);

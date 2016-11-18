@@ -113,13 +113,13 @@ void ParserBuilder::PerformReduce() {
   vector<Expression> children(nchildren);
   curr_state->is_open_paren.pop_back(); // nt symbol
   curr_state->stack.pop_back(); // nonterminal dummy
-  curr_state->stack_lstm_pointer = stack_lstm.head[curr_state->stack_lstm_pointer]; //stack_lstm.rewind_one_step(); // nt symbol // XXX: How do we rewind one step from a pointer?
+  curr_state->stack_lstm_pointer = stack_lstm.head[curr_state->stack_lstm_pointer];
 
   for (unsigned i = 0; i < nchildren; ++i) {
     children[i] = curr_state->stack.back();
     curr_state->stack.pop_back();
     curr_state->is_open_paren.pop_back();
-    curr_state->stack_lstm_pointer = stack_lstm.head[curr_state->stack_lstm_pointer]; //stack_lstm.rewind_one_step(); // XXX: How do we rewind one step from a pointer?
+    curr_state->stack_lstm_pointer = stack_lstm.head[curr_state->stack_lstm_pointer];
   }
 
   Expression composed = EmbedNonterminal(curr_state->is_open_paren[last_nt_index], children);

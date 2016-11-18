@@ -35,6 +35,9 @@ public:
   virtual RNNPointer GetStatePointer() const = 0;
   virtual Expression AddInput(const Word* const prev_word, const Expression& context) = 0;
   virtual Expression AddInput(const Word* const prev_word, const Expression& context, const RNNPointer& p) = 0;
+
+  // TODO: I believe having these functions take both a state and an RNNPointer is redundant.
+  // The pointer is necessary, but perhaps we can avoid passing in the state too.
   virtual Expression PredictLogDistribution(const Expression& state);
   virtual Expression PredictLogDistribution(RNNPointer p, const Expression& state) = 0;
   virtual KBestList<Word*> PredictKBest(const Expression& state, unsigned K);
@@ -200,7 +203,7 @@ public:
   void InitializeDictionaries(const Dict& raw_vocab);
   void NewGraph(ComputationGraph& cg);
   void SetDropout(float rate);
-  //Expression GetState() const;
+  Expression GetState() const;
   Expression GetState(RNNPointer p) const;
   RNNPointer GetStatePointer() const;
   Expression AddInput(const Word* const prev_word, const Expression& context);
