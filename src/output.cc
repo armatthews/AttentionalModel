@@ -403,6 +403,7 @@ void RnngOutputModel::NewGraph(ComputationGraph& cg) {
   builder->NewSentence();
   // TODO: Maybe have an initial context instead of just 0s?
   Expression initial_context = zeroes(cg, {hidden_dim});
+  state_context_vectors.clear();
   state_context_vectors.push_back(builder->GetStateVector(initial_context));
 }
 
