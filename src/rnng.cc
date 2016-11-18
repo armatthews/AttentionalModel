@@ -348,7 +348,6 @@ Action ParserBuilder::Sample(RNNPointer p, Expression state_vector) const {
 }
 
 KBestList<Action> ParserBuilder::PredictKBest(Expression state_vector, unsigned K) const {
-  assert (false);
   return PredictKBest(state(), state_vector, K);
 }
 
@@ -360,7 +359,8 @@ KBestList<Action> ParserBuilder::PredictKBest(RNNPointer p, Expression state_vec
   vector<float> subtype_dist = as_vector(softmax(word_dist).value());
 
   KBestList<Action> kbest(K);
-  for (unsigned i = 0; i < type_dist.size(); ++i) {
+  vector<unsigned> valid_actions = GetValidActionList(p);
+  for (unsigned i : valid_actions) {
     Action a = convert(i);
     float score;
     if (a.type == Action::kShift) {
