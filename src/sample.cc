@@ -13,7 +13,7 @@ using namespace dynet;
 using namespace std;
 namespace po = boost::program_options;
 
-int main(int argc, char** argv) {  
+int main(int argc, char** argv) {
   dynet::initialize(argc, argv);
 
   po::options_description desc("description");

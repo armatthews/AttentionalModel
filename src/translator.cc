@@ -112,7 +112,7 @@ KBestList<shared_ptr<OutputSentence>> Translator::Translate(const InputSentence*
 
   KBestList<shared_ptr<OutputSentence>> complete_hyps(K);
   KBestList<pair<shared_ptr<OutputSentence>, RNNPointer>> top_hyps(beam_size);
-  top_hyps.add(0.0, make_pair(make_shared<OutputSentence>(), output_model->GetStatePointer())); 
+  top_hyps.add(0.0, make_pair(make_shared<OutputSentence>(), output_model->GetStatePointer()));
 
   vector<Expression> encodings = encoder_model->Encode(source);
   attention_model->NewSentence(source);
