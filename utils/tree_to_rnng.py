@@ -1,47 +1,58 @@
 import re
 import sys
+import argparse
 
-def remove_unary(s): 
-  while True:
-    ns = re.sub(r'NT\(([^ ]*)\) SHIFT\(([^ ]*)\) REDUCE', r'SHIFT(\2)', s)
-    if ns == s:
-      return s
-    s = ns
+def find_next_paren(line, start):
+  for i in range(start, len(line)):
+    if line[i] == '(' or line[i] == ')':
+      return i
+  return None
 
-line_num = 0
-for line in sys.stdin:
-  line = line.strip()
-  line_num += 1
-  if not line:
-    print
-    continue
-
+def get_actions(line):
   i = 0
-  parts = []
+  actions = []
   while i < len(line):
     c = line[i]
-    if c == '(':
-      start = i + 1
-      end = i + 1
-      while line[end] != ' ':
-        end += 1
-      nt = line[start : end]
-      parts.append('NT(%s)' % nt)
-      i = end + 1
-    elif c == ')':
-      parts.append('REDUCE')
+    if c == ' ':
       i += 1
-      while i < len(line) and line[i] == ' ':
-        i += 1
+      continue
+    if c == '(':
+      next_paren = find_next_paren(line, i + 1)
+      pos_and_term = line[i + 1 : next_paren]
+      pos, term = pos_and_term.split(' ', 1)
+      terms = term.split()
+      if line[next_paren] == '(':
+        actions.append('NT(%s)' % pos)
+        for term in terms:
+          actions.append('SHIFT(%s)' % term)
+        i = next_paren
+      else:
+        if args.keep_preterms or len(terms) > 1:
+          actions.append('NT(%s)'  % pos)
+          for term in terms:
+            actions.append('SHIFT(%s)' % term)
+          actions.append('REDUCE')
+        else:
+          for term in terms:
+            actions.append('SHIFT(%s)' % term)
+        i = next_paren + 1
+    elif c == ')':
+      actions.append('REDUCE')
+      i += 1
     else:
-      start = i
-      end = i
-      while end < len(line) and line[end] != ')':
-        end += 1
-      term = line[start : end]
-      i = end
-      while i < len(line) and line[i] == ' ':
-        i += 1
-      parts.append('SHIFT(%s)' % term)
+      next_paren = find_next_paren(line, i + 1)
+      term = line[i:next_paren].strip()
+      terms = term.split()
+      for term in terms:
+        actions.append('SHIFT(%s)' % term)
+      i = next_paren
+  return actions
 
-  print remove_unary(' '.join(parts))
+parser = argparse.ArgumentParser()
+parser.add_argument('--keep_preterms', '-k', action='store_true', help='Don\'t remove pre-terminals')
+args = parser.parse_args()
+
+for line in sys.stdin:
+  line = line.strip()
+  actions = get_actions(line)
+  print ' '.join(actions)
