@@ -66,7 +66,7 @@ private:
   friend class boost::serialization::access;
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {
-    ar & boost::serialization::base_object<AttentionModel>(*this); 
+    ar & boost::serialization::base_object<AttentionModel>(*this);
     ar & p_U;
     ar & p_V;
     ar & p_W;

@@ -66,7 +66,7 @@ Expression StandardAttentionModel::GetAlignmentVector(const vector<Expression>& 
   Expression a = softmax(GetScoreVector(inputs, state));
 
   for (AttentionPrior* prior : priors) {
-    a = cwise_multiply(a, prior->Compute(inputs, target_index));
+    a = cmult(a, prior->Compute(inputs, target_index));
   }
 
   // Renormalize if we have priors
@@ -90,7 +90,7 @@ Expression StandardAttentionModel::GetAlignmentVector(const vector<Expression>& 
   Expression a = softmax(GetScoreVector(inputs, state));
 
   for (AttentionPrior* prior : priors) {
-    a = cwise_multiply(a, prior->Compute(inputs, tree, target_index));
+    a = cmult(a, prior->Compute(inputs, tree, target_index));
   }
 
   // Renormalize if we have priors

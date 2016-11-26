@@ -93,7 +93,7 @@ public:
 protected:
   ComputationGraph* pcg;
   ParserState* curr_state;
-  vector<ParserState> prev_states; 
+  vector<ParserState> prev_states;
 
   LSTMBuilder stack_lstm; // Stack
   LSTMBuilder term_lstm; // Sequence of generated terminals

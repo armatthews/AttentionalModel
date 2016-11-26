@@ -113,13 +113,13 @@ void ParserBuilder::PerformReduce() {
   vector<Expression> children(nchildren);
   curr_state->is_open_paren.pop_back(); // nt symbol
   curr_state->stack.pop_back(); // nonterminal dummy
-  curr_state->stack_lstm_pointer = stack_lstm.head[curr_state->stack_lstm_pointer];
+  curr_state->stack_lstm_pointer = stack_lstm.get_head(curr_state->stack_lstm_pointer);
 
   for (unsigned i = 0; i < nchildren; ++i) {
     children[i] = curr_state->stack.back();
     curr_state->stack.pop_back();
     curr_state->is_open_paren.pop_back();
-    curr_state->stack_lstm_pointer = stack_lstm.head[curr_state->stack_lstm_pointer];
+    curr_state->stack_lstm_pointer = stack_lstm.get_head(curr_state->stack_lstm_pointer);
   }
 
   Expression composed = EmbedNonterminal(curr_state->is_open_paren[last_nt_index], children);
@@ -317,7 +317,7 @@ void ParserBuilder::PerformAction(const Action& action, const ParserState& state
   curr_state->action_lstm_pointer = action_lstm.state();
 }
 
-Action convert(unsigned id) { 
+Action convert(unsigned id) {
   if (id == 0) {
     return Action {Action::kShift, 0};
   }

@@ -447,7 +447,7 @@ KBestList<Word*> RnngOutputModel::PredictKBest(RNNPointer p, const Expression& s
   KBestList<Word*> kbest_list(K);
   for (auto score_action : kbest_action.hypothesis_list()) {
     float score = get<0>(score_action);
-    Action action = get<1>(score_action); 
+    Action action = get<1>(score_action);
     kbest_list.add(score, new StandardWord(Convert(action)));
   }
   return kbest_list;
@@ -455,7 +455,7 @@ KBestList<Word*> RnngOutputModel::PredictKBest(RNNPointer p, const Expression& s
 
 Word* RnngOutputModel::Sample(RNNPointer p, const Expression& state_vector) {
   Action action = builder->Sample(p, state_vector);
-  return new StandardWord(Convert(action)); 
+  return new StandardWord(Convert(action));
 }
 
 Expression RnngOutputModel::Loss(RNNPointer p, const Expression& state_vector, const Word* const ref) {
