@@ -24,16 +24,22 @@ def get_actions(line):
       if line[next_paren] == '(':
         actions.append('NT(%s)' % pos)
         for term in terms:
+          if args.lowercase:
+            term = term.decode('utf-8').lower().encode('utf-8')
           actions.append('SHIFT(%s)' % term)
         i = next_paren
       else:
         if args.keep_preterms or len(terms) > 1:
           actions.append('NT(%s)'  % pos)
           for term in terms:
+            if args.lowercase:
+              term = term.decode('utf-8').lower().encode('utf-8')
             actions.append('SHIFT(%s)' % term)
           actions.append('REDUCE')
         else:
           for term in terms:
+            if args.lowercase:
+              term = term.decode('utf-8').lower().encode('utf-8')
             actions.append('SHIFT(%s)' % term)
         i = next_paren + 1
     elif c == ')':
@@ -44,12 +50,15 @@ def get_actions(line):
       term = line[i:next_paren].strip()
       terms = term.split()
       for term in terms:
+        if args.lowercase:
+          term = term.decode('utf-8').lower().encode('utf-8')
         actions.append('SHIFT(%s)' % term)
       i = next_paren
   return actions
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--keep_preterms', '-k', action='store_true', help='Don\'t remove pre-terminals')
+parser.add_argument('--lowercase', '-l', action='store_true', help='Lowercase all terminals')
 args = parser.parse_args()
 
 for line in sys.stdin:
