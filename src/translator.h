@@ -14,7 +14,7 @@ public:
   void NewGraph(ComputationGraph& cg);
   void SetDropout(float rate);
   Expression BuildGraph(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg);
-  vector<shared_ptr<OutputSentence>> Sample(const InputSentence* const source, unsigned samples, unsigned max_length);
+  vector<pair<shared_ptr<OutputSentence>, float>> Sample(const InputSentence* const source, unsigned samples, unsigned max_length);
   vector<Expression> Align(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg);
   KBestList<shared_ptr<OutputSentence>> Translate(const InputSentence* const source, unsigned K, unsigned beam_size, unsigned max_length);
 
@@ -23,7 +23,7 @@ private:
   AttentionModel* attention_model;
   OutputModel* output_model;
 
-  void Sample(const vector<Expression>& encodings, shared_ptr<OutputSentence> prefix, RNNPointer state_pointer, unsigned sample_count, unsigned max_length, ComputationGraph& cg, vector<shared_ptr<OutputSentence>>& samples);
+  void Sample(const vector<Expression>& encodings, shared_ptr<OutputSentence> prefix, float prefix_score, RNNPointer state_pointer, unsigned sample_count, unsigned max_length, ComputationGraph& cg, vector<pair<shared_ptr<OutputSentence>, float>>& samples);
 
   friend class boost::serialization::access;
   template<class Archive>

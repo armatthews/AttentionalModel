@@ -54,13 +54,15 @@ int main(int argc, char** argv) {
   for (unsigned sentence_number = 0; sentence_number < source_sentences.size(); ++sentence_number) {
     InputSentence* source = source_sentences[sentence_number];
 
-    vector<shared_ptr<OutputSentence>> samples = translator.Sample(source, num_samples, max_length);
-    for (auto sample : samples) {
+    vector<pair<shared_ptr<OutputSentence>, float>> samples = translator.Sample(source, num_samples, max_length);
+    for (auto scored_sample : samples) {
+      auto& sample = get<0>(scored_sample);
+      float score = get<1>(scored_sample);
       vector<string> words;
       for (Word* w : *sample) {
         words.push_back(output_reader->ToString(w));
       }
-      cout << sentence_number << " ||| " << boost::algorithm::join(words, " ") << endl;
+      cout << sentence_number << " ||| " << boost::algorithm::join(words, " ") << " ||| " << score << endl;
     }
     cout.flush();
   }
