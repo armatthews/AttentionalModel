@@ -25,7 +25,7 @@ KBestList<Word*> OutputModel::PredictKBest(const Expression& state, unsigned K) 
   return PredictKBest(GetStatePointer(), state, K);
 }
 
-Word* OutputModel::Sample(const Expression& state) {
+pair<Word*, float> OutputModel::Sample(const Expression& state) {
   return Sample(GetStatePointer(), state);
 }
 
@@ -116,8 +116,12 @@ Expression SoftmaxOutputModel::Loss(RNNPointer p, const Expression& state, const
   return fsb->neg_log_softmax(state, r->id);
 }
 
-Word* SoftmaxOutputModel::Sample(RNNPointer p, const Expression& state) {
-  return new StandardWord(fsb->sample(state));
+pair<Word*, float> SoftmaxOutputModel::Sample(RNNPointer p, const Expression& state) {
+  unsigned sampled_id = fsb->sample(state);
+  StandardWord* sample = new StandardWord(sampled_id);
+  Expression score_expr = fsb->neg_log_softmax(state, sampled_id);
+  float score = as_scalar(score_expr.value());
+  return make_pair(sample, score);
 }
 
 bool SoftmaxOutputModel::IsDone(RNNPointer p) const {
@@ -253,7 +257,7 @@ KBestList<Word*> MorphologyOutputModel::PredictKBest(RNNPointer p, const Express
   assert (false);
 }
 
-Word* MorphologyOutputModel::Sample(RNNPointer p, const Expression& state) {
+pair<Word*, float> MorphologyOutputModel::Sample(RNNPointer p, const Expression& state) {
   assert (false);
 }
 
@@ -453,9 +457,13 @@ KBestList<Word*> RnngOutputModel::PredictKBest(RNNPointer p, const Expression& s
   return kbest_list;
 }
 
-Word* RnngOutputModel::Sample(RNNPointer p, const Expression& state_vector) {
+pair<Word*, float> RnngOutputModel::Sample(RNNPointer p, const Expression& state_vector) {
   Action action = builder->Sample(p, state_vector);
-  return new StandardWord(Convert(action)); 
+  unsigned sampled_id = Convert(action);
+  Word* sample = new StandardWord(sampled_id);
+  Expression score_expr = builder->Loss(p, state_vector, action);
+  float score = as_scalar(score_expr.value());
+  return make_pair(sample, score); 
 }
 
 Expression RnngOutputModel::Loss(RNNPointer p, const Expression& state_vector, const Word* const ref) {
