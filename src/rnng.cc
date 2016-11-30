@@ -1,5 +1,7 @@
 #include "dynet/expr.h"
 #include "rnng.h"
+#include "utils.h"
+#include "io.h"
 BOOST_CLASS_EXPORT_IMPLEMENT(SourceConditionedParserBuilder)
 
 using namespace dynet::expr;
@@ -51,14 +53,19 @@ bool ParserState::IsActionForbidden(const Action& a) const {
 }
 
 vector<unsigned> ParserBuilder::GetValidActionList() const {
+  return GetValidActionList(state());
+}
+
+vector<unsigned> ParserBuilder::GetValidActionList(RNNPointer p) const {
   vector<unsigned> valid_actions;
-  if (!curr_state->IsActionForbidden({Action::kShift, 0})) {
+  const ParserState& state = prev_states[p];
+  if (!state.IsActionForbidden({Action::kShift, 0})) {
     valid_actions.push_back(0);
   }
-  if (!curr_state->IsActionForbidden({Action::kReduce, 0})) {
+  if (!state.IsActionForbidden({Action::kReduce, 0})) {
     valid_actions.push_back(1);
   }
-  if (!curr_state->IsActionForbidden({Action::kNT, 0})) {
+  if (!state.IsActionForbidden({Action::kNT, 0})) {
     for (unsigned i = 0; i < nt_vocab_size; ++i) {
       valid_actions.push_back(2 + i);
     }
@@ -68,8 +75,11 @@ vector<unsigned> ParserBuilder::GetValidActionList() const {
 
 void ParserBuilder::PerformShift(WordId wordid) {
   Expression word = lookup(*pcg, p_w, wordid);
-  term_lstm.add_input(word);
-  stack_lstm.add_input(word);
+  term_lstm.add_input(curr_state->terminal_lstm_pointer, word);
+  stack_lstm.add_input(curr_state->stack_lstm_pointer, word);
+
+  curr_state->terminal_lstm_pointer = term_lstm.state();
+  curr_state->stack_lstm_pointer = stack_lstm.state();
 
   curr_state->terms.push_back(word);
   curr_state->stack.push_back(word);
@@ -79,8 +89,9 @@ void ParserBuilder::PerformShift(WordId wordid) {
 void ParserBuilder::PerformNT(WordId ntid) {
   ++curr_state->nopen_parens;
   Expression nt_embedding = lookup(*pcg, p_nt, ntid);
-  stack_lstm.add_input(nt_embedding);
+  stack_lstm.add_input(curr_state->stack_lstm_pointer, nt_embedding);
 
+  curr_state->stack_lstm_pointer = stack_lstm.state();
   curr_state->stack.push_back(nt_embedding);
   curr_state->is_open_paren.push_back(ntid);
 }
@@ -102,17 +113,18 @@ void ParserBuilder::PerformReduce() {
   vector<Expression> children(nchildren);
   curr_state->is_open_paren.pop_back(); // nt symbol
   curr_state->stack.pop_back(); // nonterminal dummy
-  stack_lstm.rewind_one_step(); // nt symbol
+  curr_state->stack_lstm_pointer = stack_lstm.get_head(curr_state->stack_lstm_pointer);
 
   for (unsigned i = 0; i < nchildren; ++i) {
     children[i] = curr_state->stack.back();
     curr_state->stack.pop_back();
     curr_state->is_open_paren.pop_back();
-    stack_lstm.rewind_one_step();
+    curr_state->stack_lstm_pointer = stack_lstm.get_head(curr_state->stack_lstm_pointer);
   }
 
   Expression composed = EmbedNonterminal(curr_state->is_open_paren[last_nt_index], children);
-  stack_lstm.add_input(composed);
+  stack_lstm.add_input(curr_state->stack_lstm_pointer, composed);
+  curr_state->stack_lstm_pointer = stack_lstm.state();
   curr_state->stack.push_back(composed);
   curr_state->is_open_paren.push_back(-1); // we just closed a paren at this position
 }
@@ -181,14 +193,6 @@ void ParserBuilder::NewGraph(ComputationGraph& cg) {
   stack_guard = parameter(cg, p_stack_guard);
 }
 
-vector<Action> ParserBuilder::Sample(const vector<WordId>& sentence) {
-  assert (false);
-}
-
-vector<Action> ParserBuilder::Predict(const vector<WordId>& sentence) {
-  assert (false);
-}
-
 Expression ParserBuilder::Summarize(const LSTMBuilder& builder) const {
   Expression summary = builder.back();
   if (dropout_rate != 0.0f) {
@@ -206,7 +210,7 @@ Expression ParserBuilder::Summarize(const LSTMBuilder& builder, RNNPointer p) co
 }
 
 void ParserBuilder::NewSentence() {
-  const WordId kSOS = 1; // XXX
+  const WordId kSOS = 1; // XXX: This may be wildly broken since now we don't even have SOS in our vocab... Maybe train a separate embedding for this...
   Expression SOS_embedding = lookup(*pcg, p_w, kSOS);
 
   prev_states.clear();
@@ -263,8 +267,12 @@ Expression ParserBuilder::GetStateVector(RNNPointer p) const {
 }
 
 Expression ParserBuilder::GetActionDistribution(Expression state_vector) const {
+  return GetActionDistribution(state(), state_vector);
+}
+
+Expression ParserBuilder::GetActionDistribution(RNNPointer p, Expression state_vector) const {
   Expression r_t = affine_transform({abias, p2a, state_vector});
-  Expression adist = log_softmax(r_t, GetValidActionList());
+  Expression adist = log_softmax(r_t, GetValidActionList(p));
   return adist;
 }
 
@@ -303,16 +311,84 @@ void ParserBuilder::PerformAction(const Action& action, const ParserState& state
   }
 
   Expression actione = lookup(*pcg, p_a, action.GetIndex());
-  action_lstm.add_input(actione);
+  action_lstm.add_input(curr_state->action_lstm_pointer, actione);
 
   curr_state->prev_action = action;
-  curr_state->stack_lstm_pointer = stack_lstm.state();
-  curr_state->terminal_lstm_pointer = term_lstm.state();
   curr_state->action_lstm_pointer = action_lstm.state();
 }
 
+Action convert(unsigned id) {
+  if (id == 0) {
+    return Action {Action::kShift, 0};
+  }
+  else if (id == 1) {
+    return Action {Action::kReduce, 0};
+  }
+  else {
+    return Action {Action::kNT, (WordId)(id - 2)};
+  }
+}
+
+Action ParserBuilder::Sample(Expression state_vector) const {
+  assert(false);
+  return Sample(state(), state_vector);
+}
+
+Action ParserBuilder::Sample(RNNPointer p, Expression state_vector) const {
+  Expression action_dist = GetActionDistribution(p, state_vector);
+
+  vector<float> dist = as_vector(softmax(action_dist).value());
+  unsigned s = ::Sample(dist);
+
+  Action r = convert(s);
+  if (r.type == Action::kShift) {
+    r.subtype = cfsm->sample(state_vector);
+  }
+  return r;
+}
+
+KBestList<Action> ParserBuilder::PredictKBest(Expression state_vector, unsigned K) const {
+  return PredictKBest(state(), state_vector, K);
+}
+
+KBestList<Action> ParserBuilder::PredictKBest(RNNPointer p, Expression state_vector, unsigned K) const {
+  Expression action_dist = GetActionDistribution(p, state_vector);
+  Expression word_dist = cfsm->full_log_distribution(state_vector);
+
+  vector<float> type_dist = as_vector(softmax(action_dist).value());
+  vector<float> subtype_dist = as_vector(softmax(word_dist).value());
+
+  KBestList<Action> kbest(K);
+  vector<unsigned> valid_actions = GetValidActionList(p);
+  for (unsigned i : valid_actions) {
+    Action a = convert(i);
+    float score;
+    if (a.type == Action::kShift) {
+      for (unsigned j = 0; j < subtype_dist.size(); ++j) {
+        a.subtype = (WordId) j;
+        score = log(type_dist[i]) + log(subtype_dist[j]);
+        kbest.add(score, a);
+      }
+    }
+    else {
+      score = log(type_dist[i]);
+      kbest.add(score, a);
+    }
+  }
+  for (auto& thing : kbest.hypothesis_list()) {
+    float score = get<0>(thing);
+    Action a = get<1>(thing);
+  }
+  return kbest;
+}
+
 Expression ParserBuilder::Loss(Expression state_vector, const Action& ref) const {
-  Expression action_dist = GetActionDistribution(state_vector);
+  assert (false);
+  return Loss(state(), state_vector, ref);
+}
+
+Expression ParserBuilder::Loss(RNNPointer p, Expression state_vector, const Action& ref) const {
+  Expression action_dist = GetActionDistribution(p, state_vector);
   Expression neg_log_prob = -pick(action_dist, ref.GetIndex());
   if (ref.type == Action::kShift) {
     WordId wordid = ref.subtype;
@@ -358,6 +434,16 @@ Expression ParserBuilder::EmbedNonterminal(WordId nt, const vector<Expression>& 
   return composed;
 }
 
+bool ParserBuilder::IsDone() const {
+  return IsDone(state());
+}
+
+bool ParserBuilder::IsDone(RNNPointer p) const {
+  assert (p >= 0 && (unsigned)p < prev_states.size());
+  const ParserState& ps = prev_states[p];
+  return ps.prev_action.type != Action::kNone && ps.nopen_parens == 0;
+}
+
 SourceConditionedParserBuilder::SourceConditionedParserBuilder() {}
 
 SourceConditionedParserBuilder::SourceConditionedParserBuilder(Model& model, SoftmaxBuilder* cfsm,
@@ -374,13 +460,6 @@ void SourceConditionedParserBuilder::NewGraph(ComputationGraph& cg) {
 
 Expression SourceConditionedParserBuilder::GetStateVector(Expression source_context) const {
   return GetStateVector(source_context, state());
-  Expression stack_summary = Summarize(stack_lstm);
-  Expression action_summary = Summarize(action_lstm);
-  Expression term_summary = Summarize(term_lstm);
-
-  Expression p_t = affine_transform({pbias, S, stack_summary, A, action_summary, T, term_summary, W, source_context});
-  Expression nlp_t = rectify(p_t);
-  return nlp_t;
 }
 
 Expression SourceConditionedParserBuilder::GetStateVector(Expression source_context, RNNPointer p) const {

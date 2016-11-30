@@ -35,10 +35,17 @@ public:
   virtual RNNPointer GetStatePointer() const = 0;
   virtual Expression AddInput(const Word* const prev_word, const Expression& context) = 0;
   virtual Expression AddInput(const Word* const prev_word, const Expression& context, const RNNPointer& p) = 0;
-  virtual Expression PredictLogDistribution(const Expression& state) = 0;
-  virtual KBestList<Word*> PredictKBest(const Expression& state, unsigned K) = 0;
-  virtual Word* Sample(const Expression& state) = 0;
-  virtual Expression Loss(const Expression& state, const Word* const ref) = 0;
+
+  // TODO: I believe having these functions take both a state and an RNNPointer is redundant.
+  // The pointer is necessary, but perhaps we can avoid passing in the state too.
+  virtual Expression PredictLogDistribution(const Expression& state);
+  virtual Expression PredictLogDistribution(RNNPointer p, const Expression& state) = 0;
+  virtual KBestList<Word*> PredictKBest(const Expression& state, unsigned K);
+  virtual KBestList<Word*> PredictKBest(RNNPointer p, const Expression& state, unsigned K) = 0;
+  virtual pair<Word*, float> Sample(const Expression& state);
+  virtual pair<Word*, float> Sample(RNNPointer p, const Expression& state) = 0;
+  virtual Expression Loss(const Expression& state, const Word* const ref);
+  virtual Expression Loss(RNNPointer p, const Expression& state, const Word* const ref) = 0;
 
   virtual bool IsDone() const;
   virtual bool IsDone(RNNPointer p) const = 0;
@@ -56,15 +63,15 @@ public:
 
   void NewGraph(ComputationGraph& cg);
   void SetDropout(float rate);
-  Expression GetState(RNNPointer p) const;
+  virtual Expression GetState(RNNPointer p) const;
   RNNPointer GetStatePointer() const;
   Expression Embed(const StandardWord* word);
   Expression AddInput(const Word* const prev_word, const Expression& context);
-  Expression AddInput(const Word* const prev_word, const Expression& context, const RNNPointer& p);
-  Expression PredictLogDistribution(const Expression& state);
-  KBestList<Word*> PredictKBest(const Expression& state, unsigned K);
-  Word* Sample(const Expression& state);
-  Expression Loss(const Expression& state, const Word* const ref);
+  virtual Expression AddInput(const Word* const prev_word, const Expression& context, const RNNPointer& p);
+  virtual Expression PredictLogDistribution(RNNPointer p, const Expression& state);
+  virtual KBestList<Word*> PredictKBest(RNNPointer p, const Expression& state, unsigned K);
+  virtual pair<Word*, float> Sample(RNNPointer p, const Expression& state);
+  virtual Expression Loss(RNNPointer p, const Expression& state, const Word* const ref);
 
   bool IsDone(RNNPointer p) const;
   WordId kEOS;
@@ -98,10 +105,10 @@ public:
   MlpSoftmaxOutputModel();
   MlpSoftmaxOutputModel(Model& model, unsigned embedding_dim, unsigned context_dim, unsigned state_dim, unsigned hidden_dim, Dict* vocab, const string& clusters_file);
 
+  Expression GetState(RNNPointer p) const;
+  Expression AddInput(const Word* const prev_word, const Expression& context, const RNNPointer& p);
+
   void NewGraph(ComputationGraph& cg);
-  Expression PredictLogDistribution(const Expression& state);
-  Word* Sample(const Expression& state);
-  Expression Loss(const Expression& state, const Word* const ref);
 private:
   Parameter p_W, p_b;
   Expression W, b;
@@ -126,15 +133,15 @@ public:
   RNNPointer GetStatePointer() const;
   Expression AddInput(const Word* const prev_word, const Expression& context);
   Expression AddInput(const Word* const prev_word, const Expression& context, const RNNPointer& p);
-  Expression PredictLogDistribution(const Expression& state);
-  KBestList<Word*> PredictKBest(const Expression& state, unsigned K);
-  Word* Sample(const Expression& state);
+  Expression PredictLogDistribution(RNNPointer p, const Expression& state);
+  KBestList<Word*> PredictKBest(RNNPointer p, const Expression& state, unsigned K);
+  pair<Word*, float> Sample(RNNPointer p, const Expression& state);
 
   Expression WordLoss(const Expression& state, const WordId ref);
   Expression AnalysisLoss(const Expression& state, const Analysis& ref);
   Expression MorphLoss(const Expression& state, const vector<Analysis>& ref);
   Expression CharLoss(const Expression& state, const vector<WordId>& ref);
-  Expression Loss(const Expression& state, const Word* const ref);
+  Expression Loss(RNNPointer p, const Expression& state, const Word* const ref);
 
   bool IsDone(RNNPointer p) const;
 
@@ -201,10 +208,10 @@ public:
   RNNPointer GetStatePointer() const;
   Expression AddInput(const Word* const prev_word, const Expression& context);
   Expression AddInput(const Word* const prev_word, const Expression& context, const RNNPointer& p);
-  Expression PredictLogDistribution(const Expression& source_context);
-  KBestList<Word*> PredictKBest(const Expression& state, unsigned K);
-  Word* Sample(const Expression& source_context);
-  Expression Loss(const Expression& source_context, const Word* const ref);
+  Expression PredictLogDistribution(RNNPointer p, const Expression& source_context);
+  KBestList<Word*> PredictKBest(RNNPointer p, const Expression& state, unsigned K);
+  pair<Word*, float> Sample(RNNPointer p, const Expression& source_context);
+  Expression Loss(RNNPointer p, const Expression& source_context, const Word* const ref);
 
   bool IsDone(RNNPointer p) const;
 
@@ -219,7 +226,9 @@ private:
   unordered_map<Action, WordId, ActionHash> a2w;
   Dict raw_vocab, term_vocab, nt_vocab;
 
-  Expression most_recent_source_thing; // XXX
+  vector<Expression> source_contexts;
+  vector<Expression> state_context_vectors;
+  vector<vector<StandardWord>> word_sequences;
   ComputationGraph* pcg;
 
   friend class boost::serialization::access;

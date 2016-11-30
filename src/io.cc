@@ -237,7 +237,6 @@ vector<OutputSentence*> RnngOutputReader::Read(const string& filename) {
 void RnngOutputReader::Freeze() {
   if (!vocab.is_frozen()) {
     vocab.freeze();
-    vocab.set_unk("UNK");
   }
 }
 
@@ -251,7 +250,8 @@ string MorphologyOutputReader::ToString(const Word* word) {
 }
 
 string RnngOutputReader::ToString(const Word* word) {
-  assert (false);
+  const StandardWord* w = dynamic_cast<const StandardWord*>(word);
+  return vocab.convert(w->id);
 }
 
 void ReadDict(const string& filename, Dict& dict) {

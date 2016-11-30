@@ -26,21 +26,23 @@ Expression Translator::BuildGraph(const InputSentence* const source, const Outpu
 
   vector<Expression> encodings = encoder_model->Encode(source);
 
+  Expression state = output_model->GetState();
   attention_model->NewSentence(source);
   for (unsigned i = 0; i < target->size(); ++i) {
     const Word* word = target->at(i);
-    Expression state = output_model->GetState();
+    assert (same_value(state, output_model->GetState()));
     word_losses[i] = output_model->Loss(state, word);
 
     Expression context = attention_model->GetContext(encodings, state);
-    output_model->AddInput(word, context);
+    state = output_model->AddInput(word, context);
   }
   return sum(word_losses);
 }
 
-void Translator::Sample(const vector<Expression>& encodings, OutputSentence* prefix, RNNPointer state_pointer, unsigned sample_count, unsigned max_length, ComputationGraph& cg, vector<OutputSentence*>& samples) {
+void Translator::Sample(const vector<Expression>& encodings, shared_ptr<OutputSentence> prefix, float prefix_score, RNNPointer state_pointer, unsigned sample_count, unsigned max_length, ComputationGraph& cg, vector<pair<shared_ptr<OutputSentence>, float>>& samples) {
   if (max_length == 0) {
-    samples.push_back(new OutputSentence(*prefix));
+    shared_ptr<OutputSentence> sample = make_shared<OutputSentence>(*prefix);
+    samples.push_back(make_pair(sample, prefix_score));
     return;
   }
 
@@ -48,43 +50,49 @@ void Translator::Sample(const vector<Expression>& encodings, OutputSentence* pre
   Expression context = attention_model->GetContext(encodings, output_state);
 
   unordered_map<Word*, unsigned> continuations;
+  unordered_map<Word*, float> scores;
   for (unsigned i = 0; i < sample_count; ++i) {
-    Word* w = output_model->Sample(output_state);
+    pair<Word*, float> sample = output_model->Sample(state_pointer, output_state);
+    Word* w = get<0>(sample);
+    float score = get<1>(sample);
     if (continuations.find(w) != continuations.end()) {
       continuations[w]++;
     }
     else {
       continuations[w] = 1;
+      scores[w] = score;
     }
   }
 
   for (auto it = continuations.begin(); it != continuations.end(); ++it) {
     Word* w = it->first;
+    float score = prefix_score + scores[w];
     prefix->push_back(w);
     output_model->AddInput(w, context, state_pointer);
     RNNPointer new_pointer = output_model->GetStatePointer();
 
     if (output_model->IsDone()) {
       for (unsigned i = 0; i < it->second; ++i) {
-        samples.push_back(new OutputSentence(*prefix));
+        shared_ptr<OutputSentence> sample = make_shared<OutputSentence>(*prefix);
+        samples.push_back(make_pair(sample, score));
       }
     }
     else {
-      Sample(encodings, prefix, new_pointer, it->second, max_length - 1, cg, samples);
+      Sample(encodings, prefix, score, new_pointer, it->second, max_length - 1, cg, samples);
     }
     prefix->pop_back();
   }
 }
 
-vector<OutputSentence*> Translator::Sample(const InputSentence* const source, unsigned sample_count, unsigned max_length) {
+vector<pair<shared_ptr<OutputSentence>, float>> Translator::Sample(const InputSentence* const source, unsigned sample_count, unsigned max_length) {
   ComputationGraph cg;
   NewGraph(cg);
   vector<Expression> encodings = encoder_model->Encode(source);
   attention_model->NewSentence(source);
 
-  OutputSentence* prefix = new OutputSentence();
-  vector<OutputSentence*> samples;
-  Sample(encodings, prefix, output_model->GetStatePointer(), sample_count, max_length, cg, samples);
+  shared_ptr<OutputSentence> prefix = make_shared<OutputSentence>();
+  vector<pair<shared_ptr<OutputSentence>, float>> samples;
+  Sample(encodings, prefix, 0.0f, output_model->GetStatePointer(), sample_count, max_length, cg, samples);
   return samples;
 }
 
@@ -104,35 +112,35 @@ vector<Expression> Translator::Align(const InputSentence* const source, const Ou
   return alignments;
 }
 
-KBestList<OutputSentence*> Translator::Translate(const InputSentence* const source, unsigned K, unsigned beam_size, unsigned max_length) {
+KBestList<shared_ptr<OutputSentence>> Translator::Translate(const InputSentence* const source, unsigned K, unsigned beam_size, unsigned max_length) {
   assert (beam_size >= K);
   ComputationGraph cg;
   NewGraph(cg);
 
-  KBestList<OutputSentence*> complete_hyps(K);
-  KBestList<pair<OutputSentence*, RNNPointer>> top_hyps(beam_size);
-  top_hyps.add(0.0, make_pair(new OutputSentence(), output_model->GetStatePointer()));
+  KBestList<shared_ptr<OutputSentence>> complete_hyps(K);
+  KBestList<pair<shared_ptr<OutputSentence>, RNNPointer>> top_hyps(beam_size);
+  top_hyps.add(0.0, make_pair(make_shared<OutputSentence>(), output_model->GetStatePointer()));
 
   vector<Expression> encodings = encoder_model->Encode(source);
   attention_model->NewSentence(source);
 
   for (unsigned length = 0; length < max_length; ++length) {
-    KBestList<pair<OutputSentence*, RNNPointer>> new_hyps(beam_size);
+    KBestList<pair<shared_ptr<OutputSentence>, RNNPointer>> new_hyps(beam_size);
 
     for (auto& hyp : top_hyps.hypothesis_list()) {
       double hyp_score = get<0>(hyp);
-      OutputSentence* hyp_sentence = get<0>(get<1>(hyp));
+      shared_ptr<OutputSentence> hyp_sentence = get<0>(get<1>(hyp));
       RNNPointer state_pointer = get<1>(get<1>(hyp));
       assert (hyp_sentence->size() == length);
       Expression output_state = output_model->GetState(state_pointer);
       Expression context = attention_model->GetContext(encodings, output_state);
-      KBestList<Word*> best_words = output_model->PredictKBest(output_state, beam_size);
+      KBestList<Word*> best_words = output_model->PredictKBest(state_pointer, output_state, beam_size);
 
       for (auto& w : best_words.hypothesis_list()) {
         double word_score = get<0>(w);
         Word* word = get<1>(w);
         double new_score = hyp_score + word_score;
-        OutputSentence* new_sentence = new OutputSentence(*hyp_sentence);
+        shared_ptr<OutputSentence> new_sentence(new OutputSentence(*hyp_sentence));
         new_sentence->push_back(word);
         output_model->AddInput(word, context, state_pointer);
         if (!output_model->IsDone()) {
@@ -148,7 +156,7 @@ KBestList<OutputSentence*> Translator::Translate(const InputSentence* const sour
 
   for (auto& hyp : top_hyps.hypothesis_list()) {
     double score = get<0>(hyp);
-    OutputSentence* sentence = get<0>(get<1>(hyp));
+    shared_ptr<OutputSentence> sentence = get<0>(get<1>(hyp));
     complete_hyps.add(score, sentence);
   }
   return complete_hyps;

@@ -74,7 +74,7 @@ int main(int argc, char** argv) {
   }
 
   if (show_perp) {
-    cout << "Total ||| " << exp(total_loss / total_words) << endl;
+    cout << "Total ||| " << exp(total_loss / total_words) << " (" << total_loss << " over " << total_words << " words)" << endl;
   }
   else {
     cout << "Total ||| " << total_loss << endl;

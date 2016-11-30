@@ -87,9 +87,6 @@ private:
     ar & reverse_builder;
     ar & forward_lstm_init;
     ar & reverse_lstm_init;
-    //Parameter& prev = reverse_builder.params.back().back(); /// XXX: Kill me now. This is disgustingly hacky.
-    //forward_lstm_init = Parameter(prev.mp, prev.index + 1);
-    //reverse_lstm_init = Parameter(prev.mp, prev.index + 2);
     ar & embeddings;
   }
 };

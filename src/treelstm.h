@@ -21,6 +21,7 @@ public:
   virtual Expression add_input(int id, std::vector<int> children, const Expression& x) = 0;
   std::vector<Expression> get_h(RNNPointer i) const override { assert (false); }
   std::vector<Expression> get_s(RNNPointer i) const override { assert (false); }
+  Expression set_s_impl(int prev, const vector<Expression>& s_new) override { assert (false); }
  protected:
   virtual void new_graph_impl(ComputationGraph& cg) override = 0;
   virtual void start_new_sequence_impl(const std::vector<Expression>& h0) override = 0;
