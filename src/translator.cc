@@ -39,9 +39,10 @@ Expression Translator::BuildGraph(const InputSentence* const source, const Outpu
   return sum(word_losses);
 }
 
-void Translator::Sample(const vector<Expression>& encodings, shared_ptr<OutputSentence> prefix, RNNPointer state_pointer, unsigned sample_count, unsigned max_length, ComputationGraph& cg, vector<shared_ptr<OutputSentence>>& samples) {
+void Translator::Sample(const vector<Expression>& encodings, shared_ptr<OutputSentence> prefix, float prefix_score, RNNPointer state_pointer, unsigned sample_count, unsigned max_length, ComputationGraph& cg, vector<pair<shared_ptr<OutputSentence>, float>>& samples) {
   if (max_length == 0) {
-    samples.emplace_back(new OutputSentence(*prefix));
+    shared_ptr<OutputSentence> sample = make_shared<OutputSentence>(*prefix);
+    samples.push_back(make_pair(sample, prefix_score));
     return;
   }
 
@@ -49,43 +50,49 @@ void Translator::Sample(const vector<Expression>& encodings, shared_ptr<OutputSe
   Expression context = attention_model->GetContext(encodings, output_state);
 
   unordered_map<Word*, unsigned> continuations;
+  unordered_map<Word*, float> scores;
   for (unsigned i = 0; i < sample_count; ++i) {
-    Word* w = output_model->Sample(state_pointer, output_state);
+    pair<Word*, float> sample = output_model->Sample(state_pointer, output_state);
+    Word* w = get<0>(sample);
+    float score = get<1>(sample);
     if (continuations.find(w) != continuations.end()) {
       continuations[w]++;
     }
     else {
       continuations[w] = 1;
+      scores[w] = score;
     }
   }
 
   for (auto it = continuations.begin(); it != continuations.end(); ++it) {
     Word* w = it->first;
+    float score = prefix_score + scores[w];
     prefix->push_back(w);
     output_model->AddInput(w, context, state_pointer);
     RNNPointer new_pointer = output_model->GetStatePointer();
 
     if (output_model->IsDone()) {
       for (unsigned i = 0; i < it->second; ++i) {
-        samples.push_back(make_shared<OutputSentence>(*prefix));
+        shared_ptr<OutputSentence> sample = make_shared<OutputSentence>(*prefix);
+        samples.push_back(make_pair(sample, score));
       }
     }
     else {
-      Sample(encodings, prefix, new_pointer, it->second, max_length - 1, cg, samples);
+      Sample(encodings, prefix, score, new_pointer, it->second, max_length - 1, cg, samples);
     }
     prefix->pop_back();
   }
 }
 
-vector<shared_ptr<OutputSentence>> Translator::Sample(const InputSentence* const source, unsigned sample_count, unsigned max_length) {
+vector<pair<shared_ptr<OutputSentence>, float>> Translator::Sample(const InputSentence* const source, unsigned sample_count, unsigned max_length) {
   ComputationGraph cg;
   NewGraph(cg);
   vector<Expression> encodings = encoder_model->Encode(source);
   attention_model->NewSentence(source);
 
   shared_ptr<OutputSentence> prefix = make_shared<OutputSentence>();
-  vector<shared_ptr<OutputSentence>> samples;
-  Sample(encodings, prefix, output_model->GetStatePointer(), sample_count, max_length, cg, samples);
+  vector<pair<shared_ptr<OutputSentence>, float>> samples;
+  Sample(encodings, prefix, 0.0f, output_model->GetStatePointer(), sample_count, max_length, cg, samples);
   return samples;
 }
 
