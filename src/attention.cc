@@ -22,6 +22,7 @@ StandardAttentionModel::StandardAttentionModel(Model& model, unsigned input_dim,
   p_V = model.add_parameters({hidden_dim, state_dim});
   p_b = model.add_parameters({hidden_dim, 1});
   p_U = model.add_parameters({1, hidden_dim});
+  key_size = input_dim;
 }
 
 void StandardAttentionModel::NewGraph(ComputationGraph& cg) {
@@ -52,7 +53,11 @@ Expression StandardAttentionModel::GetScoreVector(const vector<Expression>& inpu
   // that quantity and save it until we start working on a new sentence.
 
   if (input_matrix.pg == nullptr) {
-    input_matrix = concatenate_cols(inputs);
+    vector<Expression> keys(inputs.size());
+    for (unsigned i = 0; i < inputs.size(); ++i) {
+      keys[i] = pickrange(inputs[i], 0, key_size);
+    }
+    input_matrix = concatenate_cols(keys);
     WI = W * input_matrix;
   }
   Expression Vsb = affine_transform({b, V, state});

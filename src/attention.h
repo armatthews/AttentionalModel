@@ -34,6 +34,7 @@ public:
   virtual void AddPrior(AttentionPrior* prior);
 
 protected:
+  unsigned key_size;
   vector<AttentionPrior*> priors;
 
 private:
@@ -41,6 +42,7 @@ private:
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {
     ar & priors;
+    ar & key_size;
   }
 };
 
