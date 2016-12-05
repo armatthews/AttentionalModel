@@ -256,10 +256,10 @@ int main(int argc, char** argv) {
 
     AttentionModel* attention_model = nullptr;
     if (!vm.count("sparsemax")) {
-      attention_model = new StandardAttentionModel(dynet_model, (unsigned)(annotation_dim * 0.2), output_state_dim, alignment_hidden_dim);
+      attention_model = new StandardAttentionModel(dynet_model, annotation_dim, output_state_dim, alignment_hidden_dim);
     }
     else {
-      attention_model = new SparsemaxAttentionModel(dynet_model, (unsigned)(annotation_dim * 0.2), output_state_dim, alignment_hidden_dim);
+      attention_model = new SparsemaxAttentionModel(dynet_model, annotation_dim, output_state_dim, alignment_hidden_dim);
     }
     // attention_model = new EncoderDecoderAttentionModel(dynet_model, annotation_dim, output_state_dim);
 
