@@ -88,7 +88,7 @@ vector<Expression> BidirectionalSentenceEncoder::EncodeForward(const LinearSente
   for (unsigned i = 0; i < sentence.size(); ++i) {
     Expression x = Embed(sentence[i]);
     Expression y = forward_builder.add_input(x);
-    forward_encodings[i] = y;
+    forward_encodings[i] = concatenate({x, y});
   }
   return forward_encodings;
 }
@@ -99,7 +99,7 @@ vector<Expression> BidirectionalSentenceEncoder::EncodeReverse(const LinearSente
   for (unsigned i = 0; i < sentence.size(); ++i) {
     Expression x = Embed(sentence[i]);
     Expression y = reverse_builder.add_input(x);
-    reverse_encodings[i] = y;
+    reverse_encodings[i] = concatenate({x, y});
   }
   return reverse_encodings;
 }
