@@ -51,7 +51,7 @@ public:
 void AddTrainerOptions(po::options_description& desc) {
   desc.add_options()
   ("sgd", "Use SGD for optimization")
-  ("momentum", po::value<double>(), "Use SGD with this momentum value")
+  ("momentum", po::value<double>()->default_value(0.9), "Use SGD with this momentum value")
   ("adagrad", "Use Adagrad for optimization")
   ("adadelta", "Use Adadelta for optimization")
   ("rmsprop", "Use RMSProp for optimization")
