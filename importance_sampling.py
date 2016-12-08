@@ -22,40 +22,47 @@ get_oracle_bin='/usr0/home/austinma/git/rnng/get_oracle.py'
 tree_to_rnng_bin='/usr0/home/austinma/git/AttentionalModel/utils/tree_to_rnng.py'
 loss_bin='/usr0/home/austinma/git/AttentionalModel/bin/loss'
 
-output = subprocess.check_output(['python', get_oracle_bin, args.train_target, args.test_target])
 _, test_oracle = tempfile.mkstemp()
-with open(test_oracle, 'w') as f:
-  f.write(output)
-  f.close()
+print >>sys.stderr, 'Test oracle:', test_oracle
+with open(test_oracle, 'w') as output_file:
+  process = subprocess.Popen(['python', get_oracle_bin, args.train_target, args.test_target], stdout=output_file)
+  process.wait()
 
-output = subprocess.check_output([nt_parser_bin, '-m', args.rnng, '-T', args.rnng_train, '-p', test_oracle, '-s', str(args.num_samples), '-x', '-C', args.rnng_bracket_dev])
+_, tree_samples = tempfile.mkstemp()
+print >>sys.stderr, 'Tree samples:', tree_samples
+with open(tree_samples, 'w') as output_file:
+  process = subprocess.Popen([nt_parser_bin, '-m', args.rnng, '-T', args.rnng_train, '-p', test_oracle, '-s', str(args.num_samples), '-x', '-C', args.rnng_bracket_dev], stdout=output_file)
+  process.wait()
 
 samples = defaultdict(list)
-
-for line in output.split('\n'):
-  if not line.strip():
-    continue
-  sent_id, prob, sample = line.split('|||')
-  sent_id = int(sent_id.strip())
-  prob = float(prob.strip())
-  sample = sample.strip()
-  samples[sent_id].append((prob, sample))
-  #print >>sys.stderr, '%d ||| %s ||| %f' % (sent_id, sample, prob)
+with open(tree_samples) as f:
+  for line in f:
+    if not line.strip():
+      continue
+    sent_id, prob, sample = line.split('|||')
+    sent_id = int(sent_id.strip())
+    prob = float(prob.strip())
+    sample = sample.strip()
+    samples[sent_id].append((prob, sample))
+    #print >>sys.stderr, '%d ||| %s ||| %f' % (sent_id, sample, prob)
 
 for k in samples:
   assert len(samples[k]) == args.num_samples
 
 _, test_src = tempfile.mkstemp()
 _, test_tgt = tempfile.mkstemp()
-process = subprocess.Popen(['python', tree_to_rnng_bin, '-k'], stdin=subprocess.PIPE, stdout=open(test_tgt, 'w'))
-with open(test_src, 'w') as f:
-  for i, src in enumerate(open(args.test_source)):
-    src = src.strip()
-    for rnng_prob, sample in samples[i]:
-      f.write(src + '\n')
-      process.stdin.write(sample + '\n')
-process.stdin.close()
-process.wait()
+print >>sys.stderr, 'Source input file:', test_src
+print >>sys.stderr, 'Target input file:', test_tgt
+with open(test_tgt, 'w') as output_file:
+  process = subprocess.Popen(['python', tree_to_rnng_bin, '-k'], stdin=subprocess.PIPE, stdout=output_file)
+  with open(test_src, 'w') as f:
+    for i, src in enumerate(open(args.test_source)):
+      src = src.strip()
+      for rnng_prob, sample in samples[i]:
+        f.write(src + '\n')
+        process.stdin.write(sample + '\n')
+  process.stdin.close()
+  process.wait()
 
 with open(test_tgt, 'r') as f:
   for i, src in enumerate(open(args.test_source)):
@@ -64,13 +71,19 @@ with open(test_tgt, 'r') as f:
       tgt = f.readline().strip()
       #print >>sys.stderr, '%s ||| %s ||| %f' % (src, tgt, rnng_prob)
 
-output = subprocess.check_output([loss_bin, '--dynet_mem', '4000', '--model', args.model, '--input_source', test_src, '--input_target', test_tgt]).split('\n')
+_, test_loss = tempfile.mkstemp()
+print >>sys.stderr, 'Loss output file:', test_loss
+with open(test_loss, 'w') as output_file:
+  process = subprocess.Popen([loss_bin, '--dynet_mem', '4000', '--model', args.model, '--input_source', test_src, '--input_target', test_tgt], stdout=output_file)
+  process.wait()
+
+output_lines = open(test_loss).readlines()
 output_line_num = 0
 log_probs = []
 for i, src in enumerate(open(args.test_source)):
   s = 0.0
   for rnng_prob, sample in samples[i]:
-    model_prob = -float(output[output_line_num].split('|||')[1].strip())
+    model_prob = -float(output_lines[output_line_num].split('|||')[1].strip())
     s += math.exp(model_prob - rnng_prob)
     output_line_num += 1
   s /= 100
