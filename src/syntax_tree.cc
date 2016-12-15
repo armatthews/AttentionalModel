@@ -143,7 +143,7 @@ unsigned SyntaxTree::id() const {
 LinearSentence SyntaxTree::GetTerminals() const {
   LinearSentence terminals;
   if (IsTerminal()) {
-    terminals.push_back(new StandardWord(label_));
+    terminals.push_back(make_shared<StandardWord>(label_));
     return terminals;
   }
   else {

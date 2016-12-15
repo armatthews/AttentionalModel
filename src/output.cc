@@ -21,15 +21,15 @@ Expression OutputModel::PredictLogDistribution(const Expression& state) {
   return PredictLogDistribution(GetStatePointer(), state);
 }
 
-KBestList<Word*> OutputModel::PredictKBest(const Expression& state, unsigned K) {
+KBestList<shared_ptr<Word>> OutputModel::PredictKBest(const Expression& state, unsigned K) {
   return PredictKBest(GetStatePointer(), state, K);
 }
 
-pair<Word*, float> OutputModel::Sample(const Expression& state) {
+pair<shared_ptr<Word>, float> OutputModel::Sample(const Expression& state) {
   return Sample(GetStatePointer(), state);
 }
 
-Expression OutputModel::Loss(const Expression& state, const Word* const ref) {
+Expression OutputModel::Loss(const Expression& state, const shared_ptr<const Word> ref) {
   return Loss(GetStatePointer(), state, ref);
 }
 
@@ -79,16 +79,16 @@ RNNPointer SoftmaxOutputModel::GetStatePointer() const {
   return output_builder.state();
 }
 
-Expression SoftmaxOutputModel::AddInput(const Word* prev_word, const Expression& context) {
+Expression SoftmaxOutputModel::AddInput(const shared_ptr<const Word> prev_word, const Expression& context) {
   return AddInput(prev_word, context, output_builder.state());
 }
 
-Expression SoftmaxOutputModel::Embed(const StandardWord* word) {
+Expression SoftmaxOutputModel::Embed(const shared_ptr<const StandardWord> word) {
   return lookup(*pcg, embeddings, word->id);
 }
 
-Expression SoftmaxOutputModel::AddInput(const Word* prev_word_, const Expression& context, const RNNPointer& p) {
-  const StandardWord* prev_word = dynamic_cast<const StandardWord*>(prev_word_);
+Expression SoftmaxOutputModel::AddInput(const shared_ptr<const Word> prev_word_, const Expression& context, const RNNPointer& p) {
+  const shared_ptr<const StandardWord> prev_word = dynamic_pointer_cast<const StandardWord>(prev_word_);
   done.push_back(prev_word->id == kEOS);
   Expression prev_embedding = Embed(prev_word);
   Expression input = concatenate({prev_embedding, context});
@@ -101,24 +101,23 @@ Expression SoftmaxOutputModel::PredictLogDistribution(RNNPointer p, const Expres
   return fsb->full_log_distribution(state);
 }
 
-KBestList<Word*> SoftmaxOutputModel::PredictKBest(RNNPointer p, const Expression& state, unsigned K) {
-  // TODO: Manange memory better. Don't just create a bajillion new words and then never delete them
+KBestList<shared_ptr<Word>> SoftmaxOutputModel::PredictKBest(RNNPointer p, const Expression& state, unsigned K) {
   vector<float> dist = as_vector(PredictLogDistribution(p, state).value());
-  KBestList<Word*> kbest(K);
+  KBestList<shared_ptr<Word>> kbest(K);
   for (unsigned i = 0; i < dist.size(); ++i) {
-    kbest.add(dist[i], new StandardWord(i));
+    kbest.add(dist[i], make_shared<StandardWord>(i));
   }
   return kbest;
 }
 
-Expression SoftmaxOutputModel::Loss(RNNPointer p, const Expression& state, const Word* const ref) {
-  const StandardWord* r = dynamic_cast<const StandardWord*>(ref);
+Expression SoftmaxOutputModel::Loss(RNNPointer p, const Expression& state, const shared_ptr<const Word> ref) {
+  const shared_ptr<const StandardWord> r = dynamic_pointer_cast<const StandardWord>(ref);
   return fsb->neg_log_softmax(state, r->id);
 }
 
-pair<Word*, float> SoftmaxOutputModel::Sample(RNNPointer p, const Expression& state) {
+pair<shared_ptr<Word>, float> SoftmaxOutputModel::Sample(RNNPointer p, const Expression& state) {
   unsigned sampled_id = fsb->sample(state);
-  StandardWord* sample = new StandardWord(sampled_id);
+  shared_ptr<StandardWord> sample = make_shared<StandardWord>(sampled_id);
   Expression score_expr = fsb->neg_log_softmax(state, sampled_id);
   float score = as_scalar(score_expr.value());
   return make_pair(sample, score);
@@ -145,7 +144,7 @@ Expression MlpSoftmaxOutputModel::GetState(RNNPointer p) const {
   Expression state = tanh(affine_transform({b, W, base_state}));
   return state;
 }
-Expression MlpSoftmaxOutputModel::AddInput(const Word* prev_word_, const Expression& context, const RNNPointer& p) {
+Expression MlpSoftmaxOutputModel::AddInput(const shared_ptr<const Word> prev_word_, const Expression& context, const RNNPointer& p) {
   Expression base_state = SoftmaxOutputModel::AddInput(prev_word_, context, p);
   Expression state = tanh(affine_transform({b, W, base_state}));
   return state;
@@ -238,11 +237,11 @@ RNNPointer MorphologyOutputModel::GetStatePointer() const {
   return output_builder.state();
 }
 
-Expression MorphologyOutputModel::AddInput(const Word* const prev_word, const Expression& context) {
+Expression MorphologyOutputModel::AddInput(const shared_ptr<const Word> prev_word, const Expression& context) {
   return AddInput(prev_word, context, output_builder.state());
 }
 
-Expression MorphologyOutputModel::AddInput(const Word* const prev_word, const Expression& context, const RNNPointer& p) {
+Expression MorphologyOutputModel::AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p) {
   Expression prev_embedding = embedder.Embed(prev_word);
   Expression input = concatenate({prev_embedding, context});
   Expression state = output_builder.add_input(p, input);
@@ -253,11 +252,11 @@ Expression MorphologyOutputModel::PredictLogDistribution(RNNPointer p, const Exp
   assert (false);
 }
 
-KBestList<Word*> MorphologyOutputModel::PredictKBest(RNNPointer p, const Expression& state, unsigned K) {
+KBestList<shared_ptr<Word>> MorphologyOutputModel::PredictKBest(RNNPointer p, const Expression& state, unsigned K) {
   assert (false);
 }
 
-pair<Word*, float> MorphologyOutputModel::Sample(RNNPointer p, const Expression& state) {
+pair<shared_ptr<Word>, float> MorphologyOutputModel::Sample(RNNPointer p, const Expression& state) {
   assert (false);
 }
 
@@ -315,8 +314,8 @@ Expression MorphologyOutputModel::CharLoss(const Expression& state, const vector
   return sum(char_losses);
 }
 
-Expression MorphologyOutputModel::Loss(RNNPointer p, const Expression& state, const Word* const ref) {
-  const MorphoWord* r = dynamic_cast<const MorphoWord*>(ref);
+Expression MorphologyOutputModel::Loss(RNNPointer p, const Expression& state, const shared_ptr<const Word> ref) {
+  const shared_ptr<const MorphoWord> r = dynamic_pointer_cast<const MorphoWord>(ref);
   Expression model_probs = log_softmax(model_chooser.Feed(state));
   Expression word_loss = WordLoss(state, r->word);
   Expression morph_loss = MorphLoss(state, r->analyses);
@@ -428,13 +427,13 @@ RNNPointer RnngOutputModel::GetStatePointer() const {
   return builder->state();
 }
 
-Expression RnngOutputModel::AddInput(const Word* prev_word, const Expression& context) {
+Expression RnngOutputModel::AddInput(const shared_ptr<const Word> prev_word, const Expression& context) {
   //assert (false);
   return AddInput(prev_word, context, builder->state());
 }
 
-Expression RnngOutputModel::AddInput(const Word* prev_word_, const Expression& context, const RNNPointer& p) {
-  const StandardWord* prev_word = dynamic_cast<const StandardWord*>(prev_word_);
+Expression RnngOutputModel::AddInput(const shared_ptr<const Word> prev_word_, const Expression& context, const RNNPointer& p) {
+  const shared_ptr<const StandardWord> prev_word = dynamic_pointer_cast<const StandardWord>(prev_word_);
   Action action = Convert(prev_word->id);
   builder->PerformAction(action, p);
   Expression state_context_vector = builder->GetStateVector(context);
@@ -446,28 +445,28 @@ Expression RnngOutputModel::PredictLogDistribution(RNNPointer p, const Expressio
   return builder->GetActionDistribution(p, source_context);
 }
 
-KBestList<Word*> RnngOutputModel::PredictKBest(RNNPointer p, const Expression& state_vector, unsigned K) {
+KBestList<shared_ptr<Word>> RnngOutputModel::PredictKBest(RNNPointer p, const Expression& state_vector, unsigned K) {
   KBestList<Action> kbest_action = builder->PredictKBest(p, state_vector, K);
-  KBestList<Word*> kbest_list(K);
+  KBestList<shared_ptr<Word>> kbest_list(K);
   for (auto score_action : kbest_action.hypothesis_list()) {
     float score = get<0>(score_action);
     Action action = get<1>(score_action);
-    kbest_list.add(score, new StandardWord(Convert(action)));
+    kbest_list.add(score, make_shared<StandardWord>(Convert(action)));
   }
   return kbest_list;
 }
 
-pair<Word*, float> RnngOutputModel::Sample(RNNPointer p, const Expression& state_vector) {
+pair<shared_ptr<Word>, float> RnngOutputModel::Sample(RNNPointer p, const Expression& state_vector) {
   Action action = builder->Sample(p, state_vector);
   unsigned sampled_id = Convert(action);
-  Word* sample = new StandardWord(sampled_id);
+  shared_ptr<Word> sample = make_shared<StandardWord>(sampled_id);
   Expression score_expr = builder->Loss(p, state_vector, action);
   float score = as_scalar(score_expr.value());
   return make_pair(sample, score); 
 }
 
-Expression RnngOutputModel::Loss(RNNPointer p, const Expression& state_vector, const Word* const ref) {
-  const StandardWord* r = dynamic_cast<const StandardWord*>(ref);
+Expression RnngOutputModel::Loss(RNNPointer p, const Expression& state_vector, const shared_ptr<const Word> ref) {
+  const shared_ptr<const StandardWord> r = dynamic_pointer_cast<const StandardWord>(ref);
   Action ref_action = Convert(r->id);
   if (ref_action.type == Action::kNone) {
     return zeroes(*pcg, {1});

@@ -38,7 +38,7 @@ public:
 
   void NewGraph(ComputationGraph& cg);
   vector<Expression> Encode(const InputSentence* const input);
-  Expression Embed(const Word* const word);
+  Expression Embed(const shared_ptr<const Word> word);
 private:
   Parameter p_W, p_b;
   Expression W, b;
@@ -66,7 +66,7 @@ public:
   vector<Expression> Encode(const InputSentence* const input);
   vector<Expression> EncodeForward(const LinearSentence& sentence);
   vector<Expression> EncodeReverse(const LinearSentence& sentence);
-  Expression Embed(const Word* const word);
+  Expression Embed(const shared_ptr<const Word> word);
 private:
   unsigned output_dim;
   LSTMBuilder forward_builder;

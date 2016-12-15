@@ -19,8 +19,8 @@ void TrivialEncoder::NewGraph(ComputationGraph& cg) {
   b = parameter(cg, p_b);
 }
 
-Expression TrivialEncoder::Embed(const Word* const word) {
-  const StandardWord* standard_word = dynamic_cast<const StandardWord*>(word);
+Expression TrivialEncoder::Embed(const shared_ptr<const Word> word) {
+  const shared_ptr<const StandardWord> standard_word = dynamic_pointer_cast<const StandardWord>(word);
   assert (standard_word != nullptr);
   return lookup(*pcg, embeddings, standard_word->id);
 }
@@ -76,8 +76,8 @@ vector<Expression> BidirectionalSentenceEncoder::Encode(const InputSentence* con
   return bidir_encodings;
 }
 
-Expression BidirectionalSentenceEncoder::Embed(const Word* const word) {
-  const StandardWord* standard_word = dynamic_cast<const StandardWord*>(word);
+Expression BidirectionalSentenceEncoder::Embed(const shared_ptr<const Word> word) {
+  const shared_ptr<const StandardWord> standard_word = dynamic_pointer_cast<const StandardWord>(word);
   assert (standard_word != nullptr);
   return lookup(*pcg, embeddings, standard_word->id);
 }
@@ -151,7 +151,7 @@ vector<Expression> MorphologyEncoder::EncodeForward(const LinearSentence& senten
   forward_builder.start_new_sequence(forward_lstm_init_v);
 
   vector<Expression> r;
-  for (const Word* word : sentence) {
+  for (const shared_ptr<Word> word : sentence) {
     Expression e = forward_builder.add_input(embedder.Embed(word));
     r.push_back(e);
   }
@@ -164,7 +164,7 @@ vector<Expression> MorphologyEncoder::EncodeReverse(const LinearSentence& senten
 
   vector<Expression> r;
   for (auto it = sentence.rbegin(); it != sentence.rend(); ++it) {
-    const Word* word = *it;
+    const shared_ptr<Word> word = *it;
     Expression e = reverse_builder.add_input(embedder.Embed(word));
     r.push_back(e);
   }

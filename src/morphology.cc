@@ -27,8 +27,8 @@ void MorphologyEmbedder::NewGraph(ComputationGraph& cg) {
 
 void MorphologyEmbedder::SetDropout(float rate) {}
 
-Expression MorphologyEmbedder::Embed(const Word* const word) {
-  const MorphoWord* mword = dynamic_cast<const MorphoWord*>(word);
+Expression MorphologyEmbedder::Embed(const shared_ptr<const Word> word) {
+  const shared_ptr<const MorphoWord> mword = dynamic_pointer_cast<const MorphoWord>(word);
 
   Expression word_emb = lookup(*pcg, word_embeddings, mword->word);
 
