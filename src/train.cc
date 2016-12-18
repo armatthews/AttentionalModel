@@ -152,6 +152,7 @@ int main(int argc, char** argv) {
 
   ("peepconcat", "Concatenate the raw word vectors to the output of the encoder")
   ("peepadd", "Add the raw word vectors to the output of the encoder")
+  ("key_size", po::value<unsigned>(), "Number of annotation dimensions to use to compute attention. Default is to use the whole annotation vector.")
   ("sparsemax", "Use Sparsemax (rather than Softmax) for computing attention")
   ("diagonal_prior", "Use diagonal prior on attention")
   ("coverage_prior", "Use coverage prior on attention")
@@ -260,11 +261,12 @@ int main(int argc, char** argv) {
     }
 
     AttentionModel* attention_model = nullptr;
+    const unsigned key_size = vm.count("key_size") > 0 ? vm["key_size"].as<unsigned>() : annotation_dim;
     if (!vm.count("sparsemax")) {
-      attention_model = new StandardAttentionModel(dynet_model, annotation_dim, output_state_dim, alignment_hidden_dim);
+      attention_model = new StandardAttentionModel(dynet_model, annotation_dim, output_state_dim, alignment_hidden_dim, key_size);
     }
     else {
-      attention_model = new SparsemaxAttentionModel(dynet_model, annotation_dim, output_state_dim, alignment_hidden_dim);
+      attention_model = new SparsemaxAttentionModel(dynet_model, annotation_dim, output_state_dim, alignment_hidden_dim, key_size);
     }
     // attention_model = new EncoderDecoderAttentionModel(dynet_model, annotation_dim, output_state_dim);
 

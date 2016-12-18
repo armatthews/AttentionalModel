@@ -47,7 +47,7 @@ private:
 class StandardAttentionModel : public AttentionModel {
 public:
   StandardAttentionModel();
-  StandardAttentionModel(Model& model, unsigned input_dim, unsigned state_dim, unsigned hidden_dim);
+  StandardAttentionModel(Model& model, unsigned input_dim, unsigned state_dim, unsigned hidden_dim, unsigned key_size);
 
   void NewGraph(ComputationGraph& cg);
   Expression GetScoreVector(const vector<Expression>& inputs, const Expression& state);
@@ -62,11 +62,13 @@ private:
   Expression U, V, W, b;
   Expression WI, input_matrix;
   unsigned target_index;
+  unsigned key_size;
 
   friend class boost::serialization::access;
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {
     ar & boost::serialization::base_object<AttentionModel>(*this);
+    ar & key_size;
     ar & p_U;
     ar & p_V;
     ar & p_W;
@@ -78,7 +80,7 @@ BOOST_CLASS_EXPORT_KEY(StandardAttentionModel)
 class SparsemaxAttentionModel : public StandardAttentionModel {
 public:
   SparsemaxAttentionModel();
-  SparsemaxAttentionModel(Model& model, unsigned input_dim, unsigned state_dim, unsigned hidden_dim);
+  SparsemaxAttentionModel(Model& model, unsigned input_dim, unsigned state_dim, unsigned hidden_dim, unsigned key_size);
   Expression GetAlignmentVector(const vector<Expression>& inputs, const Expression& state);
 private:
   friend class boost::serialization::access;

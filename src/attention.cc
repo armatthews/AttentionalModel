@@ -17,8 +17,9 @@ void AttentionModel::AddPrior(AttentionPrior* prior) {
 
 StandardAttentionModel::StandardAttentionModel() {}
 
-StandardAttentionModel::StandardAttentionModel(Model& model, unsigned input_dim, unsigned state_dim, unsigned hidden_dim) {
-  p_W = model.add_parameters({hidden_dim, input_dim});
+StandardAttentionModel::StandardAttentionModel(Model& model, unsigned input_dim, unsigned state_dim, unsigned hidden_dim, unsigned key_size) : key_size(key_size) {
+  assert (key_size > 0 && key_size <= input_dim);
+  p_W = model.add_parameters({hidden_dim, key_size});
   p_V = model.add_parameters({hidden_dim, state_dim});
   p_b = model.add_parameters({hidden_dim, 1});
   p_U = model.add_parameters({1, hidden_dim});
@@ -52,8 +53,12 @@ Expression StandardAttentionModel::GetScoreVector(const vector<Expression>& inpu
   // that quantity and save it until we start working on a new sentence.
 
   if (input_matrix.pg == nullptr) {
+    vector<Expression> keys(inputs.size());
+    for (unsigned i = 0; i < inputs.size(); ++i) {
+      keys[i] = pickrange(inputs[i], 0, key_size);
+    }
     input_matrix = concatenate_cols(inputs);
-    WI = W * input_matrix;
+    WI = W * concatenate_cols(keys);
   }
   Expression Vsb = affine_transform({b, V, state});
   Expression Vsb_n = concatenate_cols(vector<Expression>(inputs.size(), Vsb));
@@ -124,7 +129,7 @@ Expression StandardAttentionModel::GetContext(const vector<Expression>& inputs, 
 
 SparsemaxAttentionModel::SparsemaxAttentionModel() : StandardAttentionModel() {}
 
-SparsemaxAttentionModel::SparsemaxAttentionModel(Model& model, unsigned input_dim, unsigned state_dim, unsigned hidden_dim) : StandardAttentionModel(model, input_dim, state_dim, hidden_dim) {}
+SparsemaxAttentionModel::SparsemaxAttentionModel(Model& model, unsigned input_dim, unsigned state_dim, unsigned hidden_dim, unsigned key_size) : StandardAttentionModel(model, input_dim, state_dim, hidden_dim, key_size) {}
 
 Expression SparsemaxAttentionModel::GetAlignmentVector(const vector<Expression>& inputs, const Expression& state) {
   return sparsemax(GetScoreVector(inputs, state));
