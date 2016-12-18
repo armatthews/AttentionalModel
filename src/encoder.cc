@@ -37,7 +37,8 @@ vector<Expression> TrivialEncoder::Encode(const InputSentence* const input) {
 
 BidirectionalSentenceEncoder::BidirectionalSentenceEncoder() {}
 
-BidirectionalSentenceEncoder::BidirectionalSentenceEncoder(Model& model, unsigned vocab_size, unsigned input_dim, unsigned output_dim) : output_dim(output_dim) {
+BidirectionalSentenceEncoder::BidirectionalSentenceEncoder(Model& model, unsigned vocab_size, unsigned input_dim, unsigned output_dim, bool peep_concat, bool peep_add) :
+    output_dim(output_dim), peep_concat(peep_concat), peep_add(peep_add) {
   assert (output_dim % 2 == 0);
   embeddings = model.add_lookup_parameters(vocab_size, {input_dim});
   forward_builder = LSTMBuilder(lstm_layer_count, input_dim, output_dim / 2, &model);
@@ -72,6 +73,13 @@ vector<Expression> BidirectionalSentenceEncoder::Encode(const InputSentence* con
     const Expression& f = forward_encodings[i];
     const Expression& r = reverse_encodings[i];
     bidir_encodings[i] = concatenate({f, r});
+    if (peep_add) {
+      // XXX: If the word embedding dim is not the same as the LSTM dim there needs to be a transformation matrix here
+      bidir_encodings[i] = bidir_encodings[i] + Embed(sentence[i]);
+    }
+    if (peep_concat) {
+      bidir_encodings[i] = concatenate({bidir_encodings[i], Embed(sentence[i])});
+    }
   }
   return bidir_encodings;
 }
@@ -107,8 +115,9 @@ vector<Expression> BidirectionalSentenceEncoder::EncodeReverse(const LinearSente
 MorphologyEncoder::MorphologyEncoder() {}
 
 MorphologyEncoder::MorphologyEncoder(Model& model, unsigned word_vocab_size, unsigned root_vocab_size, unsigned affix_vocab_size, unsigned char_vocab_size, unsigned word_emb_dim, unsigned affix_emb_dim, unsigned char_emb_dim,
-    unsigned affix_lstm_dim, unsigned char_lstm_dim, unsigned main_lstm_dim)
-  : main_lstm_dim(main_lstm_dim), embedder(MorphologyEmbedder(model, word_vocab_size, root_vocab_size, affix_vocab_size, char_vocab_size, word_emb_dim, affix_emb_dim, char_emb_dim, affix_lstm_dim, char_lstm_dim)) {
+    unsigned affix_lstm_dim, unsigned char_lstm_dim, unsigned main_lstm_dim, bool peep_concat, bool peep_add)
+  : main_lstm_dim(main_lstm_dim), embedder(MorphologyEmbedder(model, word_vocab_size, root_vocab_size, affix_vocab_size, char_vocab_size, word_emb_dim, affix_emb_dim, char_emb_dim, affix_lstm_dim, char_lstm_dim)),
+    peep_concat(peep_concat), peep_add(peep_add) {
   assert (main_lstm_dim % 2 == 0);
   unsigned total_dim = word_emb_dim + affix_lstm_dim + char_lstm_dim;
   forward_builder = LSTMBuilder(lstm_layer_count, total_dim, main_lstm_dim / 2, &model);
@@ -142,6 +151,13 @@ vector<Expression> MorphologyEncoder::Encode(const InputSentence* const input) {
   vector<Expression> encodings(forward_encodings.size());
   for (unsigned i = 0; i < forward_encodings.size(); ++i) {
     encodings[i] = concatenate({forward_encodings[i], reverse_encodings[i]});
+    if (peep_add) {
+      // XXX: If the word embedding dim is not the same as the LSTM dim there needs to be a transformation matrix here
+      encodings[i] = encodings[i] + embedder.Embed(sentence[i]);
+    }
+    if (peep_concat) {
+     encodings[i] = concatenate({encodings[i], embedder.Embed(sentence[i])});
+    }
   }
 
   return encodings;
