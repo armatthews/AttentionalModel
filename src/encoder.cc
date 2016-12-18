@@ -66,8 +66,12 @@ void BidirectionalSentenceEncoder::SetDropout(float rate) {
 
 vector<Expression> BidirectionalSentenceEncoder::Encode(const InputSentence* const input) {
   const LinearSentence& sentence = *dynamic_cast<const LinearSentence*>(input);
-  vector<Expression> forward_encodings = EncodeForward(sentence);
-  vector<Expression> reverse_encodings = EncodeReverse(sentence);
+  vector<Expression> embeddings(sentence.size());
+  for (unsigned i = 0; i < sentence.size(); ++i) {
+    embeddings[i] = Embed(sentence[i]);
+  }
+  vector<Expression> forward_encodings = EncodeForward(embeddings);
+  vector<Expression> reverse_encodings = EncodeReverse(embeddings);
   vector<Expression> bidir_encodings(sentence.size());
   for (unsigned i = 0; i < sentence.size(); ++i) {
     const Expression& f = forward_encodings[i];
@@ -75,10 +79,10 @@ vector<Expression> BidirectionalSentenceEncoder::Encode(const InputSentence* con
     bidir_encodings[i] = concatenate({f, r});
     if (peep_add) {
       // XXX: If the word embedding dim is not the same as the LSTM dim there needs to be a transformation matrix here
-      bidir_encodings[i] = bidir_encodings[i] + Embed(sentence[i]);
+      bidir_encodings[i] = bidir_encodings[i] + embeddings[i];
     }
     if (peep_concat) {
-      bidir_encodings[i] = concatenate({bidir_encodings[i], Embed(sentence[i])});
+      bidir_encodings[i] = concatenate({bidir_encodings[i], embeddings[i]});
     }
   }
   return bidir_encodings;
@@ -90,23 +94,21 @@ Expression BidirectionalSentenceEncoder::Embed(const shared_ptr<const Word> word
   return lookup(*pcg, embeddings, standard_word->id);
 }
 
-vector<Expression> BidirectionalSentenceEncoder::EncodeForward(const LinearSentence& sentence) {
+vector<Expression> BidirectionalSentenceEncoder::EncodeForward(const vector<Expression>& embeddings) {
   forward_builder.start_new_sequence(forward_lstm_init_v);
-  vector<Expression> forward_encodings(sentence.size());
-  for (unsigned i = 0; i < sentence.size(); ++i) {
-    Expression x = Embed(sentence[i]);
-    Expression y = forward_builder.add_input(x);
+  vector<Expression> forward_encodings(embeddings.size());
+  for (unsigned i = 0; i < embeddings.size(); ++i) {
+    Expression y = forward_builder.add_input(embeddings[i]);
     forward_encodings[i] = y;
   }
   return forward_encodings;
 }
 
-vector<Expression> BidirectionalSentenceEncoder::EncodeReverse(const LinearSentence& sentence) {
+vector<Expression> BidirectionalSentenceEncoder::EncodeReverse(const vector<Expression>& embeddings) {
   reverse_builder.start_new_sequence(reverse_lstm_init_v);
-  vector<Expression> reverse_encodings(sentence.size());
-  for (unsigned i = 0; i < sentence.size(); ++i) {
-    Expression x = Embed(sentence[i]);
-    Expression y = reverse_builder.add_input(x);
+  vector<Expression> reverse_encodings(embeddings.size());
+  for (unsigned i = 0; i < embeddings.size(); ++i) {
+    Expression y = reverse_builder.add_input(embeddings[i]);
     reverse_encodings[i] = y;
   }
   return reverse_encodings;
@@ -144,8 +146,12 @@ void MorphologyEncoder::SetDropout(float rate) {}
 
 vector<Expression> MorphologyEncoder::Encode(const InputSentence* const input) {
   const LinearSentence& sentence = *dynamic_cast<const LinearSentence*>(input);
-  vector<Expression> forward_encodings = EncodeForward(sentence);
-  vector<Expression> reverse_encodings = EncodeReverse(sentence);
+  vector<Expression> embeddings(sentence.size());
+  for (unsigned i = 0; i < sentence.size(); ++i) {
+    embeddings[i] = embedder.Embed(sentence[i]);
+  }
+  vector<Expression> forward_encodings = EncodeForward(embeddings);
+  vector<Expression> reverse_encodings = EncodeReverse(embeddings);
   assert (forward_encodings.size() == reverse_encodings.size());
 
   vector<Expression> encodings(forward_encodings.size());
@@ -153,35 +159,35 @@ vector<Expression> MorphologyEncoder::Encode(const InputSentence* const input) {
     encodings[i] = concatenate({forward_encodings[i], reverse_encodings[i]});
     if (peep_add) {
       // XXX: If the word embedding dim is not the same as the LSTM dim there needs to be a transformation matrix here
-      encodings[i] = encodings[i] + embedder.Embed(sentence[i]);
+      encodings[i] = encodings[i] + embeddings[i];
     }
     if (peep_concat) {
-     encodings[i] = concatenate({encodings[i], embedder.Embed(sentence[i])});
+     encodings[i] = concatenate({encodings[i], embeddings[i]});
     }
   }
 
   return encodings;
 }
 
-vector<Expression> MorphologyEncoder::EncodeForward(const LinearSentence& sentence) {
+vector<Expression> MorphologyEncoder::EncodeForward(const vector<Expression>& embeddings) {
   forward_builder.start_new_sequence(forward_lstm_init_v);
 
   vector<Expression> r;
-  for (const shared_ptr<Word> word : sentence) {
-    Expression e = forward_builder.add_input(embedder.Embed(word));
+  for (Expression emb : embeddings) {
+    Expression e = forward_builder.add_input(emb);
     r.push_back(e);
   }
 
   return r;
 }
 
-vector<Expression> MorphologyEncoder::EncodeReverse(const LinearSentence& sentence) {
+vector<Expression> MorphologyEncoder::EncodeReverse(const vector<Expression>& embeddings) {
   reverse_builder.start_new_sequence(reverse_lstm_init_v);
 
   vector<Expression> r;
-  for (auto it = sentence.rbegin(); it != sentence.rend(); ++it) {
-    const shared_ptr<Word> word = *it;
-    Expression e = reverse_builder.add_input(embedder.Embed(word));
+  for (auto it = embeddings.rbegin(); it != embeddings.rend(); ++it) {
+    Expression emb = *it;
+    Expression e = reverse_builder.add_input(emb);
     r.push_back(e);
   }
 

@@ -64,8 +64,8 @@ public:
   void NewGraph(ComputationGraph& cg);
   void SetDropout(float rate);
   vector<Expression> Encode(const InputSentence* const input);
-  vector<Expression> EncodeForward(const LinearSentence& sentence);
-  vector<Expression> EncodeReverse(const LinearSentence& sentence);
+  vector<Expression> EncodeForward(const vector<Expression>& embeddings);
+  vector<Expression> EncodeReverse(const vector<Expression>& embeddings);
   Expression Embed(const shared_ptr<const Word> word);
 private:
   unsigned output_dim;
@@ -103,8 +103,8 @@ public:
   void NewGraph(ComputationGraph& cg);
   void SetDropout(float rate);
   vector<Expression> Encode(const InputSentence* const input);
-  vector<Expression> EncodeForward(const LinearSentence& sentence);
-  vector<Expression> EncodeReverse(const LinearSentence& sentence);
+  vector<Expression> EncodeForward(const vector<Expression>& embeddings);
+  vector<Expression> EncodeReverse(const vector<Expression>& embeddings);
 
 private:
   unsigned main_lstm_dim;
