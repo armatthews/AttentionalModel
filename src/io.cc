@@ -11,13 +11,13 @@ LinearSentence* ReadStandardSentence(const string& line, Dict& dict, bool add_bo
   vector<string> words = tokenize(strip(line), " ");
   LinearSentence* r = new LinearSentence();
   if (add_bos_eos) {
-    r->push_back(new StandardWord(dict.convert("<s>")));
+    r->push_back(make_shared<StandardWord>(dict.convert("<s>")));
   }
   for (const string& w : words) {
-    r->push_back(new StandardWord(dict.convert(w)));
+    r->push_back(make_shared<StandardWord>(dict.convert(w)));
   }
   if (add_bos_eos) {
-    r->push_back(new StandardWord(dict.convert("</s>")));
+    r->push_back(make_shared<StandardWord>(dict.convert("</s>")));
   }
   return r;
 }
@@ -37,8 +37,8 @@ vector<LinearSentence*> ReadStandardSentences(const string& filename, Dict& dict
   return sentences;
 }
 
-MorphoWord* ReadMorphoWord(const string& line, Dict& word_vocab, Dict& root_vocab, Dict& affix_vocab, Dict& char_vocab) {
-  MorphoWord* word = new MorphoWord();
+shared_ptr<MorphoWord> ReadMorphoWord(const string& line, Dict& word_vocab, Dict& root_vocab, Dict& affix_vocab, Dict& char_vocab) {
+  shared_ptr<MorphoWord> word = make_shared<MorphoWord>();
   vector<string> parts = tokenize(strip(line), "\t");
   string& word_str = parts[0];
   word->word = word_vocab.convert(word_str);
@@ -240,17 +240,17 @@ void RnngOutputReader::Freeze() {
   }
 }
 
-string StandardOutputReader::ToString(const Word* word) {
-  const StandardWord* w = dynamic_cast<const StandardWord*>(word);
+string StandardOutputReader::ToString(const shared_ptr<const Word> word) {
+  const shared_ptr<const StandardWord> w = dynamic_pointer_cast<const StandardWord>(word);
   return vocab.convert(w->id);
 }
 
-string MorphologyOutputReader::ToString(const Word* word) {
+string MorphologyOutputReader::ToString(const shared_ptr<const Word> word) {
   assert (false);
 }
 
-string RnngOutputReader::ToString(const Word* word) {
-  const StandardWord* w = dynamic_cast<const StandardWord*>(word);
+string RnngOutputReader::ToString(const shared_ptr<const Word> word) {
+  const shared_ptr<const StandardWord> w = dynamic_pointer_cast<const StandardWord>(word);
   return vocab.convert(w->id);
 }
 

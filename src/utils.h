@@ -3,6 +3,7 @@
 #include <map>
 #include <string>
 #include <tuple>
+#include <memory>
 /*#include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
@@ -44,7 +45,7 @@ public:
   virtual unsigned NumNodes() const = 0;
 };
 
-typedef vector<Word*> OutputSentence;
+typedef vector<shared_ptr<Word>> OutputSentence;
 
 class LinearSentence : public InputSentence, public OutputSentence {
 public:

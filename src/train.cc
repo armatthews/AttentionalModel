@@ -150,6 +150,9 @@ int main(int argc, char** argv) {
   ("root_clusters", po::value<string>()->default_value(""), "Target root vocabulary clusters file")
   ("cores,j", po::value<unsigned>()->default_value(1), "Number of CPU cores to use for training")
 
+  ("peepconcat", "Concatenate the raw word vectors to the output of the encoder")
+  ("peepadd", "Add the raw word vectors to the output of the encoder")
+  ("key_size", po::value<unsigned>(), "Number of annotation dimensions to use to compute attention. Default is to use the whole annotation vector.")
   ("sparsemax", "Use Sparsemax (rather than Softmax) for computing attention")
   ("diagonal_prior", "Use diagonal prior on attention")
   ("coverage_prior", "Use coverage prior on attention")
@@ -218,9 +221,12 @@ int main(int argc, char** argv) {
   const InputType target_type = vm["target_type"].as<InputType>();
 
   if (!vm.count("model")) {
+    bool peep_concat = vm.count("peepconcat") > 0;
+    bool peep_add = vm.count("peepadd") > 0;
     const unsigned hidden_size = vm["hidden_size"].as<unsigned>();
     unsigned embedding_dim = hidden_size;
-    unsigned annotation_dim = hidden_size;
+    unsigned encoder_lstm_dim = hidden_size;
+    unsigned annotation_dim = peep_concat ? encoder_lstm_dim + embedding_dim : encoder_lstm_dim;
     unsigned alignment_hidden_dim = hidden_size;
     unsigned output_state_dim = hidden_size;
     unsigned final_hidden_size = hidden_size;
@@ -230,13 +236,13 @@ int main(int argc, char** argv) {
     EncoderModel* encoder_model = nullptr;
     if (source_type == kStandard) {
       const Dict& source_vocab = dynamic_cast<const StandardInputReader*>(input_reader)->vocab;
-      //encoder_model = new TrivialEncoder(dynet_model, source_vocab->size(), embedding_dim, annotation_dim);
-      encoder_model = new BidirectionalSentenceEncoder(dynet_model, source_vocab.size(), embedding_dim, annotation_dim);
+      //encoder_model = new TrivialEncoder(dynet_model, source_vocab->size(), embedding_dim, encoder_lstm_dim);
+      encoder_model = new BidirectionalSentenceEncoder(dynet_model, source_vocab.size(), embedding_dim, encoder_lstm_dim, peep_concat, peep_add);
     }
     else if (source_type == kSyntaxTree) {
       const Dict& source_vocab = dynamic_cast<const SyntaxInputReader*>(input_reader)->terminal_vocab;
       const Dict& label_vocab = dynamic_cast<const SyntaxInputReader*>(input_reader)->nonterminal_vocab;
-      encoder_model = new TreeEncoder(dynet_model, source_vocab.size(), label_vocab.size(), embedding_dim, annotation_dim);
+      encoder_model = new TreeEncoder(dynet_model, source_vocab.size(), label_vocab.size(), embedding_dim, encoder_lstm_dim);
     }
     else if (source_type == kMorphology) {
       const MorphologyInputReader* reader = dynamic_cast<const MorphologyInputReader*>(input_reader);
@@ -248,18 +254,19 @@ int main(int argc, char** argv) {
       const unsigned char_emb_dim = embedding_dim;
       const unsigned affix_lstm_dim = 32;
       const unsigned char_lstm_dim = embedding_dim;
-      encoder_model = new MorphologyEncoder(dynet_model, word_vocab_size, root_vocab_size, affix_vocab_size, char_vocab_size, embedding_dim, affix_emb_dim, char_emb_dim, affix_lstm_dim, char_lstm_dim, annotation_dim);
+      encoder_model = new MorphologyEncoder(dynet_model, word_vocab_size, root_vocab_size, affix_vocab_size, char_vocab_size, embedding_dim, affix_emb_dim, char_emb_dim, affix_lstm_dim, char_lstm_dim, encoder_lstm_dim, peep_concat, peep_add);
     }
     else {
       assert (false && "Unknown input type");
     }
 
     AttentionModel* attention_model = nullptr;
+    const unsigned key_size = vm.count("key_size") > 0 ? vm["key_size"].as<unsigned>() : annotation_dim;
     if (!vm.count("sparsemax")) {
-      attention_model = new StandardAttentionModel(dynet_model, annotation_dim, output_state_dim, alignment_hidden_dim);
+      attention_model = new StandardAttentionModel(dynet_model, annotation_dim, output_state_dim, alignment_hidden_dim, key_size);
     }
     else {
-      attention_model = new SparsemaxAttentionModel(dynet_model, annotation_dim, output_state_dim, alignment_hidden_dim);
+      attention_model = new SparsemaxAttentionModel(dynet_model, annotation_dim, output_state_dim, alignment_hidden_dim, key_size);
     }
     // attention_model = new EncoderDecoderAttentionModel(dynet_model, annotation_dim, output_state_dim);
 
