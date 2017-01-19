@@ -284,7 +284,7 @@ TreeLSTMBuilder2::TreeLSTMBuilder2(unsigned layers,
                          unsigned input_dim,
                          unsigned hidden_dim,
                          Model* model) : cg(nullptr) {
-  node_builder = LSTMBuilder(layers, input_dim, hidden_dim, model);
+  node_builder = LSTMBuilder(layers, input_dim, hidden_dim, *model);
 }
 
 void TreeLSTMBuilder2::new_graph_impl(ComputationGraph& cg) {
@@ -318,8 +318,8 @@ BidirectionalTreeLSTMBuilder2::BidirectionalTreeLSTMBuilder2(unsigned layers,
                          unsigned hidden_dim,
                          Model* model) : cg(nullptr) {
   assert (hidden_dim % 2 == 0);
-  fwd_node_builder = LSTMBuilder(layers, input_dim, hidden_dim / 2, model);
-  rev_node_builder = LSTMBuilder(layers, input_dim, hidden_dim / 2, model);
+  fwd_node_builder = LSTMBuilder(layers, input_dim, hidden_dim / 2, *model);
+  rev_node_builder = LSTMBuilder(layers, input_dim, hidden_dim / 2, *model);
 }
 
 void BidirectionalTreeLSTMBuilder2::new_graph_impl(ComputationGraph& cg) {

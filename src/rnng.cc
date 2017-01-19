@@ -137,11 +137,11 @@ ParserBuilder::ParserBuilder(Model& model, SoftmaxBuilder* cfsm,
     unsigned term_emb_dim, unsigned nt_emb_dim, unsigned action_emb_dim) :
   pcg(nullptr), curr_state(nullptr),
 
-  stack_lstm(lstm_layer_count, nt_emb_dim, hidden_dim, &model),
-  term_lstm(lstm_layer_count, term_emb_dim, hidden_dim, &model),
-  action_lstm(lstm_layer_count, action_emb_dim, hidden_dim, &model),
-  const_lstm_fwd(1, nt_emb_dim, nt_emb_dim, &model),
-  const_lstm_rev(1, nt_emb_dim, nt_emb_dim, &model),
+  stack_lstm(lstm_layer_count, nt_emb_dim, hidden_dim, model),
+  term_lstm(lstm_layer_count, term_emb_dim, hidden_dim, model),
+  action_lstm(lstm_layer_count, action_emb_dim, hidden_dim, model),
+  const_lstm_fwd(1, nt_emb_dim, nt_emb_dim, model),
+  const_lstm_rev(1, nt_emb_dim, nt_emb_dim, model),
 
   p_w(model.add_lookup_parameters(vocab_size, {term_emb_dim})),
   p_nt(model.add_lookup_parameters(nt_vocab_size, {nt_emb_dim})),
