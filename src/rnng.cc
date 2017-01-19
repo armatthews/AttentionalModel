@@ -29,10 +29,10 @@ bool Action::operator==(const Action& o) const {
 
 ParserState::ParserState() : nopen_parens(0), prev_action({Action::kNone, 0}) {}
 
-bool ParserState::IsActionForbidden(const Action& a) const {
-  bool is_shift = (a.type == Action::kShift);
-  bool is_reduce = (a.type == Action::kReduce);
-  bool is_nt = (a.type == Action::kNT);
+bool ParserState::IsActionForbidden(Action::ActionType at) const {
+  bool is_shift = (at == Action::kShift);
+  bool is_reduce = (at == Action::kReduce);
+  bool is_nt = (at == Action::kNT);
   assert(is_shift || is_reduce || is_nt);
 
   // Don't allow the NT action if the max tree depth has already been reached
@@ -59,13 +59,13 @@ vector<unsigned> ParserBuilder::GetValidActionList() const {
 vector<unsigned> ParserBuilder::GetValidActionList(RNNPointer p) const {
   vector<unsigned> valid_actions;
   const ParserState& state = prev_states[p];
-  if (!state.IsActionForbidden({Action::kShift, 0})) {
+  if (!state.IsActionForbidden(Action::kShift)) {
     valid_actions.push_back(0);
   }
-  if (!state.IsActionForbidden({Action::kReduce, 0})) {
+  if (!state.IsActionForbidden(Action::kReduce)) {
     valid_actions.push_back(1);
   }
-  if (!state.IsActionForbidden({Action::kNT, 0})) {
+  if (!state.IsActionForbidden(Action::kNT)) {
     for (unsigned i = 0; i < nt_vocab_size; ++i) {
       valid_actions.push_back(2 + i);
     }

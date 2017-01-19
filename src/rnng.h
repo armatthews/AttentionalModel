@@ -50,7 +50,7 @@ struct ParserState {
 
   explicit ParserState();
 
-  bool IsActionForbidden(const Action& a) const;
+  bool IsActionForbidden(Action::ActionType at) const;
 };
 
 struct ParserBuilder {
