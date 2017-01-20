@@ -98,8 +98,9 @@ vector<Expression> BidirectionalSentenceEncoder::EncodeForward(const vector<Expr
   forward_builder.start_new_sequence(forward_lstm_init_v);
   vector<Expression> forward_encodings(embeddings.size());
   for (unsigned i = 0; i < embeddings.size(); ++i) {
-    Expression y = forward_builder.add_input(embeddings[i]);
-    forward_encodings[i] = y;
+    Expression x = embeddings[i];
+    Expression y = forward_builder.add_input(x);
+    forward_encodings[i] = concatenate({x, y});
   }
   return forward_encodings;
 }
@@ -108,8 +109,9 @@ vector<Expression> BidirectionalSentenceEncoder::EncodeReverse(const vector<Expr
   reverse_builder.start_new_sequence(reverse_lstm_init_v);
   vector<Expression> reverse_encodings(embeddings.size());
   for (unsigned i = 0; i < embeddings.size(); ++i) {
-    Expression y = reverse_builder.add_input(embeddings[i]);
-    reverse_encodings[i] = y;
+    Expression x = embeddings[embeddings.size() - 1 - i];
+    Expression y = reverse_builder.add_input(x);
+    reverse_encodings[i] = concatenate({x, y});
   }
   return reverse_encodings;
 }

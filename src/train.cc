@@ -263,18 +263,18 @@ int main(int argc, char** argv) {
     AttentionModel* attention_model = nullptr;
     const unsigned key_size = vm.count("key_size") > 0 ? vm["key_size"].as<unsigned>() : annotation_dim;
     if (!vm.count("sparsemax")) {
-      attention_model = new StandardAttentionModel(dynet_model, annotation_dim, output_state_dim, alignment_hidden_dim, key_size);
+      attention_model = new StandardAttentionModel(dynet_model, 2 * embedding_dim + annotation_dim, output_state_dim, alignment_hidden_dim, key_size);
     }
     else {
-      attention_model = new SparsemaxAttentionModel(dynet_model, annotation_dim, output_state_dim, alignment_hidden_dim, key_size);
+      attention_model = new SparsemaxAttentionModel(dynet_model, 2 * embedding_dim + annotation_dim, output_state_dim, alignment_hidden_dim, key_size);
     }
-    // attention_model = new EncoderDecoderAttentionModel(dynet_model, annotation_dim, output_state_dim);
+    // attention_model = new EncoderDecoderAttentionModel(dynet_model, 2 * embeddin_dim + annotation_dim, output_state_dim);
 
     OutputModel* output_model = nullptr;
     if (target_type == kStandard) {
       Dict& target_vocab = dynamic_cast<StandardOutputReader*>(output_reader)->vocab;
-      // output_model = new SoftmaxOutputModel(dynet_model, embedding_dim, annotation_dim, output_state_dim, target_vocab, clusters_filename);
-      output_model = new MlpSoftmaxOutputModel(dynet_model, embedding_dim, annotation_dim, output_state_dim, final_hidden_size, &target_vocab, clusters_filename);
+      // output_model = new SoftmaxOutputModel(dynet_model, embedding_dim, 2 * embedding_dim + annotation_dim, output_state_dim, target_vocab, clusters_filename);
+      output_model = new MlpSoftmaxOutputModel(dynet_model, embedding_dim, 2 * embedding_dim + annotation_dim, output_state_dim, final_hidden_size, &target_vocab, clusters_filename);
     }
     else if (target_type == kMorphology) {
       MorphologyOutputReader* reader = dynamic_cast<MorphologyOutputReader*>(output_reader);
@@ -294,7 +294,7 @@ int main(int argc, char** argv) {
       const unsigned char_lstm_dim = 32;
       const string word_clusters_file = vm["clusters"].as<string>();
       const string root_clusters_file = vm["root_clusters"].as<string>();
-      output_model = new MorphologyOutputModel(dynet_model, reader->word_vocab, reader->root_vocab, affix_vocab_size, char_vocab_size, word_emb_dim, root_emb_dim, affix_emb_dim, char_emb_dim, model_chooser_hidden_dim, affix_init_hidden_dim, char_init_hidden_dim, state_dim, affix_lstm_dim, char_lstm_dim, annotation_dim, word_clusters_file, root_clusters_file);
+      output_model = new MorphologyOutputModel(dynet_model, reader->word_vocab, reader->root_vocab, affix_vocab_size, char_vocab_size, word_emb_dim, root_emb_dim, affix_emb_dim, char_emb_dim, model_chooser_hidden_dim, affix_init_hidden_dim, char_init_hidden_dim, state_dim, affix_lstm_dim, char_lstm_dim, 2 * embedding_dim + annotation_dim, word_clusters_file, root_clusters_file);
     }
     else if (target_type == kRNNG) {
       unsigned hidden_dim = hidden_size;
@@ -302,7 +302,7 @@ int main(int argc, char** argv) {
       unsigned nt_emb_dim = embedding_dim;
       unsigned action_emb_dim = embedding_dim;
       Dict& target_vocab = dynamic_cast<RnngOutputReader*>(output_reader)->vocab;
-      output_model = new RnngOutputModel(dynet_model, term_emb_dim, nt_emb_dim, action_emb_dim, annotation_dim, hidden_dim, &target_vocab, clusters_filename);
+      output_model = new RnngOutputModel(dynet_model, term_emb_dim, nt_emb_dim, action_emb_dim, 2 * embedding_dim + annotation_dim, hidden_dim, &target_vocab, clusters_filename);
     }
     else {
       assert (false && "Unknown output type");
