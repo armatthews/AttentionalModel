@@ -352,6 +352,7 @@ RnngOutputModel::RnngOutputModel(Model& model, unsigned term_emb_dim, unsigned n
 
   unsigned action_vocab_size = nt_vocab.size() + 2;
   builder = new SourceConditionedParserBuilder(model, fsb, term_vocab.size(), nt_vocab.size(), action_vocab_size, hidden_dim, term_emb_dim, nt_emb_dim, action_emb_dim, source_dim);
+  //builder = new SourceConditionedAdhiParserBuilder(model, fsb, term_vocab.size(), nt_vocab.size(), action_vocab_size, hidden_dim, term_emb_dim, nt_emb_dim, source_dim);
 }
 
 void RnngOutputModel::InitializeDictionaries(const Dict& raw_vocab) {
@@ -405,7 +406,7 @@ void RnngOutputModel::NewGraph(ComputationGraph& cg) {
   builder->NewGraph(cg);
   builder->NewSentence();
   // TODO: Maybe have an initial context instead of just 0s?
-  Expression initial_context = zeroes(cg, {hidden_dim});
+  Expression initial_context = zeroes(cg, {builder->p_W.dim().d[builder->p_W.dim().nd - 1]});
   state_context_vectors.clear();
   state_context_vectors.push_back(builder->GetStateVector(initial_context));
 }
