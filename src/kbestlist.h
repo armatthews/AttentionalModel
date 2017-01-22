@@ -45,6 +45,11 @@ public:
     return true;
   }
 
+  double worst_score() const {
+    assert (hypotheses.size() > 0);
+    return hypotheses.back().first;
+  }
+
   unsigned size() const {
     return hypotheses.size();
   }
