@@ -129,6 +129,17 @@ KBestList<shared_ptr<OutputSentence>> Translator::Translate(const InputSentence*
 
     for (auto& hyp : top_hyps.hypothesis_list()) {
       double hyp_score = get<0>(hyp);
+
+      // Early termination: if we have K completed hypotheses, and the current prefix's
+      // score is worse than the worst of the complete hyps, then it's impossible to
+      // later get a better hypothesis later.
+      // Assumption: the log prob of every word will be <= buffer.
+      // This is true for 0.0 by default, but length priors and such may invalidate this assumption.
+      const float buffer = 0.0;
+      if (complete_hyps.size() >= K && hyp_score < complete_hyps.worst_score() - buffer) {
+        break;
+      }
+
       shared_ptr<OutputSentence> hyp_sentence = get<0>(get<1>(hyp));
       RNNPointer state_pointer = get<1>(get<1>(hyp));
       assert (hyp_sentence->size() == length);
