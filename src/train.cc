@@ -154,6 +154,8 @@ int main(int argc, char** argv) {
   ("peepadd", "Add the raw word vectors to the output of the encoder")
   ("key_size", po::value<unsigned>(), "Number of annotation dimensions to use to compute attention. Default is to use the whole annotation vector.")
   ("sparsemax", "Use Sparsemax (rather than Softmax) for computing attention")
+  ("no_encoder_rnn", "Use raw word vectors instead of bidirectional RNN to encode")
+  ("no_final_mlp", "Do not use an MLP between the attentional context vector and final softmax")
   ("diagonal_prior", "Use diagonal prior on attention")
   ("coverage_prior", "Use coverage prior on attention")
   ("markov_prior", "Use Markov prior on attention (similar to the HMM model)")
@@ -236,8 +238,12 @@ int main(int argc, char** argv) {
     EncoderModel* encoder_model = nullptr;
     if (source_type == kStandard) {
       const Dict& source_vocab = dynamic_cast<const StandardInputReader*>(input_reader)->vocab;
-      //encoder_model = new TrivialEncoder(dynet_model, source_vocab->size(), embedding_dim, encoder_lstm_dim);
-      encoder_model = new BidirectionalSentenceEncoder(dynet_model, source_vocab.size(), embedding_dim, encoder_lstm_dim, peep_concat, peep_add);
+      if (vm.count("no_encoder_rnn")) {
+        encoder_model = new TrivialEncoder(dynet_model, source_vocab.size(), embedding_dim, encoder_lstm_dim);
+      }
+      else {
+        encoder_model = new BidirectionalSentenceEncoder(dynet_model, source_vocab.size(), embedding_dim, encoder_lstm_dim, peep_concat, peep_add);
+      }
     }
     else if (source_type == kSyntaxTree) {
       const Dict& source_vocab = dynamic_cast<const SyntaxInputReader*>(input_reader)->terminal_vocab;
@@ -273,8 +279,12 @@ int main(int argc, char** argv) {
     OutputModel* output_model = nullptr;
     if (target_type == kStandard) {
       Dict& target_vocab = dynamic_cast<StandardOutputReader*>(output_reader)->vocab;
-      // output_model = new SoftmaxOutputModel(dynet_model, embedding_dim, annotation_dim, output_state_dim, target_vocab, clusters_filename);
-      output_model = new MlpSoftmaxOutputModel(dynet_model, embedding_dim, annotation_dim, output_state_dim, final_hidden_size, &target_vocab, clusters_filename);
+      if (vm.count("no_final_mlp")) {
+        output_model = new SoftmaxOutputModel(dynet_model, embedding_dim, annotation_dim, output_state_dim, &target_vocab, clusters_filename);
+      }
+      else {
+        output_model = new MlpSoftmaxOutputModel(dynet_model, embedding_dim, annotation_dim, output_state_dim, final_hidden_size, &target_vocab, clusters_filename);
+      }
     }
     else if (target_type == kMorphology) {
       MorphologyOutputReader* reader = dynamic_cast<MorphologyOutputReader*>(output_reader);
