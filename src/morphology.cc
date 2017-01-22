@@ -10,8 +10,8 @@ MorphologyEmbedder::MorphologyEmbedder(Model& model, unsigned word_vocab_size, u
   affix_embeddings = model.add_lookup_parameters(affix_vocab_size, {affix_emb_dim});
   char_embeddings = model.add_lookup_parameters(char_vocab_size, {char_emb_dim});
 
-  morph_lstm = LSTMBuilder(lstm_layer_count, affix_emb_dim, affix_lstm_dim, &model);
-  char_lstm = LSTMBuilder(lstm_layer_count, char_emb_dim, char_lstm_dim, &model);
+  morph_lstm = LSTMBuilder(lstm_layer_count, affix_emb_dim, affix_lstm_dim, model);
+  char_lstm = LSTMBuilder(lstm_layer_count, char_emb_dim, char_lstm_dim, model);
 
   char_lstm_init = model.add_parameters({lstm_layer_count * char_lstm_dim});
 }

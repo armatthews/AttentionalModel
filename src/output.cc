@@ -37,13 +37,13 @@ SoftmaxOutputModel::SoftmaxOutputModel() : fsb(nullptr) {}
 
 SoftmaxOutputModel::SoftmaxOutputModel(Model& model, unsigned embedding_dim, unsigned context_dim, unsigned state_dim, Dict* vocab, const string& clusters_filename) : state_dim(state_dim) {
   if (clusters_filename.length() > 0) {
-    fsb = new ClassFactoredSoftmaxBuilder(state_dim, clusters_filename, vocab, &model);
+    fsb = new ClassFactoredSoftmaxBuilder(state_dim, clusters_filename, *vocab, model);
   }
   else {
-    fsb = new StandardSoftmaxBuilder(state_dim, vocab->size(), &model);
+    fsb = new StandardSoftmaxBuilder(state_dim, vocab->size(), model);
   }
   embeddings = model.add_lookup_parameters(vocab->size(), {embedding_dim});
-  output_builder = LSTMBuilder(lstm_layer_count, embedding_dim + context_dim, state_dim, &model);
+  output_builder = LSTMBuilder(lstm_layer_count, embedding_dim + context_dim, state_dim, model);
   p_output_builder_initial_state = model.add_parameters({lstm_layer_count * 2 * state_dim});
 
   kEOS = vocab->convert("</s>");
@@ -168,11 +168,11 @@ MorphologyOutputModel::MorphologyOutputModel(Model& model, Dict& word_vocab, Dic
   // The char LSTM is initialized just from the context
   char_lstm_init = MLP(model, context_dim, char_init_hidden_dim, lstm_layer_count * char_lstm_dim);
 
-  affix_lstm = LSTMBuilder(lstm_layer_count, affix_emb_dim, affix_lstm_dim, &model);
-  char_lstm = LSTMBuilder(lstm_layer_count, char_emb_dim, char_lstm_dim, &model);
+  affix_lstm = LSTMBuilder(lstm_layer_count, affix_emb_dim, affix_lstm_dim, model);
+  char_lstm = LSTMBuilder(lstm_layer_count, char_emb_dim, char_lstm_dim, model);
 
   // The main LSTM takes in the context as well as the char, affix, and word embeddings of the current word. The state is included implicitly.
-  output_builder = LSTMBuilder(lstm_layer_count, char_lstm_dim + affix_lstm_dim + word_emb_dim + context_dim, state_dim, &model);
+  output_builder = LSTMBuilder(lstm_layer_count, char_lstm_dim + affix_lstm_dim + word_emb_dim + context_dim, state_dim, model);
   output_lstm_init = model.add_parameters({state_dim * lstm_layer_count});
   embedder = MorphologyEmbedder(model, word_vocab.size(), root_vocab.size(), affix_vocab_size, char_vocab_size, word_emb_dim, affix_emb_dim, char_emb_dim, affix_lstm_dim, char_lstm_dim);
 
@@ -185,19 +185,19 @@ MorphologyOutputModel::MorphologyOutputModel(Model& model, Dict& word_vocab, Dic
   char_embeddings = model.add_lookup_parameters(char_vocab_size, {char_emb_dim});
 
   if (word_clusters.length() > 0) {
-    word_softmax = new ClassFactoredSoftmaxBuilder(state_dim, word_clusters, &word_vocab, &model);
+    word_softmax = new ClassFactoredSoftmaxBuilder(state_dim, word_clusters, word_vocab, model);
   }
   else {
-    word_softmax = new StandardSoftmaxBuilder(state_dim, word_vocab.size(), &model);
+    word_softmax = new StandardSoftmaxBuilder(state_dim, word_vocab.size(), model);
   }
   if (root_clusters.length() > 0) {
-    root_softmax = new ClassFactoredSoftmaxBuilder(state_dim, word_clusters, &root_vocab, &model);
+    root_softmax = new ClassFactoredSoftmaxBuilder(state_dim, word_clusters, root_vocab, model);
   }
   else {
-    root_softmax = new StandardSoftmaxBuilder(state_dim, root_vocab.size(), &model);
+    root_softmax = new StandardSoftmaxBuilder(state_dim, root_vocab.size(), model);
   }
-  affix_softmax = new StandardSoftmaxBuilder(affix_lstm_dim, affix_vocab_size, &model);
-  char_softmax = new StandardSoftmaxBuilder(char_lstm_dim, char_vocab_size, &model);
+  affix_softmax = new StandardSoftmaxBuilder(affix_lstm_dim, affix_vocab_size, model);
+  char_softmax = new StandardSoftmaxBuilder(char_lstm_dim, char_vocab_size, model);
 }
 
 void MorphologyOutputModel::NewGraph(ComputationGraph& cg) {
@@ -344,10 +344,10 @@ RnngOutputModel::RnngOutputModel(Model& model, unsigned term_emb_dim, unsigned n
 
   SoftmaxBuilder* fsb = nullptr;
   if (clusters_file.length() > 0) {
-    fsb = new ClassFactoredSoftmaxBuilder(state_dim, clusters_file, &term_vocab, &model);
+    fsb = new ClassFactoredSoftmaxBuilder(state_dim, clusters_file, term_vocab, model);
   }
   else {
-    fsb = new StandardSoftmaxBuilder(state_dim, term_vocab.size(), &model);
+    fsb = new StandardSoftmaxBuilder(state_dim, term_vocab.size(), model);
   }
 
   unsigned action_vocab_size = nt_vocab.size() + 2;

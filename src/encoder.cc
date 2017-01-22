@@ -41,8 +41,8 @@ BidirectionalSentenceEncoder::BidirectionalSentenceEncoder(Model& model, unsigne
     output_dim(output_dim), peep_concat(peep_concat), peep_add(peep_add) {
   assert (output_dim % 2 == 0);
   embeddings = model.add_lookup_parameters(vocab_size, {input_dim});
-  forward_builder = LSTMBuilder(lstm_layer_count, input_dim, output_dim / 2, &model);
-  reverse_builder = LSTMBuilder(lstm_layer_count, input_dim, output_dim / 2, &model);
+  forward_builder = LSTMBuilder(lstm_layer_count, input_dim, output_dim / 2, model);
+  reverse_builder = LSTMBuilder(lstm_layer_count, input_dim, output_dim / 2, model);
   forward_lstm_init = model.add_parameters({lstm_layer_count * output_dim / 2});
   reverse_lstm_init = model.add_parameters({lstm_layer_count * output_dim / 2});
 }
@@ -122,8 +122,8 @@ MorphologyEncoder::MorphologyEncoder(Model& model, unsigned word_vocab_size, uns
     peep_concat(peep_concat), peep_add(peep_add) {
   assert (main_lstm_dim % 2 == 0);
   unsigned total_dim = word_emb_dim + affix_lstm_dim + char_lstm_dim;
-  forward_builder = LSTMBuilder(lstm_layer_count, total_dim, main_lstm_dim / 2, &model);
-  reverse_builder = LSTMBuilder(lstm_layer_count, total_dim, main_lstm_dim / 2, &model);
+  forward_builder = LSTMBuilder(lstm_layer_count, total_dim, main_lstm_dim / 2, model);
+  reverse_builder = LSTMBuilder(lstm_layer_count, total_dim, main_lstm_dim / 2, model);
 
   forward_lstm_init = model.add_parameters({lstm_layer_count * main_lstm_dim / 2});
   reverse_lstm_init = model.add_parameters({lstm_layer_count * main_lstm_dim / 2});

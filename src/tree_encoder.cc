@@ -7,7 +7,7 @@ TreeEncoder::TreeEncoder() {}
 
 TreeEncoder::TreeEncoder(Model& model, unsigned vocab_size, unsigned label_vocab_size, unsigned input_dim, unsigned output_dim)
   : output_dim(output_dim) {
-  //tree_builder = new SocherTreeLSTMBuilder(5, lstm_layer_count, output_dim, output_dim, &model);
+  //tree_builder = new SocherTreeLSTMBuilder(5, lstm_layer_count, output_dim, output_dim, model);
   tree_builder = new BidirectionalTreeLSTMBuilder2(lstm_layer_count, output_dim, output_dim, &model);
   label_embeddings = model.add_lookup_parameters(label_vocab_size, {output_dim});
   linear_encoder = new BidirectionalSentenceEncoder(model, vocab_size, input_dim, output_dim, false, false);
