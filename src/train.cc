@@ -269,12 +269,12 @@ int main(int argc, char** argv) {
     AttentionModel* attention_model = nullptr;
     const unsigned key_size = vm.count("key_size") > 0 ? vm["key_size"].as<unsigned>() : annotation_dim;
     if (!vm.count("sparsemax")) {
-      attention_model = new StandardAttentionModel(dynet_model, annotation_dim, output_state_dim, alignment_hidden_dim, key_size);
+      attention_model = new StandardAttentionModel(dynet_model, 2 * embedding_dim + annotation_dim, output_state_dim, alignment_hidden_dim, key_size);
     }
     else {
-      attention_model = new SparsemaxAttentionModel(dynet_model, annotation_dim, output_state_dim, alignment_hidden_dim, key_size);
+      attention_model = new SparsemaxAttentionModel(dynet_model, 2 * embedding_dim + annotation_dim, output_state_dim, alignment_hidden_dim, key_size);
     }
-    // attention_model = new EncoderDecoderAttentionModel(dynet_model, annotation_dim, output_state_dim);
+    // attention_model = new EncoderDecoderAttentionModel(dynet_model, 2 * embeddin_dim + annotation_dim, output_state_dim);
 
     OutputModel* output_model = nullptr;
     if (target_type == kStandard) {

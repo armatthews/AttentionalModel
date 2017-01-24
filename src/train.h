@@ -58,7 +58,7 @@ void AddTrainerOptions(po::options_description& desc) {
   ("adam", "Use Adam for optimization")
   ("learning_rate", po::value<double>(), "Learning rate for optimizer (SGD, Adagrad, Adadelta, and RMSProp only)")
   ("alpha", po::value<double>()->default_value(0.001), "Alpha (Adam only)")
-  ("gamma", po::value<double>()->default_value(0.9), "Momentum strength (mMmentum only)")
+  ("gamma", po::value<double>()->default_value(0.9), "Momentum strength (Momentum only)")
   ("beta1", po::value<double>()->default_value(0.9), "Beta1 (Adam only)")
   ("beta2", po::value<double>()->default_value(0.999), "Beta2 (Adam only)")
   ("rho", po::value<double>(), "Moving average decay parameter (RMSProp and Adadelta only)")

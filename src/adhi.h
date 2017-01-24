@@ -7,35 +7,13 @@
 #include "dynet/lstm.h"
 #include "dynet/cfsm-builder.h"
 #include "kbestlist.h"
+#include "rnng.h"
 #include "utils.h"
 
 using namespace std;
 using namespace dynet;
 
-struct Action {
-  enum ActionType {kNone, kShift, kNT, kReduce};
-  ActionType type; // One of the above action types
-  WordId subtype; // A word id (for shift) or non-terminal id (for nt). Otherwise unused.
-  unsigned GetIndex() const;
-
-  bool operator==(const Action& o) const;
-
-private:
-  friend class boost::serialization::access;
-  template<class Archive>
-  void serialize(Archive& ar, const unsigned int) {
-    ar & type;
-    ar & subtype;
-  }
-};
-
-struct ActionHash : public unary_function<Action, size_t> {
-  size_t operator()(const Action& action) const {
-    return hash<unsigned>()(action.GetIndex());
-  }
-};
-
-struct ParserState {
+struct AdhiParserState {
   static const unsigned kMaxOpenNTs = 100;
 
   vector<Expression> stack; // variables representing subtree embeddings
@@ -45,21 +23,17 @@ struct ParserState {
   Action prev_action;
 
   RNNPointer stack_lstm_pointer;
-  RNNPointer terminal_lstm_pointer;
-  RNNPointer action_lstm_pointer;
 
-  explicit ParserState();
+  explicit AdhiParserState();
 
   bool IsActionForbidden(Action::ActionType at) const;
 };
 
-Action convert(unsigned id);
-
-struct ParserBuilder {
-friend class ParserState;
+struct AdhiParserBuilder {
+friend class AdhiParserState;
 public:
-  ParserBuilder();
-  explicit ParserBuilder(Model& model, SoftmaxBuilder* cfsm, unsigned vocab_size, unsigned nt_vocab_size, unsigned action_vocab_size, unsigned hidden_dim, unsigned term_emb_dim, unsigned nt_emb_dim, unsigned action_emb_dim);
+  AdhiParserBuilder();
+  explicit AdhiParserBuilder(Model& model, SoftmaxBuilder* cfsm, unsigned vocab_size, unsigned nt_vocab_size, unsigned action_vocab_size, unsigned hidden_dim, unsigned term_emb_dim, unsigned nt_emb_dim);
   virtual void SetDropout(float rate);
   virtual void NewGraph(ComputationGraph& cg);
   virtual void NewSentence();
@@ -94,12 +68,10 @@ public:
 
 protected:
   ComputationGraph* pcg;
-  ParserState* curr_state;
-  vector<ParserState> prev_states;
+  AdhiParserState* curr_state;
+  vector<AdhiParserState> prev_states;
 
   LSTMBuilder stack_lstm; // Stack
-  LSTMBuilder term_lstm; // Sequence of generated terminals
-  LSTMBuilder action_lstm; // Generated action sequence
   LSTMBuilder const_lstm_fwd; // Used to compose children of a node into a representation of the node
   LSTMBuilder const_lstm_rev; // Used to compose children of a node into a representation of the node
 
@@ -109,9 +81,7 @@ protected:
   LookupParameter p_a; // input action embeddings
 
   Parameter p_pbias; // parser state bias
-  Parameter p_A; // action lstm to parser state
   Parameter p_S; // stack lstm to parser state
-  Parameter p_T; // term lstm to parser state
   Parameter p_cW; // composition function weights
   Parameter p_cbias; // composition function bias
   Parameter p_p2a;   // parser state to action
@@ -120,9 +90,7 @@ protected:
   Parameter p_stack_guard;  // end of stack
 
   Expression pbias;
-  Expression A;
   Expression S;
-  Expression T;
   Expression cW;
   Expression cbias;
   Expression p2a;
@@ -134,7 +102,7 @@ protected:
   float dropout_rate;
   unsigned nt_vocab_size;
 
-  void PerformAction(const Action& action, const ParserState& state);
+  void PerformAction(const Action& action, const AdhiParserState& state);
   void PerformShift(WordId wordid);
   void PerformNT(WordId ntid);
   void PerformReduce();
@@ -144,8 +112,6 @@ private:
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {
     ar & stack_lstm;
-    ar & term_lstm;
-    ar & action_lstm;
     ar & const_lstm_fwd;
     ar & const_lstm_rev;
 
@@ -155,9 +121,7 @@ private:
     ar & p_a;
 
     ar & p_pbias;
-    ar & p_A;
     ar & p_S;
-    ar & p_T;
     ar & p_cW;
     ar & p_cbias;
     ar & p_p2a;
@@ -170,11 +134,11 @@ private:
   }
 };
 
-struct SourceConditionedParserBuilder : public ParserBuilder {
-  SourceConditionedParserBuilder();
-  SourceConditionedParserBuilder(Model& model, SoftmaxBuilder* cfsm,
+struct SourceConditionedAdhiParserBuilder : public AdhiParserBuilder {
+  SourceConditionedAdhiParserBuilder();
+  SourceConditionedAdhiParserBuilder(Model& model, SoftmaxBuilder* cfsm,
     unsigned vocab_size, unsigned nt_vocab_size, unsigned action_vocab_size, unsigned hidden_dim,
-    unsigned term_emb_dim, unsigned nt_emb_dim, unsigned action_emb_dim, unsigned source_dim);
+    unsigned term_emb_dim, unsigned nt_emb_dim, unsigned source_dim);
 
   void NewGraph(ComputationGraph& cg);
   Expression GetStateVector(Expression source_context) const;
@@ -186,8 +150,8 @@ struct SourceConditionedParserBuilder : public ParserBuilder {
   friend class boost::serialization::access;
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {
-    ar & boost::serialization::base_object<ParserBuilder>(*this);
+    ar & boost::serialization::base_object<AdhiParserBuilder>(*this);
     ar & p_W;
   }
 };
-BOOST_CLASS_EXPORT_KEY(SourceConditionedParserBuilder)
+BOOST_CLASS_EXPORT_KEY(SourceConditionedAdhiParserBuilder)
