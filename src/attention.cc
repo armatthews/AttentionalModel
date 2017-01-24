@@ -17,8 +17,11 @@ void AttentionModel::AddPrior(AttentionPrior* prior) {
 
 StandardAttentionModel::StandardAttentionModel() {}
 
-StandardAttentionModel::StandardAttentionModel(Model& model, unsigned input_dim, unsigned state_dim, unsigned hidden_dim) {
-  key_size = 0.2 * input_dim;
+StandardAttentionModel::StandardAttentionModel(Model& model, unsigned input_dim, unsigned state_dim, unsigned hidden_dim, unsigned key_size) : key_size(key_size) {
+  if (key_size == 0) {
+    key_size = input_dim;
+  }
+  assert (key_size <= input_dim);
   p_W = model.add_parameters({hidden_dim, key_size});
   p_V = model.add_parameters({hidden_dim, state_dim});
   p_b = model.add_parameters({hidden_dim, 1});
@@ -129,7 +132,7 @@ Expression StandardAttentionModel::GetContext(const vector<Expression>& inputs, 
 
 SparsemaxAttentionModel::SparsemaxAttentionModel() : StandardAttentionModel() {}
 
-SparsemaxAttentionModel::SparsemaxAttentionModel(Model& model, unsigned input_dim, unsigned state_dim, unsigned hidden_dim) : StandardAttentionModel(model, input_dim, state_dim, hidden_dim) {}
+SparsemaxAttentionModel::SparsemaxAttentionModel(Model& model, unsigned input_dim, unsigned state_dim, unsigned hidden_dim, unsigned key_size) : StandardAttentionModel(model, input_dim, state_dim, hidden_dim, key_size) {}
 
 Expression SparsemaxAttentionModel::GetAlignmentVector(const vector<Expression>& inputs, const Expression& state) {
   return sparsemax(GetScoreVector(inputs, state));

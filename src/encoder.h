@@ -38,7 +38,7 @@ public:
 
   void NewGraph(ComputationGraph& cg);
   vector<Expression> Encode(const InputSentence* const input);
-  Expression Embed(const Word* const word);
+  Expression Embed(const shared_ptr<const Word> word);
 private:
   Parameter p_W, p_b;
   Expression W, b;
@@ -59,16 +59,17 @@ BOOST_CLASS_EXPORT_KEY(TrivialEncoder)
 class BidirectionalSentenceEncoder : public EncoderModel {
 public:
   BidirectionalSentenceEncoder();
-  BidirectionalSentenceEncoder(Model& model, unsigned vocab_size, unsigned input_dim, unsigned output_dim);
+  BidirectionalSentenceEncoder(Model& model, unsigned vocab_size, unsigned input_dim, unsigned output_dim, bool peep_concat, bool peep_add);
 
   void NewGraph(ComputationGraph& cg);
   void SetDropout(float rate);
   vector<Expression> Encode(const InputSentence* const input);
-  vector<Expression> EncodeForward(const LinearSentence& sentence);
-  vector<Expression> EncodeReverse(const LinearSentence& sentence);
-  Expression Embed(const Word* const word);
+  vector<Expression> EncodeForward(const vector<Expression>& embeddings);
+  vector<Expression> EncodeReverse(const vector<Expression>& embeddings);
+  Expression Embed(const shared_ptr<const Word> word);
 private:
   unsigned output_dim;
+  bool peep_concat, peep_add;
   LSTMBuilder forward_builder;
   LSTMBuilder reverse_builder;
   Parameter forward_lstm_init;
@@ -83,6 +84,7 @@ private:
   void serialize(Archive& ar, const unsigned int) {
     ar & boost::serialization::base_object<EncoderModel>(*this);
     ar & output_dim;
+    ar & peep_concat & peep_add;
     ar & forward_builder;
     ar & reverse_builder;
     ar & forward_lstm_init;
@@ -96,16 +98,17 @@ class MorphologyEncoder : public EncoderModel {
 public:
   MorphologyEncoder();
   MorphologyEncoder(Model& model, unsigned word_vocab_size, unsigned root_vocab_size, unsigned affix_vocab_size, unsigned char_vocab_size, unsigned word_emb_dim, unsigned affix_emb_dim, unsigned char_emb_dim,
-    unsigned affix_lstm_dim, unsigned char_lstm_dim, unsigned main_lstm_dim);
+    unsigned affix_lstm_dim, unsigned char_lstm_dim, unsigned main_lstm_dim, bool peep_concat, bool peep_add);
 
   void NewGraph(ComputationGraph& cg);
   void SetDropout(float rate);
   vector<Expression> Encode(const InputSentence* const input);
-  vector<Expression> EncodeForward(const LinearSentence& sentence);
-  vector<Expression> EncodeReverse(const LinearSentence& sentence);
+  vector<Expression> EncodeForward(const vector<Expression>& embeddings);
+  vector<Expression> EncodeReverse(const vector<Expression>& embeddings);
 
 private:
   unsigned main_lstm_dim;
+  bool peep_concat, peep_add;
   LSTMBuilder forward_builder;
   LSTMBuilder reverse_builder;
   Parameter forward_lstm_init;
@@ -120,6 +123,7 @@ private:
   void serialize(Archive& ar, const unsigned int) {
     ar & boost::serialization::base_object<EncoderModel>(*this);
     ar & main_lstm_dim;
+    ar & peep_concat & peep_add;
     ar & forward_builder;
     ar & reverse_builder;
     ar & forward_lstm_init;

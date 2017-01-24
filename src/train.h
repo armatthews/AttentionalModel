@@ -51,13 +51,14 @@ public:
 void AddTrainerOptions(po::options_description& desc) {
   desc.add_options()
   ("sgd", "Use SGD for optimization")
-  ("momentum", po::value<double>(), "Use SGD with this momentum value")
+  ("momentum", "Use SGD wiith momentum")
   ("adagrad", "Use Adagrad for optimization")
   ("adadelta", "Use Adadelta for optimization")
   ("rmsprop", "Use RMSProp for optimization")
   ("adam", "Use Adam for optimization")
   ("learning_rate", po::value<double>(), "Learning rate for optimizer (SGD, Adagrad, Adadelta, and RMSProp only)")
   ("alpha", po::value<double>()->default_value(0.001), "Alpha (Adam only)")
+  ("gamma", po::value<double>()->default_value(0.9), "Momentum strength (mMmentum only)")
   ("beta1", po::value<double>()->default_value(0.9), "Beta1 (Adam only)")
   ("beta2", po::value<double>()->default_value(0.999), "Beta2 (Adam only)")
   ("rho", po::value<double>(), "Moving average decay parameter (RMSProp and Adadelta only)")
@@ -78,35 +79,35 @@ Trainer* CreateTrainer(Model& dynet_model, const po::variables_map& vm) {
   Trainer* trainer = nullptr;
   if (vm.count("momentum")) {
     double learning_rate = (vm.count("learning_rate")) ? vm["learning_rate"].as<double>() : 0.01;
-    double momentum = vm["momentum"].as<double>();
-    trainer = new MomentumSGDTrainer(&dynet_model, learning_rate, momentum);
+    double gamma = vm["gamma"].as<double>();
+    trainer = new MomentumSGDTrainer(dynet_model, learning_rate, gamma);
   }
   else if (vm.count("adagrad")) {
     double learning_rate = (vm.count("learning_rate")) ? vm["learning_rate"].as<double>() : 0.1;
     double eps = (vm.count("epsilon")) ? vm["epsilon"].as<double>() : 1e-20;
-    trainer = new AdagradTrainer(&dynet_model, learning_rate, eps);
+    trainer = new AdagradTrainer(dynet_model, learning_rate, eps);
   }
   else if (vm.count("adadelta")) {
     double eps = (vm.count("epsilon")) ? vm["epsilon"].as<double>() : 1e-6;
     double rho = (vm.count("rho")) ? vm["rho"].as<double>() : 0.95;
-    trainer = new AdadeltaTrainer(&dynet_model, eps, rho);
+    trainer = new AdadeltaTrainer(dynet_model, eps, rho);
   }
   else if (vm.count("rmsprop")) {
     double learning_rate = (vm.count("learning_rate")) ? vm["learning_rate"].as<double>() : 0.1;
     double eps = (vm.count("epsilon")) ? vm["epsilon"].as<double>() : 1e-20;
     double rho = (vm.count("rho")) ? vm["rho"].as<double>() : 0.95;
-    trainer = new RmsPropTrainer(&dynet_model, learning_rate, eps, rho);
+    trainer = new RmsPropTrainer(dynet_model, learning_rate, eps, rho);
   }
   else if (vm.count("adam")) {
     double alpha = (vm.count("alpha")) ? vm["alpha"].as<double>() : 0.001;
     double beta1 = (vm.count("beta1")) ? vm["beta1"].as<double>() : 0.9;
     double beta2 = (vm.count("beta2")) ? vm["beta2"].as<double>() : 0.999;
     double eps = (vm.count("epsilon")) ? vm["epsilon"].as<double>() : 1e-8;
-    trainer = new AdamTrainer(&dynet_model, alpha, beta1, beta2, eps);
+    trainer = new AdamTrainer(dynet_model, alpha, beta1, beta2, eps);
   }
   else { /* sgd */
     double learning_rate = (vm.count("learning_rate")) ? vm["learning_rate"].as<double>() : 0.1;
-    trainer = new SimpleSGDTrainer(&dynet_model, learning_rate);
+    trainer = new SimpleSGDTrainer(dynet_model, learning_rate);
   }
   assert (trainer != nullptr);
 

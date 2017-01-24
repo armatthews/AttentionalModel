@@ -29,7 +29,7 @@ Expression Translator::BuildGraph(const InputSentence* const source, const Outpu
   Expression state = output_model->GetState();
   attention_model->NewSentence(source);
   for (unsigned i = 0; i < target->size(); ++i) {
-    const Word* word = target->at(i);
+    const shared_ptr<Word> word = target->at(i);
     assert (same_value(state, output_model->GetState()));
     word_losses[i] = output_model->Loss(state, word);
 
@@ -49,11 +49,11 @@ void Translator::Sample(const vector<Expression>& encodings, shared_ptr<OutputSe
   Expression output_state = output_model->GetState(state_pointer);
   Expression context = attention_model->GetContext(encodings, output_state);
 
-  unordered_map<Word*, unsigned> continuations;
-  unordered_map<Word*, float> scores;
+  unordered_map<shared_ptr<Word>, unsigned> continuations;
+  unordered_map<shared_ptr<Word>, float> scores;
   for (unsigned i = 0; i < sample_count; ++i) {
-    pair<Word*, float> sample = output_model->Sample(state_pointer, output_state);
-    Word* w = get<0>(sample);
+    pair<shared_ptr<Word>, float> sample = output_model->Sample(state_pointer, output_state);
+    shared_ptr<Word> w = get<0>(sample);
     float score = get<1>(sample);
     if (continuations.find(w) != continuations.end()) {
       continuations[w]++;
@@ -65,7 +65,7 @@ void Translator::Sample(const vector<Expression>& encodings, shared_ptr<OutputSe
   }
 
   for (auto it = continuations.begin(); it != continuations.end(); ++it) {
-    Word* w = it->first;
+    shared_ptr<Word> w = it->first;
     float score = prefix_score + scores[w];
     prefix->push_back(w);
     output_model->AddInput(w, context, state_pointer);
@@ -102,7 +102,7 @@ vector<Expression> Translator::Align(const InputSentence* const source, const Ou
   vector<Expression> alignments;
   Expression input_matrix = concatenate_cols(encodings);
   for (unsigned i = 1; i < target->size(); ++i) {
-    const Word* prev_word = (*target)[i - 1];
+    const shared_ptr<Word> prev_word = (*target)[i - 1];
     Expression state = output_model->GetState();
     Expression word_alignment = attention_model->GetAlignmentVector(encodings, state);
     Expression context = input_matrix * word_alignment;
@@ -134,11 +134,11 @@ KBestList<shared_ptr<OutputSentence>> Translator::Translate(const InputSentence*
       assert (hyp_sentence->size() == length);
       Expression output_state = output_model->GetState(state_pointer);
       Expression context = attention_model->GetContext(encodings, output_state);
-      KBestList<Word*> best_words = output_model->PredictKBest(state_pointer, output_state, beam_size);
+      KBestList<shared_ptr<Word>> best_words = output_model->PredictKBest(state_pointer, output_state, beam_size);
 
       for (auto& w : best_words.hypothesis_list()) {
         double word_score = get<0>(w);
-        Word* word = get<1>(w);
+        shared_ptr<Word> word = get<1>(w);
         double new_score = hyp_score + word_score;
         shared_ptr<OutputSentence> new_sentence(new OutputSentence(*hyp_sentence));
         new_sentence->push_back(word);

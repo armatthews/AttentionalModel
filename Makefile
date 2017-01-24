@@ -1,9 +1,9 @@
 CC=g++
-CNN_DIR = ./cnn
+DYNET_DIR = ./dynet
 EIGEN = ./eigen
-CNN_BUILD_DIR=$(CNN_DIR)/build
-INCS=-I$(CNN_DIR) -I$(CNN_BUILD_DIR) -I$(EIGEN)
-LIBS=-L$(CNN_BUILD_DIR)/dynet/ -L$(PREFIX)/lib
+DYNET_BUILD_DIR=$(DYNET_DIR)/build
+INCS=-I$(DYNET_DIR) -I$(DYNET_BUILD_DIR) -I$(EIGEN)
+LIBS=-L$(DYNET_BUILD_DIR)/dynet/ -L$(PREFIX)/lib
 FINAL=-ldynet -lboost_regex -lboost_serialization -lboost_program_options -lrt -lpthread
 #FINAL=-ldynet -ldynetcuda -lboost_regex -lboost_serialization -lboost_program_options -lcuda -lcudart -lcublas -lpthread -lrt
 CFLAGS=-std=c++11 -Ofast -g -march=native -pipe

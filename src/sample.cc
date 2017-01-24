@@ -59,7 +59,7 @@ int main(int argc, char** argv) {
       auto& sample = get<0>(scored_sample);
       float score = get<1>(scored_sample);
       vector<string> words;
-      for (Word* w : *sample) {
+      for (shared_ptr<Word> w : *sample) {
         words.push_back(output_reader->ToString(w));
       }
       cout << sentence_number << " ||| " << boost::algorithm::join(words, " ") << " ||| " << score << endl;

@@ -14,7 +14,7 @@ public:
   MorphologyEmbedder(Model& model, unsigned word_vocab_size, unsigned root_vocab_size, unsigned affix_vocab_size, unsigned char_vocab_size, unsigned word_emb_dim, unsigned affix_emb_dim, unsigned char_emb_dim, unsigned affix_lstm_dim, unsigned char_lstm_dim);
   void NewGraph(ComputationGraph& cg);
   void SetDropout(float rate);
-  Expression Embed(const Word* const word);
+  Expression Embed(const shared_ptr<const Word> word);
 private:
   unsigned affix_lstm_dim, char_lstm_dim;
   LookupParameter word_embeddings;
