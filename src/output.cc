@@ -391,12 +391,15 @@ void RnngOutputModel::InitializeDictionaries(const Dict& raw_vocab) {
       //a2w[a] = i;*/
       continue;
     }
-    else {
-      assert (s == "REDUCE");
+    else if (s == "REDUCE") {
       assert (w2a.size() == (unsigned)i);
       Action a = {Action::kReduce, 0};
       w2a.push_back(a);
       a2w[a] = i;
+    }
+    else {
+      cerr << "Unexpected non-action in input stream: " << s << endl;   
+      assert (false);
     }
   }
 }
