@@ -13,7 +13,7 @@ parser.add_argument('--test_target', '-t', required=True, help='test set target 
 parser.add_argument('--test_target_raw', '-r', required=True, help='test set target in tokenized text format')
 parser.add_argument('--train_target', default='/usr0/home/austinma/git/AttentionalModel/btec_easy/train.trees.en', help='rnng model\'s training trees in parenthesized tree format')
 parser.add_argument('--rnng_train', default='/usr0/home/austinma/git/rnng/btec_easy/train', help='rnng model\'s training set')
-parser.add_argument('--rnng_bracket_dev', default='/usr0/home/austinma/git/AttentionalModel/btec_easy/dev.trees.en', help='rnng model\'s bracked dev set')
+parser.add_argument('--rnng_bracket_dev', default='/usr0/home/austinma/git/AttentionalModel/btec_easy/dev.trees.en', help='rnng model\'s bracketed dev set')
 parser.add_argument('--num_samples', '-n', type=int, default=100, help='number of samples')
 args = parser.parse_args()
 
@@ -49,6 +49,8 @@ with open(tree_samples) as f:
 for k in samples:
   assert len(samples[k]) == args.num_samples
 
+# TODO: This could be sped up massively by caching frequent (src, tgt) tuples
+# and only passing them through the MT model once
 _, test_src = tempfile.mkstemp()
 _, test_tgt = tempfile.mkstemp()
 print >>sys.stderr, 'Source input file:', test_src
