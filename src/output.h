@@ -17,7 +17,7 @@
 #include "morphology.h"
 #include "utils.h"
 #include "kbestlist.h"
-#include "adhi.h"
+#include "rnng.h"
 
 using namespace std;
 using namespace dynet;
