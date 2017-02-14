@@ -2,10 +2,22 @@
 #include "rnng.h"
 #include "utils.h"
 #include "io.h"
-BOOST_CLASS_EXPORT_IMPLEMENT(SourceConditionedParserBuilder)
+BOOST_CLASS_EXPORT_IMPLEMENT(FullParserBuilder)
 
 using namespace dynet::expr;
 const unsigned lstm_layer_count = 2;
+
+Action convert(unsigned id) {
+  if (id == 0) {
+    return Action {Action::kShift, 0};
+  }
+  else if (id == 1) {
+    return Action {Action::kReduce, 0};
+  }
+  else {
+    return Action {Action::kNT, (WordId)(id - 2)};
+  }
+}
 
 unsigned Action::GetIndex() const {
   if (type == Action::kShift) {
@@ -25,7 +37,6 @@ unsigned Action::GetIndex() const {
 bool Action::operator==(const Action& o) const {
   return type == o.type && subtype == o.subtype;
 }
-
 
 ParserState::ParserState() : nopen_parens(0), prev_action({Action::kNone, 0}) {}
 
@@ -75,10 +86,8 @@ vector<unsigned> ParserBuilder::GetValidActionList(RNNPointer p) const {
 
 void ParserBuilder::PerformShift(WordId wordid) {
   Expression word = lookup(*pcg, p_w, wordid);
-  term_lstm.add_input(curr_state->terminal_lstm_pointer, word);
   stack_lstm.add_input(curr_state->stack_lstm_pointer, word);
 
-  curr_state->terminal_lstm_pointer = term_lstm.state();
   curr_state->stack_lstm_pointer = stack_lstm.state();
 
   curr_state->terms.push_back(word);
@@ -132,31 +141,27 @@ void ParserBuilder::PerformReduce() {
 ParserBuilder::ParserBuilder() : curr_state(nullptr) {}
 
 // TODO: Isn't action_vocab_size = nt_vocab_size + 2 (i.e. SHIFT, REDUCE, and one NT action per NT type)
+// Note: Action vocab size is nt_vocab_size + 2. There are nt_vocab_size possible NT actions, shift, and reduce.
 ParserBuilder::ParserBuilder(Model& model, SoftmaxBuilder* cfsm,
-    unsigned vocab_size, unsigned nt_vocab_size, unsigned action_vocab_size, unsigned hidden_dim,
-    unsigned term_emb_dim, unsigned nt_emb_dim, unsigned action_emb_dim) :
+    unsigned vocab_size, unsigned nt_vocab_size, unsigned hidden_dim,
+    unsigned term_emb_dim, unsigned nt_emb_dim, unsigned source_dim) :
   pcg(nullptr), curr_state(nullptr),
 
   stack_lstm(lstm_layer_count, nt_emb_dim, hidden_dim, model),
-  term_lstm(lstm_layer_count, term_emb_dim, hidden_dim, model),
-  action_lstm(lstm_layer_count, action_emb_dim, hidden_dim, model),
   const_lstm_fwd(1, nt_emb_dim, nt_emb_dim, model),
   const_lstm_rev(1, nt_emb_dim, nt_emb_dim, model),
 
   p_w(model.add_lookup_parameters(vocab_size, {term_emb_dim})),
   p_nt(model.add_lookup_parameters(nt_vocab_size, {nt_emb_dim})),
   p_ntup(model.add_lookup_parameters(nt_vocab_size, {nt_emb_dim})),
-  p_a(model.add_lookup_parameters(action_vocab_size, {action_emb_dim})),
 
   p_pbias(model.add_parameters({hidden_dim})),
-  p_A(model.add_parameters({hidden_dim, hidden_dim})),
   p_S(model.add_parameters({hidden_dim, hidden_dim})),
-  p_T(model.add_parameters({hidden_dim, hidden_dim})),
+  p_W(model.add_parameters({hidden_dim, source_dim})),
   p_cW(model.add_parameters({nt_emb_dim, nt_emb_dim * 2})),
   p_cbias(model.add_parameters({nt_emb_dim})),
-  p_p2a(model.add_parameters({action_vocab_size, hidden_dim})),
-  p_action_start(model.add_parameters({action_emb_dim})),
-  p_abias(model.add_parameters({action_vocab_size})),
+  p_p2a(model.add_parameters({nt_vocab_size + 2, hidden_dim})),
+  p_abias(model.add_parameters({nt_vocab_size + 2})),
   p_stack_guard(model.add_parameters({nt_emb_dim})),
 
   cfsm(cfsm), dropout_rate(0.0f), nt_vocab_size(nt_vocab_size) {}
@@ -164,8 +169,6 @@ ParserBuilder::ParserBuilder(Model& model, SoftmaxBuilder* cfsm,
 void ParserBuilder::SetDropout(float rate) {
   dropout_rate = rate;
   stack_lstm.set_dropout(rate);
-  term_lstm.set_dropout(rate);
-  action_lstm.set_dropout(rate);
   const_lstm_fwd.set_dropout(rate);
   const_lstm_rev.set_dropout(rate);
 }
@@ -173,9 +176,7 @@ void ParserBuilder::SetDropout(float rate) {
 void ParserBuilder::NewGraph(ComputationGraph& cg) {
   pcg = &cg;
 
-  term_lstm.new_graph(cg);
   stack_lstm.new_graph(cg);
-  action_lstm.new_graph(cg);
   const_lstm_fwd.new_graph(cg);
   const_lstm_rev.new_graph(cg);
 
@@ -183,13 +184,11 @@ void ParserBuilder::NewGraph(ComputationGraph& cg) {
 
   pbias = parameter(cg, p_pbias);
   S = parameter(cg, p_S);
-  A = parameter(cg, p_A);
-  T = parameter(cg, p_T);
+  W = parameter(cg, p_W);
   cW = parameter(cg, p_cW);
   cbias = parameter(cg, p_cbias);
   p2a = parameter(cg, p_p2a);
   abias = parameter(cg, p_abias);
-  action_start = parameter(cg, p_action_start);
   stack_guard = parameter(cg, p_stack_guard);
 }
 
@@ -227,41 +226,31 @@ void ParserBuilder::NewSentence() {
   curr_state->stack.push_back(stack_guard);
   curr_state->is_open_paren.push_back(-1);
 
-  term_lstm.start_new_sequence();
   stack_lstm.start_new_sequence();
-  action_lstm.start_new_sequence();
-
-  assert (term_lstm.state() == -1);
   assert (stack_lstm.state() == -1);
 
   stack_lstm.add_input(curr_state->stack.back());
-  term_lstm.add_input(curr_state->terms.back());
-  action_lstm.add_input(action_start);
-
-  assert (term_lstm.state() == 0);
   assert (stack_lstm.state() == 0);
 
   curr_state->stack_lstm_pointer = stack_lstm.state();
-  curr_state->terminal_lstm_pointer = term_lstm.state();
-  curr_state->action_lstm_pointer = action_lstm.state();
-
   assert (this->state() == stack_lstm.state());
-  assert (this->state() == term_lstm.state());
-  assert (this->state() == action_lstm.state());
 }
 
-Expression ParserBuilder::GetStateVector() const {
-  return GetStateVector(state());
+Expression ParserBuilder::GetInitialContext() const {
+  // TODO: Maybe have an initial context instead of just 0s?
+  return zeroes(*pcg, {p_W.dim().d[p_W.dim().nd - 1]});
 }
 
-Expression ParserBuilder::GetStateVector(RNNPointer p) const {
+Expression ParserBuilder::GetStateVector(Expression source_context) const {
+  return GetStateVector(source_context, state());
+}
+
+Expression ParserBuilder::GetStateVector(Expression source_context, RNNPointer p) const {
   assert (p >= 0 && (unsigned)p < prev_states.size());
   ParserState state = prev_states[p];
   Expression stack_summary = Summarize(stack_lstm, state.stack_lstm_pointer);
-  Expression action_summary = Summarize(action_lstm, state.action_lstm_pointer);
-  Expression term_summary = Summarize(term_lstm, state.terminal_lstm_pointer);
 
-  Expression p_t = affine_transform({pbias, S, stack_summary, A, action_summary, T, term_summary});
+  Expression p_t = affine_transform({pbias, S, stack_summary, W, source_context});
   Expression nlp_t = rectify(p_t);
   return nlp_t;
 }
@@ -310,23 +299,7 @@ void ParserBuilder::PerformAction(const Action& action, const ParserState& state
     assert (false && "Invalid action!");
   }
 
-  Expression actione = lookup(*pcg, p_a, action.GetIndex());
-  action_lstm.add_input(curr_state->action_lstm_pointer, actione);
-
   curr_state->prev_action = action;
-  curr_state->action_lstm_pointer = action_lstm.state();
-}
-
-Action convert(unsigned id) {
-  if (id == 0) {
-    return Action {Action::kShift, 0};
-  }
-  else if (id == 1) {
-    return Action {Action::kReduce, 0};
-  }
-  else {
-    return Action {Action::kNT, (WordId)(id - 2)};
-  }
 }
 
 Action ParserBuilder::Sample(Expression state_vector) const {
@@ -398,7 +371,7 @@ Expression ParserBuilder::Loss(RNNPointer p, Expression state_vector, const Acti
   return neg_log_prob;
 }
 
-Expression ParserBuilder::BuildGraph(const vector<Action>& correct_actions) {
+/*Expression ParserBuilder::BuildGraph(const vector<Action>& correct_actions) {
   NewSentence();
 
   vector<Expression> neg_log_probs;
@@ -413,7 +386,7 @@ Expression ParserBuilder::BuildGraph(const vector<Action>& correct_actions) {
 
   assert (curr_state->stack.size() == 2); // guard symbol, root
   return sum(neg_log_probs);
-}
+}*/
 
 Expression ParserBuilder::EmbedNonterminal(WordId nt, const vector<Expression>& children) {
   Expression nt_embedding = lookup(*pcg, p_ntup, nt);
@@ -444,25 +417,77 @@ bool ParserBuilder::IsDone(RNNPointer p) const {
   return ps.prev_action.type != Action::kNone && ps.nopen_parens == 0;
 }
 
-SourceConditionedParserBuilder::SourceConditionedParserBuilder() {}
+FullParserBuilder::FullParserBuilder() {}
+FullParserBuilder::FullParserBuilder(Model& model, SoftmaxBuilder* cfsm, unsigned vocab_size, unsigned nt_vocab_size, unsigned hidden_dim, unsigned term_emb_dim, unsigned nt_emb_dim, unsigned action_emb_dim, unsigned source_dim) : ParserBuilder(model, cfsm, vocab_size, nt_vocab_size, hidden_dim, term_emb_dim, nt_emb_dim, source_dim),
+  term_lstm(lstm_layer_count, term_emb_dim, hidden_dim, model),
+  action_lstm(lstm_layer_count, action_emb_dim, hidden_dim, model),
+  p_a(model.add_lookup_parameters(nt_vocab_size + 2, {action_emb_dim})),
+  p_action_start(model.add_parameters({action_emb_dim})),
+  p_A(model.add_parameters({hidden_dim, hidden_dim})),
+  p_T(model.add_parameters({hidden_dim, hidden_dim})) {}
 
-SourceConditionedParserBuilder::SourceConditionedParserBuilder(Model& model, SoftmaxBuilder* cfsm,
-    unsigned vocab_size, unsigned nt_vocab_size, unsigned action_vocab_size, unsigned hidden_dim,
-    unsigned term_emb_dim, unsigned nt_emb_dim, unsigned action_emb_dim, unsigned source_dim) :
-  ParserBuilder(model, cfsm, vocab_size, nt_vocab_size, action_vocab_size, hidden_dim, term_emb_dim,
-    nt_emb_dim, action_emb_dim),
-  p_W(model.add_parameters({hidden_dim, source_dim})) {}
+void FullParserBuilder::SetDropout(float rate) {
+  ParserBuilder::SetDropout(rate);
+  term_lstm.set_dropout(rate);
+  action_lstm.set_dropout(rate);
+}
 
-void SourceConditionedParserBuilder::NewGraph(ComputationGraph& cg) {
+void FullParserBuilder::NewGraph(ComputationGraph& cg) {
   ParserBuilder::NewGraph(cg);
-  W = parameter(cg, p_W);
+
+  term_lstm.new_graph(cg);
+  action_lstm.new_graph(cg);
+
+  A = parameter(cg, p_A);
+  T = parameter(cg, p_T);
+
+  action_start = parameter(cg, p_action_start);
 }
 
-Expression SourceConditionedParserBuilder::GetStateVector(Expression source_context) const {
-  return GetStateVector(source_context, state());
+void FullParserBuilder::NewSentence() {
+  ParserBuilder::NewSentence();
+
+  term_lstm.start_new_sequence();
+  action_lstm.start_new_sequence();
+  assert (term_lstm.state() == -1);
+
+  term_lstm.add_input(curr_state->terms.back());
+  action_lstm.add_input(action_start);
+
+  assert (term_lstm.state() == 0);
+
+  curr_state->terminal_lstm_pointer = term_lstm.state();
+  curr_state->action_lstm_pointer = action_lstm.state();
+
+  assert (this->state() == term_lstm.state());
+  assert (this->state() == action_lstm.state());
 }
 
-Expression SourceConditionedParserBuilder::GetStateVector(Expression source_context, RNNPointer p) const {
+void FullParserBuilder::PerformAction(const Action& action, const ParserState& state) {
+  ParserBuilder::PerformAction(action, state);
+
+  Expression action_emb = lookup(*pcg, p_a, action.GetIndex());
+  action_lstm.add_input(curr_state->action_lstm_pointer, action_emb);
+  curr_state->action_lstm_pointer = action_lstm.state();
+}
+
+void FullParserBuilder::PerformShift(WordId wordid) {
+  ParserBuilder::PerformShift(wordid);
+
+  Expression word = lookup(*pcg, p_w, wordid);
+  term_lstm.add_input(curr_state->terminal_lstm_pointer, word);
+  curr_state->terminal_lstm_pointer = term_lstm.state();
+}
+
+void FullParserBuilder::PerformNT(WordId ntid) {
+  ParserBuilder::PerformNT(ntid);
+}
+
+void FullParserBuilder::PerformReduce() {
+  ParserBuilder::PerformReduce();
+}
+
+Expression FullParserBuilder::GetStateVector(Expression source_context, RNNPointer p) const {
   assert (p >= 0 && (unsigned)p < prev_states.size());
   ParserState state = prev_states[p];
   Expression stack_summary = Summarize(stack_lstm, state.stack_lstm_pointer);

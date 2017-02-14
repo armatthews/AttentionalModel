@@ -218,7 +218,7 @@ private:
   Action Convert(const WordId w) const;
   WordId Convert(const Action& a) const;
 
-  SourceConditionedParserBuilder* builder;
+  ParserBuilder* builder;
   unsigned hidden_dim;
 
   vector<Action> w2a;
