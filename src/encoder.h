@@ -34,40 +34,39 @@ private:
 class TrivialEncoder : public EncoderModel {
 public:
   TrivialEncoder();
-  TrivialEncoder(Model& model, unsigned vocab_size, unsigned input_dim, unsigned output_dim);
+  TrivialEncoder(Model& model, Embedder* embedder, unsigned output_dim);
 
   void NewGraph(ComputationGraph& cg);
   vector<Expression> Encode(const InputSentence* const input);
-  Expression Embed(const shared_ptr<const Word> word);
 private:
+  Embedder* embedder;
   Parameter p_W, p_b;
   Expression W, b;
-  LookupParameter embeddings;
   ComputationGraph* pcg;
 
   friend class boost::serialization::access;
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {
     ar & boost::serialization::base_object<EncoderModel>(*this);
+    ar & embedder;
     ar & p_W;
     ar & p_b;
-    ar & embeddings;
   }
 };
 BOOST_CLASS_EXPORT_KEY(TrivialEncoder)
 
-class BidirectionalSentenceEncoder : public EncoderModel {
+class BidirectionalEncoder : public EncoderModel {
 public:
-  BidirectionalSentenceEncoder();
-  BidirectionalSentenceEncoder(Model& model, unsigned vocab_size, unsigned input_dim, unsigned output_dim, bool peep_concat, bool peep_add);
+  BidirectionalEncoder();
+  BidirectionalEncoder(Model& model, Embedder* embedder, unsigned output_dim, bool peep_concat, bool peep_add);
 
   void NewGraph(ComputationGraph& cg);
   void SetDropout(float rate);
   vector<Expression> Encode(const InputSentence* const input);
   vector<Expression> EncodeForward(const vector<Expression>& embeddings);
   vector<Expression> EncodeReverse(const vector<Expression>& embeddings);
-  Expression Embed(const shared_ptr<const Word> word);
 private:
+  Embedder* embedder;
   unsigned output_dim;
   bool peep_concat, peep_add;
   LSTMBuilder forward_builder;
@@ -76,25 +75,24 @@ private:
   vector<Expression> forward_lstm_init_v;
   Parameter reverse_lstm_init;
   vector<Expression> reverse_lstm_init_v;
-  LookupParameter embeddings;
   ComputationGraph* pcg;
 
   friend class boost::serialization::access;
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {
     ar & boost::serialization::base_object<EncoderModel>(*this);
+    ar & embedder;
     ar & output_dim;
     ar & peep_concat & peep_add;
     ar & forward_builder;
     ar & reverse_builder;
     ar & forward_lstm_init;
     ar & reverse_lstm_init;
-    ar & embeddings;
   }
 };
-BOOST_CLASS_EXPORT_KEY(BidirectionalSentenceEncoder)
+BOOST_CLASS_EXPORT_KEY(BidirectionalEncoder)
 
-class MorphologyEncoder : public EncoderModel {
+/*class MorphologyEncoder : public EncoderModel {
 public:
   MorphologyEncoder();
   MorphologyEncoder(Model& model, unsigned word_vocab_size, unsigned root_vocab_size, unsigned affix_vocab_size, unsigned char_vocab_size, unsigned word_emb_dim, unsigned affix_emb_dim, unsigned char_emb_dim,
@@ -131,5 +129,4 @@ private:
     ar & embedder;
   }
 };
-BOOST_CLASS_EXPORT_KEY(MorphologyEncoder)
-
+BOOST_CLASS_EXPORT_KEY(MorphologyEncoder)*/

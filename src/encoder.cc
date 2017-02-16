@@ -1,54 +1,51 @@
 #include "encoder.h"
-BOOST_CLASS_EXPORT_IMPLEMENT(BidirectionalSentenceEncoder)
+BOOST_CLASS_EXPORT_IMPLEMENT(BidirectionalEncoder)
 BOOST_CLASS_EXPORT_IMPLEMENT(TrivialEncoder)
-BOOST_CLASS_EXPORT_IMPLEMENT(MorphologyEncoder)
+//BOOST_CLASS_EXPORT_IMPLEMENT(MorphologyEncoder)
 
 const unsigned lstm_layer_count = 2;
 
 TrivialEncoder::TrivialEncoder() {}
 
-TrivialEncoder::TrivialEncoder(Model& model, unsigned vocab_size, unsigned input_dim, unsigned output_dim) {
-  embeddings = model.add_lookup_parameters(vocab_size, {input_dim});
+TrivialEncoder::TrivialEncoder(Model& model, Embedder* embedder, unsigned output_dim) : embedder(embedder) {
+  unsigned input_dim = embedder->Dim();
   p_W = model.add_parameters({output_dim, input_dim});
   p_b = model.add_parameters({output_dim});
 }
 
 void TrivialEncoder::NewGraph(ComputationGraph& cg) {
   pcg = &cg;
+  embedder->NewGraph(cg);
   W = parameter(cg, p_W);
   b = parameter(cg, p_b);
-}
-
-Expression TrivialEncoder::Embed(const shared_ptr<const Word> word) {
-  const shared_ptr<const StandardWord> standard_word = dynamic_pointer_cast<const StandardWord>(word);
-  assert (standard_word != nullptr);
-  return lookup(*pcg, embeddings, standard_word->id);
 }
 
 vector<Expression> TrivialEncoder::Encode(const InputSentence* const input) {
   const LinearSentence& sentence = *dynamic_cast<const LinearSentence*>(input);
   vector<Expression> encodings(sentence.size());
   for (unsigned i = 0; i < sentence.size(); ++i) {
-    Expression embedding = Embed(sentence[i]);
+    Expression embedding = embedder->Embed(sentence[i]);
     encodings[i] = affine_transform({b, W, embedding});
   }
   return encodings;
 }
 
-BidirectionalSentenceEncoder::BidirectionalSentenceEncoder() {}
+BidirectionalEncoder::BidirectionalEncoder() {}
 
-BidirectionalSentenceEncoder::BidirectionalSentenceEncoder(Model& model, unsigned vocab_size, unsigned input_dim, unsigned output_dim, bool peep_concat, bool peep_add) :
-    output_dim(output_dim), peep_concat(peep_concat), peep_add(peep_add) {
+BidirectionalEncoder::BidirectionalEncoder(Model& model, Embedder* embedder, unsigned output_dim, bool peep_concat, bool peep_add) :
+    embedder(embedder), output_dim(output_dim), peep_concat(peep_concat), peep_add(peep_add) {
   assert (output_dim % 2 == 0);
-  embeddings = model.add_lookup_parameters(vocab_size, {input_dim});
+  unsigned input_dim = embedder->Dim();
   forward_builder = LSTMBuilder(lstm_layer_count, input_dim, output_dim / 2, model);
   reverse_builder = LSTMBuilder(lstm_layer_count, input_dim, output_dim / 2, model);
   forward_lstm_init = model.add_parameters({lstm_layer_count * output_dim / 2});
   reverse_lstm_init = model.add_parameters({lstm_layer_count * output_dim / 2});
 }
 
-void BidirectionalSentenceEncoder::NewGraph(ComputationGraph& cg) {
+void BidirectionalEncoder::NewGraph(ComputationGraph& cg) {
   pcg = &cg;
+  embedder->NewGraph(cg);
+
   forward_builder.new_graph(cg);
   reverse_builder.new_graph(cg);
 
@@ -59,16 +56,16 @@ void BidirectionalSentenceEncoder::NewGraph(ComputationGraph& cg) {
   reverse_lstm_init_v = MakeLSTMInitialState(reverse_lstm_init_expr, output_dim / 2, reverse_builder.layers);
 }
 
-void BidirectionalSentenceEncoder::SetDropout(float rate) {
+void BidirectionalEncoder::SetDropout(float rate) {
   forward_builder.set_dropout(rate);
   reverse_builder.set_dropout(rate);
 }
 
-vector<Expression> BidirectionalSentenceEncoder::Encode(const InputSentence* const input) {
+vector<Expression> BidirectionalEncoder::Encode(const InputSentence* const input) {
   const LinearSentence& sentence = *dynamic_cast<const LinearSentence*>(input);
   vector<Expression> embeddings(sentence.size());
   for (unsigned i = 0; i < sentence.size(); ++i) {
-    embeddings[i] = Embed(sentence[i]);
+    embeddings[i] = embedder->Embed(sentence[i]);
   }
   vector<Expression> forward_encodings = EncodeForward(embeddings);
   vector<Expression> reverse_encodings = EncodeReverse(embeddings);
@@ -88,13 +85,7 @@ vector<Expression> BidirectionalSentenceEncoder::Encode(const InputSentence* con
   return bidir_encodings;
 }
 
-Expression BidirectionalSentenceEncoder::Embed(const shared_ptr<const Word> word) {
-  const shared_ptr<const StandardWord> standard_word = dynamic_pointer_cast<const StandardWord>(word);
-  assert (standard_word != nullptr);
-  return lookup(*pcg, embeddings, standard_word->id);
-}
-
-vector<Expression> BidirectionalSentenceEncoder::EncodeForward(const vector<Expression>& embeddings) {
+vector<Expression> BidirectionalEncoder::EncodeForward(const vector<Expression>& embeddings) {
   forward_builder.start_new_sequence(forward_lstm_init_v);
   vector<Expression> forward_encodings(embeddings.size());
   for (unsigned i = 0; i < embeddings.size(); ++i) {
@@ -105,7 +96,7 @@ vector<Expression> BidirectionalSentenceEncoder::EncodeForward(const vector<Expr
   return forward_encodings;
 }
 
-vector<Expression> BidirectionalSentenceEncoder::EncodeReverse(const vector<Expression>& embeddings) {
+vector<Expression> BidirectionalEncoder::EncodeReverse(const vector<Expression>& embeddings) {
   reverse_builder.start_new_sequence(reverse_lstm_init_v);
   vector<Expression> reverse_encodings(embeddings.size());
   for (unsigned i = 0; i < embeddings.size(); ++i) {
@@ -116,7 +107,7 @@ vector<Expression> BidirectionalSentenceEncoder::EncodeReverse(const vector<Expr
   return reverse_encodings;
 }
 
-MorphologyEncoder::MorphologyEncoder() {}
+/*MorphologyEncoder::MorphologyEncoder() {}
 
 MorphologyEncoder::MorphologyEncoder(Model& model, unsigned word_vocab_size, unsigned root_vocab_size, unsigned affix_vocab_size, unsigned char_vocab_size, unsigned word_emb_dim, unsigned affix_emb_dim, unsigned char_emb_dim,
     unsigned affix_lstm_dim, unsigned char_lstm_dim, unsigned main_lstm_dim, bool peep_concat, bool peep_add)
@@ -193,4 +184,4 @@ vector<Expression> MorphologyEncoder::EncodeReverse(const vector<Expression>& em
   }
 
   return r;
-}
+}*/

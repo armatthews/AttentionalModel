@@ -1,6 +1,33 @@
 #include "morphology.h"
+BOOST_CLASS_EXPORT_IMPLEMENT(StandardEmbedder)
+BOOST_CLASS_EXPORT_IMPLEMENT(MorphologyEmbedder)
 
 const unsigned lstm_layer_count = 2;
+
+void Embedder::NewGraph(ComputationGraph& cg) {}
+void Embedder::SetDropout(float) {}
+
+StandardEmbedder::StandardEmbedder() {}
+
+StandardEmbedder::StandardEmbedder(Model& model, unsigned vocab_size, unsigned emb_dim) : emb_dim(emb_dim), pcg(nullptr) {
+  embeddings = model.add_lookup_parameters(vocab_size, {emb_dim});
+}
+
+void StandardEmbedder::NewGraph(ComputationGraph& cg) {
+  pcg = &cg;
+}
+
+void StandardEmbedder::SetDropout(float) {}
+
+unsigned StandardEmbedder::Dim() const {
+  return emb_dim;
+}
+
+Expression StandardEmbedder::Embed(const shared_ptr<const Word> word) {
+  const shared_ptr<const StandardWord> standard_word = dynamic_pointer_cast<const StandardWord>(word);
+  assert (standard_word != nullptr);
+  return lookup(*pcg, embeddings, standard_word->id);
+}
 
 MorphologyEmbedder::MorphologyEmbedder() {}
 
@@ -14,6 +41,8 @@ MorphologyEmbedder::MorphologyEmbedder(Model& model, unsigned word_vocab_size, u
   char_lstm = LSTMBuilder(lstm_layer_count, char_emb_dim, char_lstm_dim, model);
 
   char_lstm_init = model.add_parameters({lstm_layer_count * char_lstm_dim});
+
+  total_emb_dim = word_emb_dim + affix_lstm_dim + char_lstm_dim;
 }
 
 void MorphologyEmbedder::NewGraph(ComputationGraph& cg) {
@@ -26,6 +55,10 @@ void MorphologyEmbedder::NewGraph(ComputationGraph& cg) {
 }
 
 void MorphologyEmbedder::SetDropout(float rate) {}
+
+unsigned MorphologyEmbedder::Dim() const {
+  return total_emb_dim;
+}
 
 Expression MorphologyEmbedder::Embed(const shared_ptr<const Word> word) {
   const shared_ptr<const MorphoWord> mword = dynamic_pointer_cast<const MorphoWord>(word);

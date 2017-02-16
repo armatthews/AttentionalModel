@@ -236,31 +236,37 @@ int main(int argc, char** argv) {
     const string clusters_filename = vm["clusters"].as<string>();
 
     EncoderModel* encoder_model = nullptr;
-    if (source_type == kStandard) {
-      const Dict& source_vocab = dynamic_cast<const StandardInputReader*>(input_reader)->vocab;
-      if (vm.count("no_encoder_rnn")) {
-        encoder_model = new TrivialEncoder(dynet_model, source_vocab.size(), embedding_dim, encoder_lstm_dim);
+    if (source_type == kStandard || source_type == kMorphology) {
+
+      Embedder* embedder = nullptr;
+      if (source_type == kStandard) {
+        const unsigned vocab_size = dynamic_cast<const StandardInputReader*>(input_reader)->vocab.size();
+        embedder = new StandardEmbedder(dynet_model, vocab_size, embedding_dim);
       }
       else {
-        encoder_model = new BidirectionalSentenceEncoder(dynet_model, source_vocab.size(), embedding_dim, encoder_lstm_dim, peep_concat, peep_add);
+        const MorphologyInputReader* reader = dynamic_cast<const MorphologyInputReader*>(input_reader);
+        const unsigned word_vocab_size = reader->word_vocab.size();
+        const unsigned root_vocab_size = reader->root_vocab.size();
+        const unsigned affix_vocab_size = reader->affix_vocab.size();
+        const unsigned char_vocab_size = reader->char_vocab.size();
+        const unsigned affix_emb_dim = 64;
+        const unsigned char_emb_dim = embedding_dim;
+        const unsigned affix_lstm_dim = 32;
+        const unsigned char_lstm_dim = embedding_dim;
+        embedder = new MorphologyEmbedder(dynet_model, word_vocab_size, root_vocab_size, affix_vocab_size, char_vocab_size, embedding_dim, affix_emb_dim, char_emb_dim, affix_lstm_dim, char_lstm_dim);
+      }
+
+      if (vm.count("no_encoder_rnn")) {
+        encoder_model = new TrivialEncoder(dynet_model, embedder, encoder_lstm_dim);
+      }
+      else {
+        encoder_model = new BidirectionalEncoder(dynet_model, embedder, encoder_lstm_dim, peep_concat, peep_add);
       }
     }
     else if (source_type == kSyntaxTree) {
       const Dict& source_vocab = dynamic_cast<const SyntaxInputReader*>(input_reader)->terminal_vocab;
       const Dict& label_vocab = dynamic_cast<const SyntaxInputReader*>(input_reader)->nonterminal_vocab;
       encoder_model = new TreeEncoder(dynet_model, source_vocab.size(), label_vocab.size(), embedding_dim, encoder_lstm_dim);
-    }
-    else if (source_type == kMorphology) {
-      const MorphologyInputReader* reader = dynamic_cast<const MorphologyInputReader*>(input_reader);
-      const unsigned word_vocab_size = reader->word_vocab.size();
-      const unsigned root_vocab_size = reader->root_vocab.size();
-      const unsigned affix_vocab_size = reader->affix_vocab.size();
-      const unsigned char_vocab_size = reader->char_vocab.size();
-      const unsigned affix_emb_dim = 64;
-      const unsigned char_emb_dim = embedding_dim;
-      const unsigned affix_lstm_dim = 32;
-      const unsigned char_lstm_dim = embedding_dim;
-      encoder_model = new MorphologyEncoder(dynet_model, word_vocab_size, root_vocab_size, affix_vocab_size, char_vocab_size, embedding_dim, affix_emb_dim, char_emb_dim, affix_lstm_dim, char_lstm_dim, encoder_lstm_dim, peep_concat, peep_add);
     }
     else {
       assert (false && "Unknown input type");
