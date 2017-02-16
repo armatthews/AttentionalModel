@@ -5,7 +5,7 @@ DYNET_BUILD_DIR=$(DYNET_DIR)/build
 INCS=-I$(DYNET_DIR) -I$(DYNET_BUILD_DIR) -I$(EIGEN)
 LIBS=-L$(DYNET_BUILD_DIR)/dynet/ -L$(PREFIX)/lib
 FINAL=-ldynet -lboost_regex -lboost_serialization -lboost_program_options -lrt -lpthread
-#FINAL=-ldynet -ldynetcuda -lboost_regex -lboost_serialization -lboost_program_options -lcuda -lcudart -lcublas -lpthread -lrt
+#FINAL=-lgdynet -lboost_regex -lboost_serialization -lboost_program_options -lcudart -lcublas -lpthread -lrt
 CFLAGS=-std=c++11 -Ofast -g -march=native -pipe
 #CFLAGS=-std=c++11 -Wall -pedantic -O0 -g -pipe
 BINDIR=bin
@@ -25,19 +25,19 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.cc
 	$(CC) $(CFLAGS) $(INCS) -c $< -o $@
 	$(CC) -MM -MP -MT "$@" $(CFLAGS) $(INCS) $< > $(OBJDIR)/$*.d
 
-$(BINDIR)/train: $(addprefix $(OBJDIR)/, train.o io.o translator.o tree_encoder.o encoder.o attention.o prior.o output.o rnng.o syntax_tree.o treelstm.o morphology.o mlp.o utils.o)
+$(BINDIR)/train: $(addprefix $(OBJDIR)/, train.o io.o translator.o tree_encoder.o encoder.o attention.o prior.o output.o rnng.o syntax_tree.o treelstm.o embedder.o mlp.o utils.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
-$(BINDIR)/sample: $(addprefix $(OBJDIR)/, sample.o io.o translator.o tree_encoder.o encoder.o attention.o prior.o output.o rnng.o utils.o syntax_tree.o morphology.o mlp.o treelstm.o)
+$(BINDIR)/sample: $(addprefix $(OBJDIR)/, sample.o io.o translator.o tree_encoder.o encoder.o attention.o prior.o output.o rnng.o utils.o syntax_tree.o embedder.o mlp.o treelstm.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
-$(BINDIR)/align: $(addprefix $(OBJDIR)/, align.o io.o translator.o tree_encoder.o encoder.o attention.o prior.o output.o rnng.o syntax_tree.o treelstm.o morphology.o mlp.o utils.o)
+$(BINDIR)/align: $(addprefix $(OBJDIR)/, align.o io.o translator.o tree_encoder.o encoder.o attention.o prior.o output.o rnng.o syntax_tree.o treelstm.o embedder.o mlp.o utils.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
-$(BINDIR)/loss: $(addprefix $(OBJDIR)/, loss.o io.o translator.o tree_encoder.o encoder.o attention.o prior.o output.o rnng.o syntax_tree.o treelstm.o morphology.o mlp.o utils.o)
+$(BINDIR)/loss: $(addprefix $(OBJDIR)/, loss.o io.o translator.o tree_encoder.o encoder.o attention.o prior.o output.o rnng.o syntax_tree.o treelstm.o embedder.o mlp.o utils.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
-$(BINDIR)/predict: $(addprefix $(OBJDIR)/, predict.o io.o translator.o tree_encoder.o encoder.o attention.o prior.o output.o rnng.o syntax_tree.o treelstm.o morphology.o kbestlist.o mlp.o utils.o)
+$(BINDIR)/predict: $(addprefix $(OBJDIR)/, predict.o io.o translator.o tree_encoder.o encoder.o attention.o prior.o output.o rnng.o syntax_tree.o treelstm.o embedder.o kbestlist.o mlp.o utils.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
 clean:

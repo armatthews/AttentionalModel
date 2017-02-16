@@ -14,7 +14,7 @@
 #include "dynet/expr.h"
 #include "dynet/cfsm-builder.h"
 #include "mlp.h"
-#include "morphology.h"
+#include "embedder.h"
 #include "utils.h"
 #include "kbestlist.h"
 #include "rnng.h"

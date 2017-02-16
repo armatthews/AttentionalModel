@@ -11,7 +11,7 @@
 #include "dynet/lstm.h"
 #include "dynet/expr.h"
 #include "utils.h"
-#include "morphology.h"
+#include "embedder.h"
 
 using namespace std;
 using namespace dynet;
@@ -91,42 +91,3 @@ private:
   }
 };
 BOOST_CLASS_EXPORT_KEY(BidirectionalEncoder)
-
-/*class MorphologyEncoder : public EncoderModel {
-public:
-  MorphologyEncoder();
-  MorphologyEncoder(Model& model, unsigned word_vocab_size, unsigned root_vocab_size, unsigned affix_vocab_size, unsigned char_vocab_size, unsigned word_emb_dim, unsigned affix_emb_dim, unsigned char_emb_dim,
-    unsigned affix_lstm_dim, unsigned char_lstm_dim, unsigned main_lstm_dim, bool peep_concat, bool peep_add);
-
-  void NewGraph(ComputationGraph& cg);
-  void SetDropout(float rate);
-  vector<Expression> Encode(const InputSentence* const input);
-  vector<Expression> EncodeForward(const vector<Expression>& embeddings);
-  vector<Expression> EncodeReverse(const vector<Expression>& embeddings);
-
-private:
-  unsigned main_lstm_dim;
-  bool peep_concat, peep_add;
-  LSTMBuilder forward_builder;
-  LSTMBuilder reverse_builder;
-  Parameter forward_lstm_init;
-  vector<Expression> forward_lstm_init_v;
-  Parameter reverse_lstm_init;
-  vector<Expression> reverse_lstm_init_v;
-  MorphologyEmbedder embedder;
-  ComputationGraph* pcg;
-
-  friend class boost::serialization::access;
-  template<class Archive>
-  void serialize(Archive& ar, const unsigned int) {
-    ar & boost::serialization::base_object<EncoderModel>(*this);
-    ar & main_lstm_dim;
-    ar & peep_concat & peep_add;
-    ar & forward_builder;
-    ar & reverse_builder;
-    ar & forward_lstm_init;
-    ar & reverse_lstm_init;
-    ar & embedder;
-  }
-};
-BOOST_CLASS_EXPORT_KEY(MorphologyEncoder)*/

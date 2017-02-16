@@ -1,7 +1,6 @@
 #include "encoder.h"
 BOOST_CLASS_EXPORT_IMPLEMENT(BidirectionalEncoder)
 BOOST_CLASS_EXPORT_IMPLEMENT(TrivialEncoder)
-//BOOST_CLASS_EXPORT_IMPLEMENT(MorphologyEncoder)
 
 const unsigned lstm_layer_count = 2;
 
@@ -106,82 +105,3 @@ vector<Expression> BidirectionalEncoder::EncodeReverse(const vector<Expression>&
   }
   return reverse_encodings;
 }
-
-/*MorphologyEncoder::MorphologyEncoder() {}
-
-MorphologyEncoder::MorphologyEncoder(Model& model, unsigned word_vocab_size, unsigned root_vocab_size, unsigned affix_vocab_size, unsigned char_vocab_size, unsigned word_emb_dim, unsigned affix_emb_dim, unsigned char_emb_dim,
-    unsigned affix_lstm_dim, unsigned char_lstm_dim, unsigned main_lstm_dim, bool peep_concat, bool peep_add)
-  : main_lstm_dim(main_lstm_dim), peep_concat(peep_concat), peep_add(peep_add), embedder(MorphologyEmbedder(model, word_vocab_size, root_vocab_size, affix_vocab_size, char_vocab_size, word_emb_dim, affix_emb_dim, char_emb_dim, affix_lstm_dim, char_lstm_dim)) {
-  assert (main_lstm_dim % 2 == 0);
-  unsigned total_dim = word_emb_dim + affix_lstm_dim + char_lstm_dim;
-  forward_builder = LSTMBuilder(lstm_layer_count, total_dim, main_lstm_dim / 2, model);
-  reverse_builder = LSTMBuilder(lstm_layer_count, total_dim, main_lstm_dim / 2, model);
-
-  forward_lstm_init = model.add_parameters({lstm_layer_count * main_lstm_dim / 2});
-  reverse_lstm_init = model.add_parameters({lstm_layer_count * main_lstm_dim / 2});
-}
-
-void MorphologyEncoder::NewGraph(ComputationGraph& cg) {
-  pcg = &cg;
-  forward_builder.new_graph(cg);
-  reverse_builder.new_graph(cg);
-  embedder.NewGraph(cg);
-
-  Expression forward_lstm_init_expr = parameter(cg, forward_lstm_init);
-  forward_lstm_init_v = MakeLSTMInitialState(forward_lstm_init_expr, main_lstm_dim / 2, forward_builder.layers);
-
-  Expression reverse_lstm_init_expr = parameter(cg, reverse_lstm_init);
-  reverse_lstm_init_v = MakeLSTMInitialState(reverse_lstm_init_expr, main_lstm_dim / 2, reverse_builder.layers);
-}
-
-void MorphologyEncoder::SetDropout(float rate) {}
-
-vector<Expression> MorphologyEncoder::Encode(const InputSentence* const input) {
-  const LinearSentence& sentence = *dynamic_cast<const LinearSentence*>(input);
-  vector<Expression> embeddings(sentence.size());
-  for (unsigned i = 0; i < sentence.size(); ++i) {
-    embeddings[i] = embedder.Embed(sentence[i]);
-  }
-  vector<Expression> forward_encodings = EncodeForward(embeddings);
-  vector<Expression> reverse_encodings = EncodeReverse(embeddings);
-  assert (forward_encodings.size() == reverse_encodings.size());
-
-  vector<Expression> encodings(forward_encodings.size());
-  for (unsigned i = 0; i < forward_encodings.size(); ++i) {
-    encodings[i] = concatenate({forward_encodings[i], reverse_encodings[i]});
-    if (peep_add) {
-      // XXX: If the word embedding dim is not the same as the LSTM dim there needs to be a transformation matrix here
-      encodings[i] = encodings[i] + embeddings[i];
-    }
-    if (peep_concat) {
-     encodings[i] = concatenate({encodings[i], embeddings[i]});
-    }
-  }
-
-  return encodings;
-}
-
-vector<Expression> MorphologyEncoder::EncodeForward(const vector<Expression>& embeddings) {
-  forward_builder.start_new_sequence(forward_lstm_init_v);
-
-  vector<Expression> r;
-  for (Expression emb : embeddings) {
-    Expression e = forward_builder.add_input(emb);
-    r.push_back(e);
-  }
-
-  return r;
-}
-
-vector<Expression> MorphologyEncoder::EncodeReverse(const vector<Expression>& embeddings) {
-  reverse_builder.start_new_sequence(reverse_lstm_init_v);
-
-  vector<Expression> r;
-  for (auto it = embeddings.rbegin(); it != embeddings.rend(); ++it) {
-    Expression emb = *it;
-    Expression e = reverse_builder.add_input(emb);
-    r.push_back(e);
-  }
-
-  return r;
-}*/

@@ -1,4 +1,4 @@
-#include "morphology.h"
+#include "embedder.h"
 BOOST_CLASS_EXPORT_IMPLEMENT(StandardEmbedder)
 BOOST_CLASS_EXPORT_IMPLEMENT(MorphologyEmbedder)
 
