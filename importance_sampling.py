@@ -98,6 +98,7 @@ for i, tgt in enumerate(open(args.test_target_raw)):
   #print '%d ||| %f' % (i, -log_probs[i] / len(tgt))
   print '%d ||| %f' % (i, -log_probs[i])
 
-xent = -sum(log_probs) / total_words
+loss = -sum(log_probs)
+xent = loss / total_words
 perp = math.exp(xent)
-print 'Total: %f xent (%f perp) over %d words' % (xent, perp, total_words)
+print 'Total: %f loss, %f xent (%f perp) over %d words' % (loss, xent, perp, total_words)
