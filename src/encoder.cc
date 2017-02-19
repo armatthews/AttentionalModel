@@ -39,6 +39,11 @@ BidirectionalEncoder::BidirectionalEncoder(Model& model, Embedder* embedder, uns
   reverse_builder = LSTMBuilder(lstm_layer_count, input_dim, output_dim / 2, model);
   forward_lstm_init = model.add_parameters({lstm_layer_count * output_dim / 2});
   reverse_lstm_init = model.add_parameters({lstm_layer_count * output_dim / 2});
+
+
+  if (peep_add) {
+    p_W = model.add_parameters({output_dim, input_dim});
+  }
 }
 
 void BidirectionalEncoder::NewGraph(ComputationGraph& cg) {
@@ -53,6 +58,10 @@ void BidirectionalEncoder::NewGraph(ComputationGraph& cg) {
 
   Expression reverse_lstm_init_expr = parameter(cg, reverse_lstm_init);
   reverse_lstm_init_v = MakeLSTMInitialState(reverse_lstm_init_expr, output_dim / 2, reverse_builder.layers);
+
+  if (peep_add) {
+    W = parameter(*pcg, p_W);
+  }
 }
 
 void BidirectionalEncoder::SetDropout(float rate) {
@@ -74,8 +83,7 @@ vector<Expression> BidirectionalEncoder::Encode(const InputSentence* const input
     const Expression& r = reverse_encodings[sentence.size() - 1 - i];
     bidir_encodings[i] = concatenate({f, r});
     if (peep_add) {
-      // XXX: If the word embedding dim is not the same as the LSTM dim there needs to be a transformation matrix here
-      bidir_encodings[i] = bidir_encodings[i] + embeddings[i];
+      bidir_encodings[i] = bidir_encodings[i] + W * embeddings[i];
     }
     if (peep_concat) {
       bidir_encodings[i] = concatenate({bidir_encodings[i], embeddings[i]});

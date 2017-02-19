@@ -55,7 +55,9 @@ MorphologyEmbedder::MorphologyEmbedder(Model& model, unsigned word_vocab_size, u
 void MorphologyEmbedder::NewGraph(ComputationGraph& cg) {
   pcg = &cg;
   char_lstm.new_graph(cg);
-  morph_lstm.new_graph(cg);
+  if (use_morphology) {
+    morph_lstm.new_graph(cg);
+  }
 
   Expression char_lstm_init_expr = parameter(cg, char_lstm_init);
   char_lstm_init_v = MakeLSTMInitialState(char_lstm_init_expr, char_lstm_dim, char_lstm.layers);

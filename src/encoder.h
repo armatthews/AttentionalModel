@@ -75,6 +75,8 @@ private:
   vector<Expression> forward_lstm_init_v;
   Parameter reverse_lstm_init;
   vector<Expression> reverse_lstm_init_v;
+  Parameter p_W;
+  Expression W;
   ComputationGraph* pcg;
 
   friend class boost::serialization::access;
@@ -88,6 +90,7 @@ private:
     ar & reverse_builder;
     ar & forward_lstm_init;
     ar & reverse_lstm_init;
+    ar & p_W;
   }
 };
 BOOST_CLASS_EXPORT_KEY(BidirectionalEncoder)
