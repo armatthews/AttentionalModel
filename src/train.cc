@@ -253,7 +253,9 @@ int main(int argc, char** argv) {
         const unsigned char_emb_dim = embedding_dim;
         const unsigned affix_lstm_dim = 32;
         const unsigned char_lstm_dim = embedding_dim;
-        embedder = new MorphologyEmbedder(dynet_model, word_vocab_size, root_vocab_size, affix_vocab_size, char_vocab_size, embedding_dim, affix_emb_dim, char_emb_dim, affix_lstm_dim, char_lstm_dim);
+        const bool use_words = true;
+        const bool use_morphology = false;
+        embedder = new MorphologyEmbedder(dynet_model, word_vocab_size, root_vocab_size, affix_vocab_size, char_vocab_size, embedding_dim, affix_emb_dim, char_emb_dim, affix_lstm_dim, char_lstm_dim, use_words, use_morphology);
       }
 
       if (vm.count("no_encoder_rnn")) {

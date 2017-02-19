@@ -52,7 +52,7 @@ class MorphologyEmbedder : public Embedder {
 public:
   MorphologyEmbedder();
   // Note: We don't need root_emb_dim since root_emb_dim = 2 * affix_lstm_dim.
-  MorphologyEmbedder(Model& model, unsigned word_vocab_size, unsigned root_vocab_size, unsigned affix_vocab_size, unsigned char_vocab_size, unsigned word_emb_dim, unsigned affix_emb_dim, unsigned char_emb_dim, unsigned affix_lstm_dim, unsigned char_lstm_dim);
+  MorphologyEmbedder(Model& model, unsigned word_vocab_size, unsigned root_vocab_size, unsigned affix_vocab_size, unsigned char_vocab_size, unsigned word_emb_dim, unsigned affix_emb_dim, unsigned char_emb_dim, unsigned affix_lstm_dim, unsigned char_lstm_dim, bool use_words, bool use_morphology);
   void NewGraph(ComputationGraph& cg) override;
   void SetDropout(float rate) override;
   unsigned Dim() const;

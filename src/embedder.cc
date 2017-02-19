@@ -31,9 +31,7 @@ Expression StandardEmbedder::Embed(const shared_ptr<const Word> word) {
 
 MorphologyEmbedder::MorphologyEmbedder() {}
 
-MorphologyEmbedder::MorphologyEmbedder(Model& model, unsigned word_vocab_size, unsigned root_vocab_size, unsigned affix_vocab_size, unsigned char_vocab_size, unsigned word_emb_dim, unsigned affix_emb_dim, unsigned char_emb_dim, unsigned affix_lstm_dim, unsigned char_lstm_dim) : affix_lstm_dim(affix_lstm_dim), char_lstm_dim(char_lstm_dim) {
-  use_words = true;
-  use_morphology = true;
+MorphologyEmbedder::MorphologyEmbedder(Model& model, unsigned word_vocab_size, unsigned root_vocab_size, unsigned affix_vocab_size, unsigned char_vocab_size, unsigned word_emb_dim, unsigned affix_emb_dim, unsigned char_emb_dim, unsigned affix_lstm_dim, unsigned char_lstm_dim, bool use_words, bool use_morphology) : use_words(use_words), use_morphology(use_morphology), affix_lstm_dim(affix_lstm_dim), char_lstm_dim(char_lstm_dim) {
   total_emb_dim = 0;
 
   if (use_words) {
