@@ -32,17 +32,26 @@ Expression StandardEmbedder::Embed(const shared_ptr<const Word> word) {
 MorphologyEmbedder::MorphologyEmbedder() {}
 
 MorphologyEmbedder::MorphologyEmbedder(Model& model, unsigned word_vocab_size, unsigned root_vocab_size, unsigned affix_vocab_size, unsigned char_vocab_size, unsigned word_emb_dim, unsigned affix_emb_dim, unsigned char_emb_dim, unsigned affix_lstm_dim, unsigned char_lstm_dim) : affix_lstm_dim(affix_lstm_dim), char_lstm_dim(char_lstm_dim) {
-  word_embeddings = model.add_lookup_parameters(word_vocab_size, {word_emb_dim});
-  root_embeddings = model.add_lookup_parameters(root_vocab_size, {2 * affix_lstm_dim});
-  affix_embeddings = model.add_lookup_parameters(affix_vocab_size, {affix_emb_dim});
+  use_words = true;
+  use_morphology = true;
+  total_emb_dim = 0;
+
+  if (use_words) {
+    word_embeddings = model.add_lookup_parameters(word_vocab_size, {word_emb_dim});
+    total_emb_dim += word_emb_dim;
+  }
+
+  if (use_morphology) {
+    root_embeddings = model.add_lookup_parameters(root_vocab_size, {2 * affix_lstm_dim});
+    affix_embeddings = model.add_lookup_parameters(affix_vocab_size, {affix_emb_dim});
+    morph_lstm = LSTMBuilder(lstm_layer_count, affix_emb_dim, affix_lstm_dim, model);
+    total_emb_dim += affix_lstm_dim;
+  }
+
   char_embeddings = model.add_lookup_parameters(char_vocab_size, {char_emb_dim});
-
-  morph_lstm = LSTMBuilder(lstm_layer_count, affix_emb_dim, affix_lstm_dim, model);
   char_lstm = LSTMBuilder(lstm_layer_count, char_emb_dim, char_lstm_dim, model);
-
   char_lstm_init = model.add_parameters({lstm_layer_count * char_lstm_dim});
-
-  total_emb_dim = word_emb_dim + affix_lstm_dim + char_lstm_dim;
+  total_emb_dim += char_lstm_dim;
 }
 
 void MorphologyEmbedder::NewGraph(ComputationGraph& cg) {
@@ -60,13 +69,11 @@ unsigned MorphologyEmbedder::Dim() const {
   return total_emb_dim;
 }
 
-Expression MorphologyEmbedder::Embed(const shared_ptr<const Word> word) {
-  const shared_ptr<const MorphoWord> mword = dynamic_pointer_cast<const MorphoWord>(word);
+Expression MorphologyEmbedder::EmbedWord(WordId word) {
+  return lookup(*pcg, word_embeddings, word);
+}
 
-  Expression word_emb = lookup(*pcg, word_embeddings, mword->word);
-
-  vector<Expression> analysis_embs;
-  for (const Analysis analysis : mword->analyses) {
+Expression MorphologyEmbedder::EmbedAnalysis(const Analysis& analysis) {
     Expression root_emb = lookup(*pcg, root_embeddings, analysis.root);
     vector<Expression> init = MakeLSTMInitialState(root_emb, affix_lstm_dim, morph_lstm.layers);
     morph_lstm.start_new_sequence(init);
@@ -75,23 +82,54 @@ Expression MorphologyEmbedder::Embed(const shared_ptr<const Word> word) {
       morph_lstm.add_input(affix_emb);
     }
     Expression analysis_emb = morph_lstm.back();
-    analysis_embs.push_back(analysis_emb);
-  }
+}
 
+Expression MorphologyEmbedder::PoolAnalysisEmbeddings(const vector<Expression> analysis_embs) {
   // Ghetto max pooling
   assert (analysis_embs.size() > 0);
   Expression morph_emb = analysis_embs[0];
   for (unsigned i = 1; i < analysis_embs.size(); ++i) {
     morph_emb = max(morph_emb, analysis_embs[i]);
   }
+  return morph_emb;
+}
 
+Expression MorphologyEmbedder::EmbedAnalyses(const vector<Analysis>& analyses) {
+  vector<Expression> analysis_embs;
+  for (const Analysis analysis : analyses) {
+    Expression analysis_emb = EmbedAnalysis(analysis);
+    analysis_embs.push_back(analysis_emb);
+  }
+  return PoolAnalysisEmbeddings(analysis_embs);
+}
+
+Expression MorphologyEmbedder::EmbedCharSequence(const vector<WordId>& chars) {
   char_lstm.start_new_sequence(char_lstm_init_v);
-  for (WordId c : mword->chars) {
+  for (const WordId c : chars) {
     Expression c_emb = lookup(*pcg, char_embeddings, c);
     char_lstm.add_input(c_emb);
   }
   Expression char_emb = char_lstm.back();
+  return char_emb;
+}
 
-  return concatenate({word_emb, morph_emb, char_emb});
+Expression MorphologyEmbedder::Embed(const shared_ptr<const Word> word) {
+  const shared_ptr<const MorphoWord> mword = dynamic_pointer_cast<const MorphoWord>(word);
+
+  vector<Expression> pieces;
+  if (use_words) {
+    Expression word_emb = EmbedWord(mword->word);
+    pieces.push_back(word_emb);
+  }
+
+  if (use_morphology) {
+    Expression morph_emb = EmbedAnalyses(mword->analyses);
+    pieces.push_back(morph_emb);
+  }
+
+  Expression char_emb = EmbedCharSequence(mword->chars);
+  pieces.push_back(char_emb);
+
+  return concatenate(pieces);
 }
 

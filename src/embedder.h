@@ -56,8 +56,15 @@ public:
   void NewGraph(ComputationGraph& cg) override;
   void SetDropout(float rate) override;
   unsigned Dim() const;
+  Expression EmbedWord(WordId word);
+  Expression EmbedAnalysis(const Analysis& analysis);
+  Expression PoolAnalysisEmbeddings(const vector<Expression> analysis_embs);
+  Expression EmbedAnalyses(const vector<Analysis>& analyses);
+  Expression EmbedCharSequence(const vector<WordId>& chars);
   Expression Embed(const shared_ptr<const Word> word) override;
 private:
+  bool use_words;
+  bool use_morphology;
   unsigned total_emb_dim;
   unsigned affix_lstm_dim, char_lstm_dim;
   LookupParameter word_embeddings;
@@ -78,6 +85,8 @@ private:
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {
     ar & boost::serialization::base_object<Embedder>(*this);
+    ar & use_words;
+    ar & use_morphology;
     ar & total_emb_dim;
     ar & affix_lstm_dim & char_lstm_dim;
     ar & word_embeddings;
