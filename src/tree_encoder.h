@@ -3,7 +3,8 @@
 #include <boost/serialization/access.hpp>
 #include <boost/serialization/base_object.hpp>
 #include "encoder.h"
-#include "treelstm.h"
+//#include "treelstm.h"
+#include "dynet/treelstm.h"
 #include "syntax_tree.h"
 
 class TreeEncoder : public EncoderModel {
@@ -16,7 +17,7 @@ public:
 private:
   unsigned output_dim;
   EncoderModel* linear_encoder;
-  TreeLSTMBuilder* tree_builder;
+  dynet::TreeLSTMBuilder* tree_builder;
   LookupParameter label_embeddings;
   ComputationGraph* pcg;
 
