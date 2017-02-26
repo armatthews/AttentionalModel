@@ -274,6 +274,25 @@ Bitext ReadBitext(const string& source_filename, const string& target_filename, 
   return bitext;
 }
 
+Bitext ReadBitextWithTrees(const string& source_filename, const string& source_tree_filename, const string& target_filename, InputReader* input_reader, InputReader* tree_reader, OutputReader* output_reader) {
+  cerr << "Source filename: " << source_filename << endl;
+  cerr << "Tree filename: " << source_tree_filename << endl;
+  vector<InputSentence*> source = input_reader->Read(source_filename);
+  vector<InputSentence*> trees = tree_reader->Read(source_tree_filename);
+  vector<OutputSentence*> target = output_reader->Read(target_filename);
+  assert (source.size() == target.size());
+
+  Bitext bitext;
+  for (unsigned i = 0; i < source.size(); ++i) {
+    SyntaxTree* tree = dynamic_cast<SyntaxTree*>(trees[i]);
+    InputSentence* sent_with_tree = new SentWithTree(source[i], tree);
+    if (i == 0) {
+      cerr << "First sentence has " << tree->NumNodes() << " tree nodes and " << source[i]->NumNodes() << " linear nodes" << endl;
+    }
+    bitext.push_back(make_pair(sent_with_tree, target[i]));
+  }
+  return bitext;
+}
 
 void Serialize(const InputReader* const input_reader, const OutputReader* const output_reader, const Translator& translator, Model& dynet_model, const Trainer* const trainer) {
   int r = ftruncate(fileno(stdout), 0);

@@ -1,7 +1,9 @@
 #include "attention.h"
+#include "io.h"
 BOOST_CLASS_EXPORT_IMPLEMENT(StandardAttentionModel)
 BOOST_CLASS_EXPORT_IMPLEMENT(SparsemaxAttentionModel)
 BOOST_CLASS_EXPORT_IMPLEMENT(EncoderDecoderAttentionModel)
+BOOST_CLASS_EXPORT_IMPLEMENT(TreeAttentionModel)
 
 AttentionModel::~AttentionModel() {}
 
@@ -94,38 +96,8 @@ Expression StandardAttentionModel::GetAlignmentVector(const vector<Expression>& 
   return a;
 }
 
-Expression StandardAttentionModel::GetAlignmentVector(const vector<Expression>& inputs, const Expression& state, const SyntaxTree* const tree) {
-  Expression a = softmax(GetScoreVector(inputs, state));
-
-  for (AttentionPrior* prior : priors) {
-    a = cmult(a, prior->Compute(inputs, tree, target_index));
-  }
-
-  // Renormalize if we have priors
-  if (priors.size() > 0) {
-    Expression Z = sum_cols(transpose(a));
-    vector<Expression> Z_n(inputs.size(), Z);
-    Expression Zc = concatenate(Z_n);
-    a = cdiv(a, Zc);
-  }
-
-  ++target_index;
-
-  for (AttentionPrior* prior : priors) {
-    prior->Notify(a);
-  }
-
-  return a;
-}
-
 Expression StandardAttentionModel::GetContext(const vector<Expression>& inputs, const Expression& state) {
   Expression dist = GetAlignmentVector(inputs, state);
-  Expression context = input_matrix * dist;
-  return context;
-}
-
-Expression StandardAttentionModel::GetContext(const vector<Expression>& inputs, const Expression& state, const SyntaxTree* const tree) {
-  Expression dist = GetAlignmentVector(inputs, state, tree);
   Expression context = input_matrix * dist;
   return context;
 }
@@ -164,3 +136,125 @@ Expression EncoderDecoderAttentionModel::GetContext(const vector<Expression>& in
   Expression context = concatenate({hNf, h0b});
   return context;
 }
+
+TreeAttentionModel::TreeAttentionModel() {}
+
+TreeAttentionModel::TreeAttentionModel(Model& model, const SyntaxInputReader* const reader, unsigned input_dim, unsigned tree_dim, unsigned state_dim, unsigned hidden_dim) : state_dim(state_dim), pcg(nullptr) {
+  unsigned vocab_size = reader->terminal_vocab.size();
+  unsigned label_vocab_size = reader->nonterminal_vocab.size(); 
+  tree_encoder = TreeEncoder(model, vocab_size, label_vocab_size, input_dim, input_dim);
+  mlp = MLP(model, state_dim + tree_dim, hidden_dim, 1);
+}
+
+void TreeAttentionModel::NewGraph(ComputationGraph& cg) {
+  tree_encoder.NewGraph(cg);
+  mlp.NewGraph(cg);
+  target_index = 0;
+  pcg = &cg;
+}
+
+Expression TreeAttentionModel::GetScoreVector(const vector<Expression>& inputs, const Expression& state) {
+  assert (false);
+}
+
+Expression TreeAttentionModel::GetAlignmentVector(const vector<Expression>& inputs, const Expression& state) {
+  assert (false);
+}
+
+Expression TreeAttentionModel::GetContext(const vector<Expression>& inputs, const Expression& state) {
+  assert (false);
+}
+
+Expression TreeAttentionModel::GetScoreVector(const vector<Expression>& inputs, const SyntaxTree* const tree, const Expression& state) {
+  vector<Expression> node_encodings = tree_encoder.Encode(tree);
+  vector<Expression> node_scores(node_encodings.size());
+  for (unsigned i = 0; i < node_encodings.size(); ++i ) {
+    Expression node_encoding = node_encodings[i];
+    Expression node_score = mlp.Feed(concatenate({state, node_encoding}));
+    node_scores[i] = node_score;
+  }
+ 
+  vector<const SyntaxTree*> node_stack = {tree};
+  vector<unsigned> ancestor_indices = {};
+  vector<unsigned> index_stack = {0};
+  unsigned node_index = 0;
+  unsigned terminal_index = 0;
+  
+  vector<Expression> terminal_scores;
+  while (node_stack.size() > 0) {
+    assert (node_stack.size() == index_stack.size());
+    const SyntaxTree* node = node_stack.back();
+    const unsigned i = index_stack.back();
+    if (i < node->NumChildren()) {
+      // The current node still has children,
+      // so push the next one onto the stack.
+      index_stack[index_stack.size() - 1] += 1;
+      node_stack.push_back(&node->GetChild(i));
+      index_stack.push_back(0);
+      if (i == 0) {
+        ancestor_indices.push_back(node_index);
+        node_index++; 
+      }
+    }
+    else { 
+      if (node->NumChildren() == 0) {
+        ancestor_indices.push_back(node_index);
+        //cerr << "Term #" << terminal_index << "(node #" << node_index << ")" << " is " << node_stack.size() << " deep:";
+        vector<Expression> ancestor_scores;
+        ancestor_scores.reserve(ancestor_indices.size());
+        for (unsigned x : ancestor_indices) {
+          assert (x < node_scores.size());
+          //cerr << " " << x;
+          ancestor_scores.push_back(node_scores[x]);
+        }
+        terminal_scores.push_back(sum(ancestor_scores));
+        //cerr << endl;
+        terminal_index++;
+        node_index++;
+      }
+      index_stack.pop_back();
+      node_stack.pop_back();
+      assert (ancestor_indices.size() > 0);
+      ancestor_indices.pop_back();
+    }
+  }
+
+  //cerr << "Final node index: " << node_index << endl;
+  assert (node_stack.size() == index_stack.size());
+  assert (node_stack.size() == 0);
+  assert (ancestor_indices.size() == 0);
+  Expression scores = concatenate(terminal_scores);
+  scores = concatenate({input(*pcg, 0.0f), scores, input(*pcg, 0.0f)}); // add scores for <s> and </s>
+  return scores;
+}
+
+Expression TreeAttentionModel::GetAlignmentVector(const vector<Expression>& inputs, const SyntaxTree* const tree, const Expression& state) {
+  Expression a = softmax(GetScoreVector(inputs, tree, state));
+
+  for (AttentionPrior* prior : priors) {
+    a = cmult(a, prior->Compute(inputs, target_index));
+  }
+
+  // Renormalize if we have priors
+  if (priors.size() > 0) {
+    Expression Z = sum_cols(transpose(a));
+    vector<Expression> Z_n(inputs.size(), Z);
+    Expression Zc = concatenate(Z_n);
+    a = cdiv(a, Zc);
+  }
+
+  ++target_index;
+
+  for (AttentionPrior* prior : priors) {
+    prior->Notify(a);
+  }
+
+  return a;
+}
+
+Expression TreeAttentionModel::GetContext(const vector<Expression>& inputs, const SyntaxTree* const tree, const Expression& state) {
+  Expression dist = GetAlignmentVector(inputs, tree, state);
+  Expression context = concatenate_cols(inputs) * dist;
+  return context;
+}
+

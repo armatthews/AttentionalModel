@@ -13,6 +13,12 @@ using namespace std;
 
 InputSentence::~InputSentence() {}
 
+SentWithTree::SentWithTree(InputSentence* sent, SyntaxTree* tree) : sent(sent), tree(tree) {}
+
+unsigned SentWithTree::NumNodes() const {
+  return sent->NumNodes();
+}
+
 unsigned LinearSentence::NumNodes() const {
   return this->size();
 }

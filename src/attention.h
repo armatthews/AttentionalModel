@@ -11,6 +11,8 @@
 #include "dynet/dynet.h"
 #include "dynet/lstm.h"
 #include "dynet/expr.h"
+#include "tree_encoder.h"
+#include "mlp.h"
 #include "utils.h"
 #include "syntax_tree.h"
 #include "prior.h"
@@ -20,6 +22,8 @@
 using namespace std;
 using namespace dynet;
 using namespace dynet::expr;
+
+class SyntaxInputReader;
 
 class AttentionModel {
 public:
@@ -55,9 +59,6 @@ public:
   Expression GetScoreVector(const vector<Expression>& inputs, const Expression& state);
   Expression GetAlignmentVector(const vector<Expression>& inputs, const Expression& state);
   Expression GetContext(const vector<Expression>& inputs, const Expression& state);
-
-  Expression GetAlignmentVector(const vector<Expression>& inputs, const Expression& state, const SyntaxTree* const tree);
-  Expression GetContext(const vector<Expression>& inputs, const Expression& state, const SyntaxTree* const tree);
 
 private:
   Parameter p_U, p_V, p_W, p_b;
@@ -132,4 +133,35 @@ private:
   }
 };
 BOOST_CLASS_EXPORT_KEY(EncoderDecoderAttentionModel)
+
+class TreeAttentionModel : public AttentionModel {
+public:
+  TreeAttentionModel();
+  TreeAttentionModel(Model& model, const SyntaxInputReader* const reader, unsigned input_dim, unsigned tree_dim, unsigned state_dim, unsigned hidden_dim);
+
+  void NewGraph(ComputationGraph& cg);
+  Expression GetScoreVector(const vector<Expression>& inputs, const Expression& state);
+  Expression GetAlignmentVector(const vector<Expression>& inputs, const Expression& state);
+  Expression GetContext(const vector<Expression>& inputs, const Expression& state);
+
+  Expression GetScoreVector(const vector<Expression>& inputs, const SyntaxTree* const tree, const Expression& state);
+  Expression GetAlignmentVector(const vector<Expression>& inputs, const SyntaxTree* const tree, const Expression& state);
+  Expression GetContext(const vector<Expression>& inputs, const SyntaxTree* const tree, const Expression& state);
+private:
+  unsigned state_dim;
+  TreeEncoder tree_encoder;
+  MLP mlp;
+  unsigned target_index;
+  ComputationGraph* pcg;
+
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {
+    ar & boost::serialization::base_object<AttentionModel>(*this);
+    ar & state_dim;
+    ar & tree_encoder;
+    ar & mlp;
+  }
+};
+BOOST_CLASS_EXPORT_KEY(TreeAttentionModel)
 

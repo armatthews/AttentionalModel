@@ -15,6 +15,8 @@ using namespace std;
 using namespace dynet;
 using namespace dynet::expr;
 
+class SyntaxTree;
+
 typedef int WordId;
 
 struct Word {
@@ -43,6 +45,15 @@ public:
   virtual ~InputSentence();
   // Returns the number of nodes returned when we embed this sentence
   virtual unsigned NumNodes() const = 0;
+};
+
+class SentWithTree : public InputSentence {
+public:
+  SentWithTree(InputSentence* sent, SyntaxTree* tree);
+  virtual unsigned NumNodes() const override;
+//private:
+  InputSentence* sent;
+  SyntaxTree* tree;
 };
 
 typedef vector<shared_ptr<Word>> OutputSentence;

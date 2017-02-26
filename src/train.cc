@@ -139,8 +139,10 @@ int main(int argc, char** argv) {
 
   ("train_source", po::value<string>()->required(), "Training set source")
   ("train_target", po::value<string>()->required(), "Training set target")
+  ("train_source_trees", po::value<string>()->required(), "Training set source trees")
   ("dev_source", po::value<string>()->required(), "Dev set source")
   ("dev_target", po::value<string>()->required(), "Dev set target")
+  ("dev_source_trees", po::value<string>()->required(), "Dev set source trees")
   ("source_type", po::value<InputType>()->default_value(kStandard), "Source input type. One of \"standard\", for standard linear sentences, \"syntax\" for syntax trees, \"morph\" for morphologically analyzed sentences, \"rnng\" for recurrent neural network grammars")
   ("target_type", po::value<InputType>()->default_value(kStandard), "Target input type. One of the same choices as above")
 
@@ -177,8 +179,10 @@ int main(int argc, char** argv) {
   po::positional_options_description positional_options;
   positional_options.add("train_source", 1);
   positional_options.add("train_target", 1);
+  positional_options.add("train_source_trees", 1);
   positional_options.add("dev_source", 1);
   positional_options.add("dev_target", 1);
+  positional_options.add("dev_source_trees", 1);
 
   po::variables_map vm;
   po::store(po::command_line_parser(argc, argv).options(desc).positional(positional_options).run(), vm);
@@ -192,6 +196,7 @@ int main(int argc, char** argv) {
 
   Model dynet_model;
   InputReader* input_reader = nullptr;
+  InputReader* tree_reader = new SyntaxInputReader();
   OutputReader* output_reader = nullptr;
   Translator* translator = nullptr;
   Trainer* trainer = nullptr;
@@ -210,14 +215,16 @@ int main(int argc, char** argv) {
   }
 
   const string train_source_filename = vm["train_source"].as<string>();
+  const string train_source_tree_filename = vm["train_source_trees"].as<string>();
   const string train_target_filename = vm["train_target"].as<string>();
-  Bitext train_bitext = ReadBitext(train_source_filename, train_target_filename, input_reader, output_reader);
+  Bitext train_bitext = ReadBitextWithTrees(train_source_filename, train_source_tree_filename, train_target_filename, input_reader, tree_reader, output_reader);
   input_reader->Freeze();
   output_reader->Freeze();
 
   const string dev_source_filename = vm["dev_source"].as<string>();
+  const string dev_source_tree_filename = vm["dev_source_trees"].as<string>();
   const string dev_target_filename = vm["dev_target"].as<string>();
-  Bitext dev_bitext = ReadBitext(dev_source_filename, dev_target_filename, input_reader, output_reader);
+  Bitext dev_bitext = ReadBitextWithTrees(dev_source_filename, dev_source_tree_filename, dev_target_filename, input_reader, tree_reader, output_reader);
 
   const InputType source_type = vm["source_type"].as<InputType>();
   const InputType target_type = vm["target_type"].as<InputType>();
@@ -275,14 +282,15 @@ int main(int argc, char** argv) {
     }
 
     AttentionModel* attention_model = nullptr;
-    const unsigned key_size = vm.count("key_size") > 0 ? vm["key_size"].as<unsigned>() : annotation_dim;
+    /*const unsigned key_size = vm.count("key_size") > 0 ? vm["key_size"].as<unsigned>() : annotation_dim;
     if (!vm.count("sparsemax")) {
       attention_model = new StandardAttentionModel(dynet_model, annotation_dim, output_state_dim, alignment_hidden_dim, key_size);
     }
     else {
       attention_model = new SparsemaxAttentionModel(dynet_model, annotation_dim, output_state_dim, alignment_hidden_dim, key_size);
-    }
+    }*/
     // attention_model = new EncoderDecoderAttentionModel(dynet_model, annotation_dim, output_state_dim);
+    attention_model = new TreeAttentionModel(dynet_model, dynamic_cast<SyntaxInputReader*>(tree_reader), annotation_dim, annotation_dim, output_state_dim, alignment_hidden_dim); 
 
     OutputModel* output_model = nullptr;
     if (target_type == kStandard) {

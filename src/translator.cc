@@ -24,7 +24,12 @@ Expression Translator::BuildGraph(const InputSentence* const source, const Outpu
   NewGraph(cg);
   vector<Expression> word_losses(target->size());
 
-  vector<Expression> encodings = encoder_model->Encode(source);
+  const InputSentence* const linear_source = dynamic_cast<const SentWithTree*>(source)->sent;
+  const SyntaxTree* const source_tree = dynamic_cast<const SentWithTree*>(source)->tree;
+  vector<Expression> encodings = encoder_model->Encode(linear_source);
+  //cerr << "Input encodings have length " << encodings.size() << endl;
+
+  TreeAttentionModel* att = dynamic_cast<TreeAttentionModel*>(attention_model); 
 
   Expression state = output_model->GetState();
   attention_model->NewSentence(source);
@@ -33,7 +38,7 @@ Expression Translator::BuildGraph(const InputSentence* const source, const Outpu
     assert (same_value(state, output_model->GetState()));
     word_losses[i] = output_model->Loss(state, word);
 
-    Expression context = attention_model->GetContext(encodings, state);
+    Expression context = att->GetContext(encodings, source_tree, state);
     state = output_model->AddInput(word, context);
   }
   return sum(word_losses);
