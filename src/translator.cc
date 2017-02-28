@@ -25,6 +25,17 @@ Expression Translator::BuildGraph(const InputSentence* const source, const Outpu
   vector<Expression> word_losses(target->size());
 
   vector<Expression> encodings = encoder_model->Encode(source);
+  assert (encodings.size() == source->NumNodes() || encodings.size() == 2 * source->NumNodes());
+
+  vector<Expression> key_encodings;
+  vector<Expression> value_encodings;
+  if (encodings.size() == source->NumNodes()) {
+    key_encodings = value_encodings = encodings;
+  }
+  else {
+    key_encodings = vector<Expression>(encodings.begin(), encodings.begin() + encodings.size() / 2);
+    value_encodings = vector<Expression>(encodings.begin() + encodings.size() / 2, encodings.end());
+  }
 
   Expression state = output_model->GetState();
   attention_model->NewSentence(source);
@@ -33,7 +44,9 @@ Expression Translator::BuildGraph(const InputSentence* const source, const Outpu
     assert (same_value(state, output_model->GetState()));
     word_losses[i] = output_model->Loss(state, word);
 
-    Expression context = attention_model->GetContext(encodings, state);
+    //Expression context = attention_model->GetContext(value_encodings, state);
+    Expression alignment = attention_model->GetAlignmentVector(key_encodings, state);
+    Expression context = concatenate_cols(value_encodings) * alignment;
     state = output_model->AddInput(word, context);
   }
   return sum(word_losses);

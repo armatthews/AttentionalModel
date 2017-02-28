@@ -94,3 +94,16 @@ private:
   }
 };
 BOOST_CLASS_EXPORT_KEY(BidirectionalEncoder)
+
+class MultiFactorEncoder : public EncoderModel {
+public:
+  MultiFactorEncoder();
+  MultiFactorEncoder(const vector<EncoderModel*>& encoders);
+  void NewGraph(ComputationGraph& cg) override;
+  void SetDropout(float rate) override;
+  vector<Expression> Encode(const InputSentence* const input) override;
+//private:
+  vector<EncoderModel*> encoders;
+};
+BOOST_CLASS_EXPORT_KEY(MultiFactorEncoder)
+

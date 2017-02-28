@@ -20,6 +20,28 @@ unsigned LinearSentence::NumNodes() const {
 Word::~Word() {}
 StandardWord::StandardWord(WordId id) : id(id) {}
 
+MultiFactorInputSentence::MultiFactorInputSentence() {}
+
+MultiFactorInputSentence::MultiFactorInputSentence(const vector<InputSentence*>& factors) : factors(factors) {}
+
+void MultiFactorInputSentence::AddFactor(InputSentence* factor) {
+  factors.push_back(factor);
+}
+
+const InputSentence* const MultiFactorInputSentence::GetFactor(unsigned i) const {
+  assert (factors.size() > i);
+  return factors[i];
+}
+
+unsigned MultiFactorInputSentence::NumFactors() const {
+  return factors.size();
+}
+
+unsigned MultiFactorInputSentence::NumNodes() const {
+  assert (factors.size() > 0);
+  return factors[0]->NumNodes();
+}
+
 // Samples an item from a multinomial distribution
 // The values in dist should sum to one.
 unsigned Sample(const vector<float>& dist) {

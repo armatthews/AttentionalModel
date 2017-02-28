@@ -123,6 +123,25 @@ void ctrlc_handler(int signal) {
   }
 }
 
+void AddSourceFactor(Bitext& bitext, InputReader* reader, const string& filename) {
+  vector<InputSentence*> new_factor = reader->Read(filename);
+  assert (bitext.size() == new_factor.size());
+
+  for (unsigned i = 0; i < bitext.size(); ++i) {
+    InputSentence* old_src = get<0>(bitext[i]);
+    InputSentence* new_src = new_factor[i];
+    MultiFactorInputSentence* mfis = dynamic_cast<MultiFactorInputSentence*>(old_src);
+    if (mfis != nullptr) {
+      mfis->AddFactor(new_src);
+    }
+    else {
+      mfis = new MultiFactorInputSentence({old_src, new_src});
+      OutputSentence* target = get<1>(bitext[i]);
+      bitext[i] = make_pair(mfis, target);
+    }
+  } 
+}
+
 int main(int argc, char** argv) {
   cerr << "Invoked as:";
   for (int i = 0; i < argc; ++i) {
@@ -138,8 +157,10 @@ int main(int argc, char** argv) {
   ("help", "Display this help message")
 
   ("train_source", po::value<string>()->required(), "Training set source")
+  ("train_source_pos", po::value<string>()->required(), "Training set source POS tags")
   ("train_target", po::value<string>()->required(), "Training set target")
   ("dev_source", po::value<string>()->required(), "Dev set source")
+  ("dev_source_pos", po::value<string>()->required(), "Dev set source POS tags")
   ("dev_target", po::value<string>()->required(), "Dev set target")
   ("source_type", po::value<InputType>()->default_value(kStandard), "Source input type. One of \"standard\", for standard linear sentences, \"syntax\" for syntax trees, \"morph\" for morphologically analyzed sentences, \"rnng\" for recurrent neural network grammars")
   ("target_type", po::value<InputType>()->default_value(kStandard), "Target input type. One of the same choices as above")
@@ -176,8 +197,10 @@ int main(int argc, char** argv) {
 
   po::positional_options_description positional_options;
   positional_options.add("train_source", 1);
+  positional_options.add("train_source_pos", 1);
   positional_options.add("train_target", 1);
   positional_options.add("dev_source", 1);
+  positional_options.add("dev_source_pos", 1);
   positional_options.add("dev_target", 1);
 
   po::variables_map vm;
@@ -192,6 +215,7 @@ int main(int argc, char** argv) {
 
   Model dynet_model;
   InputReader* input_reader = nullptr;
+  InputReader* pos_reader = nullptr;
   OutputReader* output_reader = nullptr;
   Translator* translator = nullptr;
   Trainer* trainer = nullptr;
@@ -206,18 +230,24 @@ int main(int argc, char** argv) {
   }
   else {
     input_reader = CreateInputReader(vm);
+    pos_reader = new StandardInputReader();
     output_reader = CreateOutputReader(vm);
   }
 
   const string train_source_filename = vm["train_source"].as<string>();
+  const string train_source_pos_filename = vm["train_source"].as<string>();
   const string train_target_filename = vm["train_target"].as<string>();
-  Bitext train_bitext = ReadBitext(train_source_filename, train_target_filename, input_reader, output_reader);
+  Bitext train_bitext = ReadBitext(train_source_pos_filename, train_target_filename, input_reader, output_reader);
+  AddSourceFactor(train_bitext, pos_reader, train_source_filename);
   input_reader->Freeze();
+  pos_reader->Freeze();
   output_reader->Freeze();
 
   const string dev_source_filename = vm["dev_source"].as<string>();
+  const string dev_source_pos_filename = vm["dev_source"].as<string>();
   const string dev_target_filename = vm["dev_target"].as<string>();
-  Bitext dev_bitext = ReadBitext(dev_source_filename, dev_target_filename, input_reader, output_reader);
+  Bitext dev_bitext = ReadBitext(dev_source_pos_filename, dev_target_filename, input_reader, output_reader);
+  AddSourceFactor(dev_bitext, pos_reader, dev_source_filename);
 
   const InputType source_type = vm["source_type"].as<InputType>();
   const InputType target_type = vm["target_type"].as<InputType>();
@@ -236,7 +266,12 @@ int main(int argc, char** argv) {
     const string clusters_filename = vm["clusters"].as<string>();
 
     EncoderModel* encoder_model = nullptr;
-    if (source_type == kStandard || source_type == kMorphology) {
+    const unsigned word_vocab_size = dynamic_cast<const StandardInputReader*>(input_reader)->vocab.size();
+    const unsigned pos_vocab_size = dynamic_cast<const StandardInputReader*>(pos_reader)->vocab.size();
+    EncoderModel* surface_encoder = new BidirectionalEncoder(dynet_model, new StandardEmbedder(dynet_model, word_vocab_size, embedding_dim), encoder_lstm_dim, peep_concat, peep_add);
+    EncoderModel* pos_encoder = new BidirectionalEncoder(dynet_model, new StandardEmbedder(dynet_model, pos_vocab_size, embedding_dim), encoder_lstm_dim, peep_concat, peep_add);
+    encoder_model = new MultiFactorEncoder({pos_encoder, surface_encoder});
+    /*if (source_type == kStandard || source_type == kMorphology) {
 
       Embedder* embedder = nullptr;
       if (source_type == kStandard) {
@@ -272,7 +307,7 @@ int main(int argc, char** argv) {
     }
     else {
       assert (false && "Unknown input type");
-    }
+    }*/
 
     AttentionModel* attention_model = nullptr;
     const unsigned key_size = vm.count("key_size") > 0 ? vm["key_size"].as<unsigned>() : annotation_dim;

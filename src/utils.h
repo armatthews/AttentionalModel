@@ -45,6 +45,18 @@ public:
   virtual unsigned NumNodes() const = 0;
 };
 
+class MultiFactorInputSentence : public InputSentence {
+public:
+  MultiFactorInputSentence();
+  MultiFactorInputSentence(const vector<InputSentence*>& factors);
+  void AddFactor(InputSentence* factor);
+  const InputSentence* const GetFactor(unsigned i) const;
+  unsigned NumFactors() const;
+  unsigned NumNodes() const override;
+private:
+  vector<InputSentence*> factors;
+};
+
 typedef vector<shared_ptr<Word>> OutputSentence;
 
 class LinearSentence : public InputSentence, public OutputSentence {

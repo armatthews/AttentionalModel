@@ -113,3 +113,34 @@ vector<Expression> BidirectionalEncoder::EncodeReverse(const vector<Expression>&
   }
   return reverse_encodings;
 }
+
+MultiFactorEncoder::MultiFactorEncoder() {}
+
+MultiFactorEncoder::MultiFactorEncoder(const vector<EncoderModel*>& encoders) : encoders(encoders) {}
+
+void MultiFactorEncoder::NewGraph(ComputationGraph& cg) {
+  for (auto& encoder : encoders) {
+    encoder->NewGraph(cg);
+  }
+}
+
+void MultiFactorEncoder::SetDropout(float rate) {
+  for (auto& encoder : encoders) {
+    encoder->SetDropout(rate);
+  }
+}
+
+vector<Expression> MultiFactorEncoder::Encode(const InputSentence* const input) {
+  const MultiFactorInputSentence* mfis = dynamic_cast<const MultiFactorInputSentence*>(input);
+  assert (mfis != nullptr);
+  assert (mfis->NumFactors() == encoders.size());
+
+  vector<Expression> encoding;
+  for (unsigned i = 0; i < encoders.size(); ++i) {
+    vector<Expression> factor_encoding = encoders[i]->Encode(mfis->GetFactor(i));
+    for (Expression& e : factor_encoding) {
+      encoding.push_back(e);
+    }
+  }
+  return encoding;
+}
