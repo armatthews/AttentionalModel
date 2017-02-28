@@ -102,8 +102,15 @@ public:
   void NewGraph(ComputationGraph& cg) override;
   void SetDropout(float rate) override;
   vector<Expression> Encode(const InputSentence* const input) override;
-//private:
+
   vector<EncoderModel*> encoders;
+
+private:
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {
+    ar & boost::serialization::base_object<EncoderModel>(*this);
+    ar & encoders;
+  }
 };
 BOOST_CLASS_EXPORT_KEY(MultiFactorEncoder)
-

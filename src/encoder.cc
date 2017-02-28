@@ -1,6 +1,7 @@
 #include "encoder.h"
 BOOST_CLASS_EXPORT_IMPLEMENT(BidirectionalEncoder)
 BOOST_CLASS_EXPORT_IMPLEMENT(TrivialEncoder)
+BOOST_CLASS_EXPORT_IMPLEMENT(MultiFactorEncoder)
 
 const unsigned lstm_layer_count = 2;
 
