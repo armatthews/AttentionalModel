@@ -37,8 +37,9 @@ istream& operator>>(istream& in, InputType& input_type)
 
 class Learner : public ILearner<SentencePair, SufficientStats> {
 public:
-  Learner(const InputReader* const input_reader, const OutputReader* const output_reader, Translator& translator, Model& dynet_model, const Trainer* const trainer, float dropout_rate, bool quiet) :
-    input_reader(input_reader), output_reader(output_reader), translator(translator), dynet_model(dynet_model), trainer(trainer), dropout_rate(dropout_rate), quiet(quiet) {}
+  Learner(const InputReader* const input_reader, const InputReader* const pos_reader,
+    const OutputReader* const output_reader, Translator& translator, Model& dynet_model, const Trainer* const trainer, float dropout_rate, bool quiet) :
+    input_reader(input_reader), pos_reader(pos_reader), output_reader(output_reader), translator(translator), dynet_model(dynet_model), trainer(trainer), dropout_rate(dropout_rate), quiet(quiet) {}
   ~Learner() {}
   SufficientStats LearnFromDatum(const SentencePair& datum, bool learn) {
     ComputationGraph cg;
@@ -58,11 +59,12 @@ public:
 
   void SaveModel() {
     if (!quiet) {
-      Serialize(input_reader, output_reader, translator, dynet_model, trainer);
+      Serialize(input_reader, pos_reader, output_reader, translator, dynet_model, trainer);
     }
   }
 private:
   const InputReader* const input_reader;
+  const InputReader* const pos_reader;
   const OutputReader* const output_reader;
   Translator& translator;
   Model& dynet_model;
@@ -149,6 +151,8 @@ int main(int argc, char** argv) {
   }
   cerr << "\n";
 
+  cerr << "Boost version: " << BOOST_VERSION << endl;
+
   signal (SIGINT, ctrlc_handler);
   dynet::initialize(argc, argv, true);
 
@@ -223,7 +227,7 @@ int main(int argc, char** argv) {
   if (vm.count("model")) {
     string model_filename = vm["model"].as<string>();
     translator = new Translator();
-    Deserialize(model_filename, input_reader, output_reader, *translator, dynet_model, trainer);
+    Deserialize(model_filename, input_reader, pos_reader, output_reader, *translator, dynet_model, trainer);
     if (vm.count("sgd") || vm.count("adagrad") || vm.count("adam") || vm.count("rmsprop") || vm.count("momentum")) {
       trainer = CreateTrainer(dynet_model, vm);
     }
@@ -235,19 +239,19 @@ int main(int argc, char** argv) {
   }
 
   const string train_source_filename = vm["train_source"].as<string>();
-  const string train_source_pos_filename = vm["train_source"].as<string>();
+  const string train_source_pos_filename = vm["train_source_pos"].as<string>();
   const string train_target_filename = vm["train_target"].as<string>();
-  Bitext train_bitext = ReadBitext(train_source_pos_filename, train_target_filename, input_reader, output_reader);
-  AddSourceFactor(train_bitext, pos_reader, train_source_filename);
+  Bitext train_bitext = ReadBitext(train_source_pos_filename, train_target_filename, pos_reader, output_reader);
+  AddSourceFactor(train_bitext, input_reader, train_source_filename);
   input_reader->Freeze();
   pos_reader->Freeze();
   output_reader->Freeze();
 
   const string dev_source_filename = vm["dev_source"].as<string>();
-  const string dev_source_pos_filename = vm["dev_source"].as<string>();
+  const string dev_source_pos_filename = vm["dev_source_pos"].as<string>();
   const string dev_target_filename = vm["dev_target"].as<string>();
-  Bitext dev_bitext = ReadBitext(dev_source_pos_filename, dev_target_filename, input_reader, output_reader);
-  AddSourceFactor(dev_bitext, pos_reader, dev_source_filename);
+  Bitext dev_bitext = ReadBitext(dev_source_pos_filename, dev_target_filename, pos_reader, output_reader);
+  AddSourceFactor(dev_bitext, input_reader, dev_source_filename);
 
   const InputType source_type = vm["source_type"].as<InputType>();
   const InputType target_type = vm["target_type"].as<InputType>();
@@ -268,6 +272,7 @@ int main(int argc, char** argv) {
     EncoderModel* encoder_model = nullptr;
     const unsigned word_vocab_size = dynamic_cast<const StandardInputReader*>(input_reader)->vocab.size();
     const unsigned pos_vocab_size = dynamic_cast<const StandardInputReader*>(pos_reader)->vocab.size();
+    cerr << "Vocab sizes: " << word_vocab_size << " words and " << pos_vocab_size << " pos tags" << endl;
     EncoderModel* surface_encoder = new BidirectionalEncoder(dynet_model, new StandardEmbedder(dynet_model, word_vocab_size, embedding_dim), encoder_lstm_dim, peep_concat, peep_add);
     EncoderModel* pos_encoder = new BidirectionalEncoder(dynet_model, new StandardEmbedder(dynet_model, pos_vocab_size, embedding_dim), encoder_lstm_dim, peep_concat, peep_add);
     encoder_model = new MultiFactorEncoder({pos_encoder, surface_encoder});
@@ -387,7 +392,7 @@ int main(int argc, char** argv) {
 
   const float dropout_rate = vm["dropout_rate"].as<float>();
   const bool quiet = vm.count("quiet");
-  Learner learner(input_reader, output_reader, *translator, dynet_model, trainer, dropout_rate, quiet);
+  Learner learner(input_reader, pos_reader, output_reader, *translator, dynet_model, trainer, dropout_rate, quiet);
 
   const unsigned num_cores = vm["cores"].as<unsigned>();
   const unsigned num_iterations = vm["num_iterations"].as<unsigned>();
