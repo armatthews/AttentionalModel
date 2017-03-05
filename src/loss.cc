@@ -18,6 +18,7 @@ int main(int argc, char** argv) {
   desc.add_options()
   ("model", po::value<string>()->required(), "model files, as output by train")
   ("input_source", po::value<string>()->required(), "input file source")
+  ("input_source_pos", po::value<string>()->required(), "input file source pos tags")
   ("input_target", po::value<string>()->required(), "input file target")
   ("perp", "Show per-sentence perplexity instead of negative log prob")
   ("help", "Display this help message");
@@ -25,6 +26,7 @@ int main(int argc, char** argv) {
   po::positional_options_description positional_options;
   positional_options.add("model", 1);
   positional_options.add("input_source", 1);
+  positional_options.add("input_source_pos", 1);
   positional_options.add("input_target", 1);
 
   po::variables_map vm;
@@ -41,24 +43,28 @@ int main(int argc, char** argv) {
   const bool show_perp = vm.count("perp") > 0;
 
   InputReader* input_reader = nullptr;
+  InputReader* pos_reader = nullptr;
   OutputReader* output_reader = nullptr;
   Translator translator;
   Model dynet_model;
   Trainer* trainer = nullptr;
-  Deserialize(model_filename, input_reader, output_reader, translator, dynet_model, trainer);
+  Deserialize(model_filename, input_reader, pos_reader, output_reader, translator, dynet_model, trainer);
   translator.SetDropout(0.0f);
 
   dynet::real total_loss = 0;
   unsigned total_words = 0;
   vector<InputSentence*> source_sentences = input_reader->Read(vm["input_source"].as<string>());
+  vector<InputSentence*> source_pos_tags = pos_reader->Read(vm["input_source_pos"].as<string>());
   vector<OutputSentence*> target_sentences = output_reader->Read(vm["input_target"].as<string>());
   assert (source_sentences.size() == target_sentences.size());
   for (unsigned sentence_number = 0; sentence_number < source_sentences.size(); ++sentence_number) {
     InputSentence* source = source_sentences[sentence_number];
+    InputSentence* source_pos = source_pos_tags[sentence_number];
+    InputSentence* mfis = new MultiFactorInputSentence({source_pos, source});
     OutputSentence* target = target_sentences[sentence_number];
 
     ComputationGraph cg;
-    Expression loss_expr = translator.BuildGraph(source, target, cg);
+    Expression loss_expr = translator.BuildGraph(mfis, target, cg);
     dynet::real loss = as_scalar(loss_expr.value());
     unsigned words = target->size();
     if (show_perp) {
