@@ -135,6 +135,19 @@ KBestList<shared_ptr<OutputSentence>> Translator::Translate(const InputSentence*
   top_hyps.add(0.0, make_pair(make_shared<OutputSentence>(), output_model->GetStatePointer()));
 
   vector<Expression> encodings = encoder_model->Encode(source);
+  assert (encodings.size() == source->NumNodes() || encodings.size() == 2 * source->NumNodes());
+
+  vector<Expression> key_encodings;
+  vector<Expression> value_encodings;
+  if (encodings.size() == source->NumNodes()) {
+    key_encodings = value_encodings = encodings;
+  }
+  else {
+    key_encodings = vector<Expression>(encodings.begin(), encodings.begin() + encodings.size() / 2);
+    value_encodings = vector<Expression>(encodings.begin() + encodings.size() / 2, encodings.end());
+  }
+
+  Expression input_matrix = concatenate_cols(value_encodings);
   attention_model->NewSentence(source);
 
   for (unsigned length = 0; length < max_length; ++length) {
@@ -157,7 +170,8 @@ KBestList<shared_ptr<OutputSentence>> Translator::Translate(const InputSentence*
       RNNPointer state_pointer = get<1>(get<1>(hyp));
       assert (hyp_sentence->size() == length);
       Expression output_state = output_model->GetState(state_pointer);
-      Expression context = attention_model->GetContext(encodings, output_state);
+      Expression word_alignment = attention_model->GetAlignmentVector(key_encodings, output_state);
+      Expression context = input_matrix * word_alignment;
       KBestList<shared_ptr<Word>> best_words = output_model->PredictKBest(state_pointer, output_state, beam_size);
 
       for (auto& w : best_words.hypothesis_list()) {
