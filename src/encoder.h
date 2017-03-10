@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <boost/serialization/export.hpp>
+#include <boost/serialization/vector.hpp>
 #include <boost/serialization/access.hpp>
 #include <boost/serialization/base_object.hpp>
 #include <boost/archive/binary_iarchive.hpp>
