@@ -399,7 +399,7 @@ void RnngOutputModel::InitializeDictionaries(const Dict& raw_vocab) {
       a2w[a] = i;
     }
     else {
-      cerr << "Unexpected non-action in input stream: " << s << endl;   
+      cerr << "Unexpected non-action in input stream: " << s << endl;
       assert (false);
     }
   }
@@ -466,7 +466,7 @@ pair<shared_ptr<Word>, float> RnngOutputModel::Sample(RNNPointer p, const Expres
   shared_ptr<Word> sample = make_shared<StandardWord>(sampled_id);
   Expression score_expr = builder->Loss(p, state_vector, action);
   float score = as_scalar(score_expr.value());
-  return make_pair(sample, score); 
+  return make_pair(sample, score);
 }
 
 Expression RnngOutputModel::Loss(RNNPointer p, const Expression& state_vector, const shared_ptr<const Word> ref) {

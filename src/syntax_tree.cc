@@ -45,7 +45,7 @@ SyntaxTree::SyntaxTree(string tree, Dict* word_dict, Dict* label_dict) : word_di
       }
       else if (c == ' ' && open_parens == 0) {
         if (i > start) {
-          child_strings.push_back(tree.substr(start, i - start + 1));
+          child_strings.push_back(tree.substr(start, i - start));
        }
         start = i + 1;
       }
