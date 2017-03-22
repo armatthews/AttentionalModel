@@ -261,7 +261,8 @@ Expression ParserBuilder::GetActionDistribution(Expression state_vector) const {
 
 Expression ParserBuilder::GetActionDistribution(RNNPointer p, Expression state_vector) const {
   Expression r_t = affine_transform({abias, p2a, state_vector});
-  Expression adist = log_softmax(r_t, GetValidActionList(p));
+  //Expression adist = log_softmax(r_t, GetValidActionList(p)); // XXX TODO: Restricted log softmax isn't available on cuda
+  Expression adist = log_softmax(r_t);
   return adist;
 }
 
