@@ -24,6 +24,7 @@ public:
   virtual void NewGraph(ComputationGraph& cg) = 0;
   virtual void SetDropout(float rate) {};
   virtual vector<Expression> Encode(const InputSentence* const input) = 0;
+  virtual Expression EncodeSentence(const InputSentence* const input) = 0;
 
 private:
   friend class boost::serialization::access;
@@ -38,6 +39,7 @@ public:
 
   void NewGraph(ComputationGraph& cg);
   vector<Expression> Encode(const InputSentence* const input);
+  Expression EncodeSentence(const InputSentence* const input);
 private:
   Embedder* embedder;
   Parameter p_W, p_b;
@@ -65,6 +67,7 @@ public:
   vector<Expression> Encode(const InputSentence* const input);
   vector<Expression> EncodeForward(const vector<Expression>& embeddings);
   vector<Expression> EncodeReverse(const vector<Expression>& embeddings);
+  Expression EncodeSentence(const InputSentence* const input);
 private:
   Embedder* embedder;
   unsigned output_dim;

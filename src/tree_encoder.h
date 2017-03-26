@@ -14,6 +14,7 @@ public:
 
   void NewGraph(ComputationGraph& cg);
   vector<Expression> Encode(const InputSentence* const input);
+  Expression EncodeSentence(const InputSentence* const input);
 private:
   unsigned output_dim;
   EncoderModel* linear_encoder;

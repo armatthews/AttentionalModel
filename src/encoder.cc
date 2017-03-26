@@ -29,6 +29,10 @@ vector<Expression> TrivialEncoder::Encode(const InputSentence* const input) {
   return encodings;
 }
 
+Expression TrivialEncoder::EncodeSentence(const InputSentence* const input) {
+  return sum(Encode(input));
+}
+
 BidirectionalEncoder::BidirectionalEncoder() {}
 
 BidirectionalEncoder::BidirectionalEncoder(Model& model, Embedder* embedder, unsigned output_dim, bool peep_concat, bool peep_add) :
@@ -112,4 +116,15 @@ vector<Expression> BidirectionalEncoder::EncodeReverse(const vector<Expression>&
     reverse_encodings[i] = y;
   }
   return reverse_encodings;
+}
+
+Expression BidirectionalEncoder::EncodeSentence(const InputSentence* const input) {
+  const LinearSentence& sentence = *dynamic_cast<const LinearSentence*>(input);
+  vector<Expression> embeddings(sentence.size());
+  for (unsigned i = 0; i < sentence.size(); ++i) {
+    embeddings[i] = embedder->Embed(sentence[i]);
+  }
+  vector<Expression> forward_encodings = EncodeForward(embeddings);
+  vector<Expression> reverse_encodings = EncodeReverse(embeddings);
+  return concatenate({forward_encodings[0], reverse_encodings[sentence.size() - 1]});
 }

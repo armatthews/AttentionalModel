@@ -87,3 +87,7 @@ vector<Expression> TreeEncoder::Encode(const InputSentence* const input) {
 
   return node_encodings;
 }
+
+Expression TreeEncoder::EncodeSentence(const InputSentence* const input) {
+  return Encode(input)[0];
+}

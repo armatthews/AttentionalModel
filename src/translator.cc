@@ -20,7 +20,7 @@ void Translator::SetDropout(float rate) {
   output_model->SetDropout(rate);
 }
 
-Expression Translator::BuildGraph(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg) {
+vector<Expression> Translator::PerWordLosses(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg) {
   NewGraph(cg);
   vector<Expression> word_losses(target->size());
 
@@ -36,6 +36,11 @@ Expression Translator::BuildGraph(const InputSentence* const source, const Outpu
     Expression context = attention_model->GetContext(encodings, state);
     state = output_model->AddInput(word, context);
   }
+  return word_losses;
+}
+
+Expression Translator::BuildGraph(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg) {
+  vector<Expression> word_losses = PerWordLosses(source, target, cg);
   return sum(word_losses);
 }
 

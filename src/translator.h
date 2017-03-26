@@ -13,6 +13,7 @@ public:
 
   void NewGraph(ComputationGraph& cg);
   void SetDropout(float rate);
+  vector<Expression> PerWordLosses(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg);
   Expression BuildGraph(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg);
   vector<pair<shared_ptr<OutputSentence>, float>> Sample(const InputSentence* const source, unsigned samples, unsigned max_length);
   vector<Expression> Align(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg);
