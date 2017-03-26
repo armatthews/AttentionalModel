@@ -132,6 +132,8 @@ BOOST_CLASS_EXPORT_KEY(MorphologyOutputReader)
 
 class RnngOutputReader : public OutputReader {
 public:
+  RnngOutputReader();
+  explicit RnngOutputReader(const string& vocab_file);
   vector<OutputSentence*> Read(const string& filename);
   string ToString(const shared_ptr<const Word> word);
   void Freeze();
@@ -148,6 +150,7 @@ private:
 BOOST_CLASS_EXPORT_KEY(RnngOutputReader)
 
 void ReadDict(const string& filename, Dict& dict);
+void ReadDictRnng(const string& filename, Dict& dict);
 Bitext ReadBitext(const string& source_filename, const string& target_filename, InputReader* SourceReader, OutputReader* TargetReader);
 
 void Serialize(const InputReader* const input_reader, const OutputReader* const output_reader, const Translator& translator, Model& dynet_model, const Trainer* const trainer);

@@ -229,6 +229,16 @@ void MorphologyOutputReader::Freeze() {
   }
 }
 
+RnngOutputReader::RnngOutputReader() {}
+RnngOutputReader::RnngOutputReader(const string& vocab_file) {
+  vocab.convert("SHIFT(UNK)");
+  if (vocab_file.length() > 0) {
+    ReadDictRnng(vocab_file, vocab);
+    vocab.freeze();
+    vocab.set_unk("SHIFT(UNK)");
+  }
+}
+
 vector<OutputSentence*> RnngOutputReader::Read(const string& filename) {
   vector<LinearSentence*> corpus = ReadStandardSentences(filename, vocab, false);
   return vector<OutputSentence*>(corpus.begin(), corpus.end());
@@ -259,6 +269,14 @@ void ReadDict(const string& filename, Dict& dict) {
 
   for (string line; getline(f, line);) {
     dict.convert(strip(line));
+  }
+}
+
+void ReadDictRnng(const string& filename, Dict& dict) {
+  ifstream f(filename);
+
+  for (string line; getline(f, line);) {
+    dict.convert("SHIFT(" + strip(line) + ")");
   }
 }
 

@@ -99,7 +99,7 @@ OutputReader* CreateOutputReader(const po::variables_map& vm) {
       return new MorphologyOutputReader(vm["vocab"].as<string>(), vm["root_vocab"].as<string>());
       break;
     case kRNNG:
-      return new RnngOutputReader();
+      return new RnngOutputReader(vm["vocab"].as<string>());
     default:
       assert (false && "Reader for unknown output type requested");
   }
