@@ -25,7 +25,7 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.cc
 	$(CC) $(CFLAGS) $(INCS) -c $< -o $@
 	$(CC) -MM -MP -MT "$@" $(CFLAGS) $(INCS) $< > $(OBJDIR)/$*.d
 
-$(BINDIR)/train: $(addprefix $(OBJDIR)/, train_main.o train.o io.o translator.o tree_encoder.o encoder.o attention.o prior.o output.o rnng.o syntax_tree.o embedder.o mlp.o utils.o)
+$(BINDIR)/train: $(addprefix $(OBJDIR)/, train_main.o train_wrapper.o train.o io.o translator.o tree_encoder.o encoder.o attention.o prior.o output.o rnng.o syntax_tree.o embedder.o mlp.o utils.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
 $(BINDIR)/residual: $(addprefix $(OBJDIR)/, residual.o io.o translator.o tree_encoder.o encoder.o attention.o prior.o output.o rnng.o syntax_tree.o embedder.o mlp.o utils.o)

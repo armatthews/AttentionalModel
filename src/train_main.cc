@@ -1,4 +1,6 @@
+#include <chrono>
 #include "train.h"
+#include "train_wrapper.h"
 
 using namespace dynet;
 using namespace dynet::expr;
@@ -6,29 +8,7 @@ using namespace dynet::mp;
 using namespace std;
 namespace po = boost::program_options;
 
-// This function lets us elegantly handle the user pressing ctrl-c.
-// We set a global flag, which causes the training loops to clean up
-// and break. In particular, this allows models to be saved to disk
-// before actually exiting the program.
-bool ctrlc_pressed = false;
-void ctrlc_handler(int signal) {
-  if (ctrlc_pressed) {
-    cerr << "Exiting..." << endl;
-    exit(1);
-  }
-  else {
-    cerr << "Ctrl-c pressed!" << endl;
-    ctrlc_pressed = true;
-    dynet::mp::stop_requested = true;
-  }
-}
-
-vector<unsigned> GenerateOrder(unsigned size) {
-  vector<unsigned> order(size);
-  iota(order.begin(), order.end(), 0);
-  shuffle(order.begin(), order.end(), *rndeng); 
-  return order;
-}
+TrainingWrapper* wrapper = nullptr;
 
 int main(int argc, char** argv) {
   cerr << "Invoked as:";
@@ -37,7 +17,6 @@ int main(int argc, char** argv) {
   }
   cerr << "\n";
 
-  signal (SIGINT, ctrlc_handler);
   dynet::initialize(argc, argv, true);
 
   po::options_description desc("description");
@@ -67,7 +46,7 @@ int main(int argc, char** argv) {
   ("coverage_prior", "Use coverage prior on attention")
   ("markov_prior", "Use Markov prior on attention (similar to the HMM model)")
   ("markov_prior_window_size", po::value<unsigned>()->default_value(5), "Window size to use for the Markov prior. A value of 5 indicates five buckets: -2 or more, -1, 0, +1, +2 or more.")
-  //("use_fertility", "Use fertility instead of assuming one source word ≈ one output word. Affects coverage prior and syntax prior.")
+  //("use_fertility", "Use fertility instead of assuming one source word ≈ one output word. Affects coverage prior and syntax prior.") // TODO: Currently unused
   ("syntax_prior", "Use source-side syntax prior on attention")
 
   ("hidden_size,h", po::value<unsigned>()->default_value(64), "Size of hidden layers")
@@ -94,8 +73,6 @@ int main(int argc, char** argv) {
     cerr << desc;
     return 1;
   }
-
-  //bool use_fertility = vm.count("use_fertility"); // TODO: Currently unused
 
   Model dynet_model;
   InputReader* input_reader = nullptr;
@@ -141,44 +118,9 @@ int main(int argc, char** argv) {
   const bool quiet = vm.count("quiet");
   Learner learner(input_reader, output_reader, *translator, dynet_model, trainer, dropout_rate, quiet);
 
-  const unsigned num_cores = vm["cores"].as<unsigned>();
-  const unsigned num_iterations = vm["num_iterations"].as<unsigned>();
-  const unsigned batch_size = vm["batch_size"].as<unsigned>();
-  unsigned dev_frequency = vm["dev_frequency"].as<unsigned>();
-  unsigned report_frequency = vm["report_frequency"].as<unsigned>();
-  if (report_frequency >= dev_frequency) {
-    report_frequency = dev_frequency;
-  }
-
-  if (num_cores > 1) {
-    unsigned sents_since_dev = 0;
-    for (unsigned epoch = 0; epoch < num_iterations && !dynet::mp::stop_requested; ++epoch) {
-      vector<unsigned> train_order = GenerateOrder(train_bitext.size());
-      SufficientStats epoch_stats;
-      for (unsigned start = 0; start < train_bitext.size() && !dynet::mp::stop_requested; start += report_frequency) {
-        unsigned end = std::min((unsigned)train_bitext.size(), start + report_frequency);
-        vector<SentencePair> train_slice(train_bitext.begin() + start, train_bitext.begin() + end);
-        SufficientStats stats = run_mp_minibatch(num_cores, &learner, train_slice);
-        double fractional_epoch = epoch + 1.0 * end / train_bitext.size();
-        cerr << fractional_epoch << "\t" << "loss = " << stats << " (" << "0" << "s)" << endl;
-        epoch_stats += stats;
-        trainer->update(1.0);
-
-        sents_since_dev += train_slice.size();
-        if (sents_since_dev > dev_frequency) {
-          sents_since_dev = 0;
-          SufficientStats dev_stats = run_mp_minibatch(num_cores, &learner, dev_bitext);
-          cerr << fractional_epoch << "\t" << "dev loss = " << dev_stats << " (New best?)" << endl;
-        }
-      }
-      cerr << "Done with epoch " << epoch + 1 << ": " << epoch_stats << endl;
-      trainer->update_epoch();
-    }
-    //run_multi_process<SentencePair>(num_cores, &learner, trainer, train_bitext, dev_bitext, num_iterations, dev_frequency, report_frequency);
-  }
-  else {
-    run_single_process<SentencePair>(&learner, trainer, train_bitext, dev_bitext, num_iterations, dev_frequency, report_frequency, batch_size);
-  }
+  wrapper = new TrainingWrapper(train_bitext, dev_bitext, trainer, &learner);
+  signal (SIGINT, [](int) { cerr << "ctrl-c pressed. Stopping..." << endl; wrapper->Stop(); } );
+  wrapper->Train(vm);
 
   return 0;
 }
