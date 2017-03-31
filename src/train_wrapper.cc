@@ -1,4 +1,5 @@
 #include <iostream>
+#include <chrono>
 #include "train_wrapper.h"
 
 using namespace std;
@@ -21,10 +22,10 @@ void TrainingWrapper::Train(const po::variables_map& vm) {
       unsigned end = std::min((unsigned)train_bitext.size(), start + report_frequency);
       vector<SentencePair> train_slice(train_bitext.begin() + start, train_bitext.begin() + end);
 
-      std::chrono::steady_clock::time_point start_time = std::chrono::steady_clock::now();
+      time_point start_time = GetTime();
       SufficientStats stats = RunSlice(train_slice, num_cores, true);
-      std::chrono::steady_clock::time_point end_time = std::chrono::steady_clock::now();
-      double seconds_elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count() / 1000000.0;
+      time_point end_time = GetTime();
+      double seconds_elapsed = GetSeconds(start_time, end_time);
 
       data_processed = end;
       Report(epoch, end, stats, seconds_elapsed);
@@ -38,12 +39,23 @@ void TrainingWrapper::Train(const po::variables_map& vm) {
         sents_since_dev = 0;
       }
     }
-    FinalizeEpoch();
+    if (!stop) {
+      FinalizeEpoch();
+    }
   }
 }
 
 void TrainingWrapper::Stop() {
   stop = true;
+}
+
+TrainingWrapper::time_point TrainingWrapper::GetTime() {
+  return chrono::steady_clock::now();
+}
+
+double TrainingWraper::GetSeconds(TrainingWraper::time_point& start, TrainingWrapper::time_point& end) {
+  double seconds = chrono::duration_cast<chrono::microseconds>(end_time - start_time).count() / 1000000.0;
+  return seconds;
 }
 
 vector<unsigned> TrainingWrapper::GenerateOrder(unsigned size) {

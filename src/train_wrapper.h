@@ -1,5 +1,6 @@
 #pragma once
 #include <boost/program_options.hpp>
+#include <chrono>
 #include "dynet/dynet.h"
 #include "dynet/training.h"
 #include "train.h"
@@ -8,10 +9,14 @@ namespace po = boost::program_options;
 
 class TrainingWrapper {
 public:
+  typedef std::chrono::steady_clock::time_point time_point;
+
   TrainingWrapper(const Bitext& train_bitext, const Bitext& dev_bitext, Trainer* trainer, Learner* learner);
   void Train(const po::variables_map& vm);
   void Stop();
 
+  static time_point GetTime();
+  static double GetSeconds(time_point& start, time_point& end);
   static vector<unsigned> GenerateOrder(unsigned size);
   double ComputeFractionalEpoch() const;
 
