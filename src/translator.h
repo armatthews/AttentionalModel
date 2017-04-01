@@ -17,7 +17,7 @@ public:
   Expression BuildGraph(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg);
   vector<pair<shared_ptr<OutputSentence>, float>> Sample(const InputSentence* const source, unsigned samples, unsigned max_length);
   vector<Expression> Align(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg);
-  KBestList<shared_ptr<OutputSentence>> Translate(const InputSentence* const source, unsigned K, unsigned beam_size, unsigned max_length);
+  KBestList<shared_ptr<OutputSentence>> Translate(const InputSentence* const source, unsigned K, unsigned beam_size, unsigned max_length, float length_bonus=0.0f);
 
 private:
   EncoderModel* encoder_model;

@@ -24,6 +24,7 @@ int main(int argc, char** argv) {
   ("kbest_size,k", po::value<unsigned>()->default_value(1), "K-best list size")
   ("beam_size,b", po::value<unsigned>()->default_value(10), "Beam size")
   ("max_length", po::value<unsigned>()->default_value(100), "Maximum length of output sentences")
+  ("length_bonus", po::value<float>()->default_value(0.0f), "Length bonus per word")
   ("help", "Display this help message");
 
   po::positional_options_description positional_options;
@@ -45,6 +46,7 @@ int main(int argc, char** argv) {
   const unsigned beam_size = vm["beam_size"].as<unsigned>();
   const unsigned max_length = vm["max_length"].as<unsigned>();
   const unsigned kbest_size = vm["kbest_size"].as<unsigned>();
+  const float length_bonus = vm["length_bonus"].as<float>();
 
   InputReader* input_reader = nullptr;
   OutputReader* output_reader = nullptr;
@@ -58,7 +60,7 @@ int main(int argc, char** argv) {
   for (unsigned sentence_number = 0; sentence_number < source_sentences.size(); ++sentence_number) {
     InputSentence* source = source_sentences[sentence_number];
 
-    KBestList<shared_ptr<OutputSentence>> kbest = translator.Translate(source, kbest_size, beam_size, max_length);
+    KBestList<shared_ptr<OutputSentence>> kbest = translator.Translate(source, kbest_size, beam_size, max_length, length_bonus);
     OutputKBestList(sentence_number, kbest, output_reader);
 
     cout.flush();

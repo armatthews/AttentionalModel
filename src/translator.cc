@@ -117,7 +117,7 @@ vector<Expression> Translator::Align(const InputSentence* const source, const Ou
   return alignments;
 }
 
-KBestList<shared_ptr<OutputSentence>> Translator::Translate(const InputSentence* const source, unsigned K, unsigned beam_size, unsigned max_length) {
+KBestList<shared_ptr<OutputSentence>> Translator::Translate(const InputSentence* const source, unsigned K, unsigned beam_size, unsigned max_length, float length_bonus) {
   assert (beam_size >= K);
   ComputationGraph cg;
   NewGraph(cg);
@@ -140,7 +140,7 @@ KBestList<shared_ptr<OutputSentence>> Translator::Translate(const InputSentence*
       // later get a better hypothesis later.
       // Assumption: the log prob of every word will be <= buffer.
       // This is true for 0.0 by default, but length priors and such may invalidate this assumption.
-      const float buffer = 0.0;
+      const float buffer = length_bonus;
       if (complete_hyps.size() >= K && hyp_score < complete_hyps.worst_score() - buffer) {
         break;
       }
@@ -160,6 +160,7 @@ KBestList<shared_ptr<OutputSentence>> Translator::Translate(const InputSentence*
         new_sentence->push_back(word);
         output_model->AddInput(word, context, state_pointer);
         if (!output_model->IsDone()) {
+          new_score += length_bonus;
           new_hyps.add(new_score, make_pair(new_sentence, output_model->GetStatePointer()));
         }
         else {
