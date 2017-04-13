@@ -73,18 +73,22 @@ void BidirectionalEncoder::SetDropout(float rate) {
   reverse_builder.set_dropout(rate);
 }
 
-vector<Expression> BidirectionalEncoder::Encode(const InputSentence* const input) {
+vector<Expression> BidirectionalEncoder::Embed(const InputSentence* const input) {
   const LinearSentence& sentence = *dynamic_cast<const LinearSentence*>(input);
   vector<Expression> embeddings(sentence.size());
   for (unsigned i = 0; i < sentence.size(); ++i) {
     embeddings[i] = embedder->Embed(sentence[i]);
   }
+  return embeddings;
+}
+
+vector<Expression> BidirectionalEncoder::Encode(const vector<Expression>& embeddings) {
   vector<Expression> forward_encodings = EncodeForward(embeddings);
   vector<Expression> reverse_encodings = EncodeReverse(embeddings);
-  vector<Expression> bidir_encodings(sentence.size());
-  for (unsigned i = 0; i < sentence.size(); ++i) {
+  vector<Expression> bidir_encodings(embeddings.size());
+  for (unsigned i = 0; i < embeddings.size(); ++i) {
     const Expression& f = forward_encodings[i];
-    const Expression& r = reverse_encodings[sentence.size() - 1 - i];
+    const Expression& r = reverse_encodings[embeddings.size() - 1 - i];
     bidir_encodings[i] = concatenate({f, r});
     if (peep_add) {
       bidir_encodings[i] = bidir_encodings[i] + W * embeddings[i];
@@ -94,6 +98,10 @@ vector<Expression> BidirectionalEncoder::Encode(const InputSentence* const input
     }
   }
   return bidir_encodings;
+}
+
+vector<Expression> BidirectionalEncoder::Encode(const InputSentence* const input) {
+  return Encode(Embed(input));
 }
 
 vector<Expression> BidirectionalEncoder::EncodeForward(const vector<Expression>& embeddings) {

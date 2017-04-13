@@ -156,6 +156,19 @@ void MlpSoftmaxOutputModel::NewGraph(ComputationGraph& cg) {
   b = parameter(cg, p_b);
 }
 
+Expression MlpSoftmaxOutputModel::AddInput(Expression prev_word_emb, const Expression& context) {
+  return AddInput(prev_word_emb, context, output_builder.state());
+}
+
+Expression MlpSoftmaxOutputModel::AddInput(Expression prev_word_emb, const Expression& context, const RNNPointer& p) {
+  done.push_back(false);
+  Expression input = concatenate({prev_word_emb, context});
+  Expression base_state = output_builder.add_input(p, input);
+  Expression state = tanh(affine_transform({b, W, base_state}));
+  assert (done.size() == (size_t)output_builder.state() + 1);
+  return state;
+}
+
 MorphologyOutputModel::MorphologyOutputModel() {}
 
 MorphologyOutputModel::MorphologyOutputModel(Model& model, Dict& word_vocab, Dict& root_vocab, unsigned affix_vocab_size, unsigned char_vocab_size, unsigned word_emb_dim, unsigned root_emb_dim, unsigned affix_emb_dim, unsigned char_emb_dim, unsigned model_chooser_hidden_dim, unsigned affix_init_hidden_dim, unsigned char_init_hidden_dim, unsigned state_dim, unsigned affix_lstm_dim, unsigned char_lstm_dim, unsigned context_dim, const string& word_clusters, const string& root_clusters) : state_dim(state_dim), affix_lstm_dim(affix_lstm_dim), char_lstm_dim(char_lstm_dim), pcg(nullptr) {

@@ -4,6 +4,59 @@
 
 using namespace std;
 
+SufficientStats::SufficientStats() : loss(), word_count(), sentence_count() {}
+
+SufficientStats::SufficientStats(dynet::real loss, unsigned word_count, unsigned sentence_count) : loss(loss), word_count(word_count), sentence_count(sentence_count) {}
+
+SufficientStats& SufficientStats::operator+=(const SufficientStats& rhs) {
+  loss += rhs.loss;
+  word_count += rhs.word_count;
+  sentence_count += rhs.sentence_count;
+  return *this;
+}
+
+SufficientStats SufficientStats::operator+(const SufficientStats& rhs) {
+  SufficientStats result = *this;
+  result += rhs;
+  return result;
+}
+
+bool SufficientStats::operator<(const SufficientStats& rhs) {
+  return loss < rhs.loss;
+}
+
+std::ostream& operator<< (std::ostream& stream, const SufficientStats& stats) {
+  return stream << exp(stats.loss / stats.word_count) << " (" << stats.loss << " over " << stats.word_count << " words)";
+}
+
+Learner::Learner(const InputReader* const input_reader, const OutputReader* const output_reader, Translator& translator, Model& dynet_model, const Trainer* const trainer, float dropout_rate, bool quiet) :
+  input_reader(input_reader), output_reader(output_reader), translator(translator), dynet_model(dynet_model), trainer(trainer), dropout_rate(dropout_rate), quiet(quiet) {}
+
+Learner::~Learner() {}
+
+SufficientStats Learner::LearnFromDatum(const SentencePair& datum, bool learn) {
+  ComputationGraph cg;
+  InputSentence* input = get<0>(datum);
+  OutputSentence* output = get<1>(datum);
+
+  translator.SetDropout(learn ? dropout_rate : 0.0f);
+  Expression loss_expr = translator.BuildGraph(input, output, cg);
+  dynet::real loss = as_scalar(loss_expr.value());
+
+  if (learn) {
+    cg.backward(loss_expr);
+  }
+
+  return SufficientStats(loss, output->size(), 1);
+}
+
+void Learner::SaveModel() {
+  if (!quiet) {
+    Serialize(input_reader, output_reader, translator, dynet_model, trainer);
+  }
+}
+
+
 TrainingWrapper::TrainingWrapper(const Bitext& train_bitext, const Bitext& dev_bitext, Trainer* trainer, Learner* learner) :
     train_bitext(train_bitext), dev_bitext(dev_bitext), trainer(trainer), learner(learner),
     epoch(0), data_processed(0), sents_since_dev(0), stop(false) {}
@@ -53,8 +106,8 @@ TrainingWrapper::time_point TrainingWrapper::GetTime() {
   return chrono::steady_clock::now();
 }
 
-double TrainingWraper::GetSeconds(TrainingWraper::time_point& start, TrainingWrapper::time_point& end) {
-  double seconds = chrono::duration_cast<chrono::microseconds>(end_time - start_time).count() / 1000000.0;
+double TrainingWrapper::GetSeconds(TrainingWrapper::time_point& start, TrainingWrapper::time_point& end) {
+  double seconds = chrono::duration_cast<chrono::microseconds>(end - start).count() / 1000000.0;
   return seconds;
 }
 

@@ -13,7 +13,7 @@ OBJDIR=obj
 SRCDIR=src
 
 .PHONY: clean
-all: make_dirs $(BINDIR)/train $(BINDIR)/sample $(BINDIR)/align $(BINDIR)/loss $(BINDIR)/predict $(BINDIR)/residual
+all: make_dirs $(BINDIR)/train $(BINDIR)/sample $(BINDIR)/align $(BINDIR)/loss $(BINDIR)/predict $(BINDIR)/residual $(BINDIR)/cpredict $(BINDIR)/attgrad
 
 make_dirs:
 	mkdir -p $(OBJDIR)
@@ -28,7 +28,7 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.cc
 $(BINDIR)/train: $(addprefix $(OBJDIR)/, train_main.o train_wrapper.o train.o io.o translator.o tree_encoder.o encoder.o attention.o prior.o output.o rnng.o syntax_tree.o embedder.o mlp.o utils.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
-$(BINDIR)/residual: $(addprefix $(OBJDIR)/, residual.o io.o translator.o tree_encoder.o encoder.o attention.o prior.o output.o rnng.o syntax_tree.o embedder.o mlp.o utils.o)
+$(BINDIR)/residual: $(addprefix $(OBJDIR)/, residual.o train.o io.o translator.o tree_encoder.o encoder.o attention.o prior.o output.o rnng.o syntax_tree.o embedder.o mlp.o utils.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
 $(BINDIR)/sample: $(addprefix $(OBJDIR)/, sample.o io.o translator.o tree_encoder.o encoder.o attention.o prior.o output.o rnng.o utils.o syntax_tree.o embedder.o mlp.o)
@@ -41,6 +41,12 @@ $(BINDIR)/loss: $(addprefix $(OBJDIR)/, loss.o io.o translator.o tree_encoder.o 
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
 $(BINDIR)/predict: $(addprefix $(OBJDIR)/, predict.o io.o translator.o tree_encoder.o encoder.o attention.o prior.o output.o rnng.o syntax_tree.o embedder.o kbestlist.o mlp.o utils.o)
+	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
+
+$(BINDIR)/cpredict: $(addprefix $(OBJDIR)/, cpredict.o io.o translator.o tree_encoder.o encoder.o attention.o prior.o output.o rnng.o syntax_tree.o embedder.o kbestlist.o mlp.o utils.o)
+	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
+
+$(BINDIR)/attgrad: $(addprefix $(OBJDIR)/, attgrad.o io.o translator.o tree_encoder.o encoder.o attention.o prior.o output.o rnng.o syntax_tree.o embedder.o kbestlist.o mlp.o utils.o)
 	$(CC) $(CFLAGS) $(LIBS) $(INCS) $^ -o $@ $(FINAL)
 
 clean:

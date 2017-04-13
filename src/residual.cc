@@ -6,35 +6,6 @@ using namespace dynet::mp;
 using namespace std;
 namespace po = boost::program_options;
 
-enum InputType {kStandard = 0, kSyntaxTree = 1, kMorphology = 2, kRNNG = 3};
-
-istream& operator>>(istream& in, InputType& input_type)
-{
-  std::string token;
-  in >> token;
-
-  // Lowercase the token
-  transform(token.begin(), token.end(), token.begin(), ::tolower);
-
-  if (token == "standard") {
-    input_type = kStandard;
-  }
-  else if (token == "syntax") {
-    input_type = kSyntaxTree;
-  }
-  else if (token == "morph") {
-    input_type = kMorphology;
-  }
-  else if (token == "rnng") {
-    input_type = kRNNG;
-  }
-  else {
-    //throw boost::program_options::validation_error("Invalid input type!");
-    assert (false);
-  }
-  return in;
-}
-
 class ResidualModel {
 public:
   ResidualModel();
@@ -112,11 +83,50 @@ void DeserializeResidual(const string& filename, InputReader*& input_reader, Out
   f.close();
 }
 
-class Learner : public ILearner<SentencePair, SufficientStats> {
+class SufficientStats {
 public:
-  Learner(const InputReader* const input_reader, const OutputReader* const output_reader, Translator& translator, ResidualModel& residual_model, Model& dynet_model, const Trainer* const trainer, float dropout_rate, bool quiet) :
-    input_reader(input_reader), output_reader(output_reader), translator(translator), dynet_model(dynet_model), residual_model(residual_model), trainer(trainer), dropout_rate(dropout_rate), quiet(quiet) {}
-  ~Learner() {}
+  dynet::real loss;
+  unsigned word_count;
+  unsigned sentence_count;
+
+  SufficientStats();
+  SufficientStats(dynet::real loss, unsigned word_count, unsigned sentence_count);
+  SufficientStats& operator+=(const SufficientStats& rhs);
+  SufficientStats operator+(const SufficientStats& rhs);
+  bool operator<(const SufficientStats& rhs);
+};
+std::ostream& operator<< (std::ostream& stream, const SufficientStats& stats);
+
+SufficientStats::SufficientStats() : loss(), word_count(), sentence_count() {}
+
+SufficientStats::SufficientStats(dynet::real loss, unsigned word_count, unsigned sentence_count) : loss(loss), word_count(word_count), sentence_count(sentence_count) {}
+
+SufficientStats& SufficientStats::operator+=(const SufficientStats& rhs) {
+  loss += rhs.loss;
+  word_count += rhs.word_count;
+  sentence_count += rhs.sentence_count;
+  return *this;
+}
+
+SufficientStats SufficientStats::operator+(const SufficientStats& rhs) {
+  SufficientStats result = *this;
+  result += rhs;
+  return result;
+}
+
+bool SufficientStats::operator<(const SufficientStats& rhs) {
+  return loss < rhs.loss;
+}
+
+std::ostream& operator<< (std::ostream& stream, const SufficientStats& stats) {
+  return stream << stats.loss / stats.word_count << " (" << stats.loss << " over " << stats.word_count << " words)";
+}
+
+class ResidualLearner : public ILearner<SentencePair, SufficientStats> {
+public:
+  ResidualLearner(const InputReader* const input_reader, const OutputReader* const output_reader, Translator& translator, ResidualModel& residual_model, Model& dynet_model, const Trainer* const trainer, float dropout_rate, bool quiet) :
+    input_reader(input_reader), output_reader(output_reader), translator(translator), residual_model(residual_model), dynet_model(dynet_model), trainer(trainer), dropout_rate(dropout_rate), quiet(quiet) {}
+  ~ResidualLearner() {}
   SufficientStats LearnFromDatum(const SentencePair& datum, bool learn) {
     InputSentence* input = get<0>(datum);
     OutputSentence* output = get<1>(datum);
@@ -170,41 +180,6 @@ private:
   float dropout_rate;
   bool quiet;
 };
-
-InputReader* CreateInputReader(const po::variables_map& vm) {
-  InputType input_type = vm["source_type"].as<InputType>();
-  switch (input_type) {
-    case kStandard:
-      return new StandardInputReader();
-      break;
-    case kSyntaxTree:
-      return new SyntaxInputReader();
-      break;
-    case kMorphology:
-      return new MorphologyInputReader();
-      break;
-    default:
-      assert (false && "Reader for unknown input type requested");
-  }
-  return nullptr;
-}
-
-OutputReader* CreateOutputReader(const po::variables_map& vm) {
-  InputType input_type = vm["target_type"].as<InputType>();
-  switch (input_type) {
-    case kStandard:
-      return new StandardOutputReader(vm["vocab"].as<string>());
-      break;
-    case kMorphology:
-      return new MorphologyOutputReader(vm["vocab"].as<string>(), vm["root_vocab"].as<string>());
-      break;
-    case kRNNG:
-      return new RnngOutputReader();
-    default:
-      assert (false && "Reader for unknown output type requested");
-  }
-  return nullptr;
-}
 
 // This function lets us elegantly handle the user pressing ctrl-c.
 // We set a global flag, which causes the training loops to clean up
@@ -306,7 +281,7 @@ int main(int argc, char** argv) {
 
   const float dropout_rate = vm["dropout_rate"].as<float>();
   const bool quiet = vm.count("quiet");
-  Learner learner(input_reader, output_reader, *translator, *residual_model, dynet_model2, trainer, dropout_rate, quiet);
+  ResidualLearner learner(input_reader, output_reader, *translator, *residual_model, dynet_model2, trainer, dropout_rate, quiet);
 
   const unsigned num_cores = vm["cores"].as<unsigned>();
   const unsigned num_iterations = vm["num_iterations"].as<unsigned>();

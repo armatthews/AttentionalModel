@@ -178,3 +178,58 @@ KBestList<shared_ptr<OutputSentence>> Translator::Translate(const InputSentence*
   }
   return complete_hyps;
 }
+
+#include "dynet/exec.h"
+vector<vector<float>> Translator::GetAttentionGradients(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg) {
+  vector<Expression> encodings = encoder_model->Encode(source);
+  Expression source_matrix = nobackprop(concatenate_cols(encodings));
+  Expression state = nobackprop(output_model->GetState());
+
+  attention_model->NewSentence(source);
+  vector<vector<float>> grads;
+  for (unsigned i = 0; i < target->size() - 1; ++i) {
+    const shared_ptr<Word> word = target->at(i);
+    assert (same_value(state, output_model->GetState()));
+
+    Expression scores = attention_model->GetScoreVector(encodings, nobackprop(state));
+    Expression alignment = softmax(scores);
+    Expression context = source_matrix * alignment;
+
+    state = output_model->AddInput(word, context);
+    Expression loss = output_model->Loss(state, word);
+    cg.incremental_forward(loss);
+    cg.backward(loss);
+
+    SimpleExecutionEngine* ee = dynamic_cast<SimpleExecutionEngine*>(cg.ee);
+    assert (scores.i < ee->num_nodes_evaluated);
+    Tensor& score_gradient = ee->ndEdfs[scores.i];
+    vector<float> score_grad = as_vector(score_gradient);
+    grads.push_back(score_grad);
+  }
+  return grads;
+}
+
+Expression Translator::BuildPredictionGraph(const InputSentence* const source, const vector<Expression>& target_probs, ComputationGraph& cg, const OutputSentence* const target) {
+  NewGraph(cg);
+  MlpSoftmaxOutputModel* softmax_output_model = dynamic_cast<MlpSoftmaxOutputModel*>(output_model);
+  Expression target_word_vec_matrix = parameter(cg, softmax_output_model->embeddings);
+
+  vector<Expression> encodings = encoder_model->Encode(source);
+  Expression state = output_model->GetState();
+  attention_model->NewSentence(source);
+
+  vector<Expression> word_losses(target_probs.size());
+  for (unsigned i = 0; i < target_probs.size(); ++i) {
+    assert (same_value(state, output_model->GetState()));
+    Expression log_probs = output_model->PredictLogDistribution(state);
+    // TODO: should we compute this expectation in log space or prob space?
+    Expression expectation = transpose(target_probs[i]) * log_probs;
+    word_losses[i] = -expectation;
+
+    Expression context = attention_model->GetContext(encodings, state);
+    Expression avg_embedding = target_word_vec_matrix * target_probs[i];
+    state = softmax_output_model->AddInput(avg_embedding, context);
+  }
+
+  return sum(word_losses);
+}

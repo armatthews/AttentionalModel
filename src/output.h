@@ -66,7 +66,8 @@ public:
   RNNPointer GetStatePointer() const;
   Expression Embed(const shared_ptr<const StandardWord> word);
   Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context);
-  virtual Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p);
+  Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p);
+
   virtual Expression PredictLogDistribution(RNNPointer p, const Expression& state);
   virtual KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, const Expression& state, unsigned K);
   virtual pair<shared_ptr<Word>, float> Sample(RNNPointer p, const Expression& state);
@@ -74,7 +75,7 @@ public:
 
   bool IsDone(RNNPointer p) const;
   WordId kEOS;
-protected:
+//protected:
   unsigned state_dim;
   LSTMBuilder output_builder;
   Parameter p_output_builder_initial_state;
@@ -108,6 +109,9 @@ public:
   Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p);
 
   void NewGraph(ComputationGraph& cg);
+
+  Expression AddInput(Expression prev_word_emb, const Expression& context);
+  virtual Expression AddInput(Expression prev_word_emb, const Expression& context, const RNNPointer& p);
 private:
   Parameter p_W, p_b;
   Expression W, b;

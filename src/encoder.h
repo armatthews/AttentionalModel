@@ -67,6 +67,8 @@ public:
   vector<Expression> Encode(const InputSentence* const input);
   vector<Expression> EncodeForward(const vector<Expression>& embeddings);
   vector<Expression> EncodeReverse(const vector<Expression>& embeddings);
+  vector<Expression> Encode(const vector<Expression>& embeddings);
+  vector<Expression> Embed(const InputSentence* const input);
   Expression EncodeSentence(const InputSentence* const input);
 private:
   Embedder* embedder;
