@@ -52,7 +52,7 @@ public:
 
 private:
   void Report(unsigned epoch, unsigned progress, SufficientStats& stats, double seconds_elapsed);
-  void RunDevSet(unsigned num_cores);
+  bool RunDevSet(unsigned num_cores);
   void InitializeEpoch();
   void FinalizeEpoch();
   SufficientStats RunSlice(const vector<SentencePair>& slice, unsigned num_cores, bool learn);

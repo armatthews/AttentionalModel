@@ -149,6 +149,25 @@ private:
 };
 BOOST_CLASS_EXPORT_KEY(RnngOutputReader)
 
+class DependencyOutputReader : public OutputReader {
+public:
+  DependencyOutputReader();
+  explicit DependencyOutputReader(const string& vocab_file);
+  vector<OutputSentence*> Read(const string& filename);
+  string ToString(const shared_ptr<const Word> word);
+  void Freeze();
+
+  Dict vocab;
+private:
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {
+    ar & boost::serialization::base_object<OutputReader>(*this);
+    ar & vocab;
+  }
+};
+BOOST_CLASS_EXPORT_KEY(DependencyOutputReader)
+
 void ReadDict(const string& filename, Dict& dict);
 void ReadDictRnng(const string& filename, Dict& dict);
 Bitext ReadBitext(const string& source_filename, const string& target_filename, InputReader* SourceReader, OutputReader* TargetReader);

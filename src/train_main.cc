@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
   ("dev_source", po::value<string>()->required(), "Dev set source")
   ("dev_target", po::value<string>()->required(), "Dev set target")
   ("source_type", po::value<InputType>()->default_value(kStandard), "Source input type. One of \"standard\", for standard linear sentences, \"syntax\" for syntax trees, \"morph\" for morphologically analyzed sentences, \"rnng\" for recurrent neural network grammars")
-  ("target_type", po::value<InputType>()->default_value(kStandard), "Target input type. One of the same choices as above")
+  ("target_type", po::value<InputType>()->default_value(kStandard), "Target input type. One of the same choices as above, or \"dependency\" for dependency trees.")
 
   ("vocab,v", po::value<string>()->default_value(""), "Target vocabulary file. If specified, anything outside this list will be UNK'd. If unspecified, nothing will be UNK'd on the training set.")
   ("root_vocab", po::value<string>()->default_value(""), "Target root vocabulary file. Only used with the morphological output type")

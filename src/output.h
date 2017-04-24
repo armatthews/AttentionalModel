@@ -32,7 +32,7 @@ public:
   virtual Expression GetState() const;
   virtual Expression GetState(RNNPointer p) const = 0;
   virtual RNNPointer GetStatePointer() const = 0;
-  virtual Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context) = 0;
+  virtual Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context);
   virtual Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p) = 0;
 
   // TODO: I believe having these functions take both a state and an RNNPointer is redundant.
@@ -65,7 +65,6 @@ public:
   virtual Expression GetState(RNNPointer p) const;
   RNNPointer GetStatePointer() const;
   Expression Embed(const shared_ptr<const StandardWord> word);
-  Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context);
   Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p);
 
   virtual Expression PredictLogDistribution(RNNPointer p, const Expression& state);
@@ -109,8 +108,7 @@ public:
   Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p);
 
   void NewGraph(ComputationGraph& cg);
-
-  Expression AddInput(Expression prev_word_emb, const Expression& context);
+  virtual Expression AddInput(Expression prev_word_emb, const Expression& context);
   virtual Expression AddInput(Expression prev_word_emb, const Expression& context, const RNNPointer& p);
 private:
   Parameter p_W, p_b;
@@ -134,7 +132,6 @@ public:
   void SetDropout(float rate);
   Expression GetState(RNNPointer p) const;
   RNNPointer GetStatePointer() const;
-  Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context);
   Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p);
   Expression PredictLogDistribution(RNNPointer p, const Expression& state);
   KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, const Expression& state, unsigned K);
@@ -209,13 +206,11 @@ public:
   Expression GetState() const;
   Expression GetState(RNNPointer p) const;
   RNNPointer GetStatePointer() const;
-  Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context);
   Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p);
   Expression PredictLogDistribution(RNNPointer p, const Expression& source_context);
   KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, const Expression& state, unsigned K);
   pair<shared_ptr<Word>, float> Sample(RNNPointer p, const Expression& source_context);
   Expression Loss(RNNPointer p, const Expression& source_context, const shared_ptr<const Word> ref);
-
   bool IsDone(RNNPointer p) const;
 
 private:
@@ -245,3 +240,64 @@ private:
   }
 };
 BOOST_CLASS_EXPORT_KEY(RnngOutputModel)
+
+class DependencyOutputModel : public OutputModel {
+public:
+  DependencyOutputModel();
+  DependencyOutputModel(Model& model, Embedder* embedder, unsigned context_dim, unsigned state_dim, unsigned final_hidden_dim, Dict& vocab);
+  void NewGraph(ComputationGraph& cg) override;
+  Expression GetState(RNNPointer p) const override;
+  RNNPointer GetStatePointer() const override;
+  Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p) override;
+
+  Expression PredictLogDistribution(RNNPointer p, const Expression& state);
+  KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, const Expression& state, unsigned K);
+  pair<shared_ptr<Word>, float> Sample(RNNPointer p, const Expression& state);
+  Expression Loss(RNNPointer p, const Expression& state, const shared_ptr<const Word> ref);
+  bool IsDone(RNNPointer p) const;
+
+private:
+  typedef tuple<RNNPointer, RNNPointer> State;
+
+  Embedder* embedder;
+  LSTMBuilder stack_lstm; 
+  LSTMBuilder comp_lstm;
+  MLP final_mlp;
+
+  Parameter emb_transform_p; // Simple linear transform from word embedding space to state space
+  Parameter stack_lstm_init_p;
+  Parameter comp_lstm_init_p;
+
+  Expression emb_transform;
+  vector<Expression> stack_lstm_init;
+  vector<Expression> comp_lstm_init;
+
+  unsigned half_state_dim;
+  unsigned done_with_left;
+  unsigned done_with_right;
+
+  vector<State> prev_states;
+  vector<RNNPointer> parent_states;
+
+  Dict* vocab; // TODO: Remove me
+
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive& ar, const unsigned int) {
+    ar & boost::serialization::base_object<OutputModel>(*this);
+    ar & embedder;
+    ar & stack_lstm;
+    ar & comp_lstm;
+    ar & final_mlp;
+
+    ar & emb_transform_p;
+    ar & stack_lstm_init_p;
+    ar & comp_lstm_init_p;
+
+    ar & half_state_dim;
+    ar & done_with_left;
+    ar & done_with_right;
+  }
+};
+BOOST_CLASS_EXPORT_KEY(DependencyOutputModel)
+

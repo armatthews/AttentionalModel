@@ -4,6 +4,7 @@ BOOST_CLASS_EXPORT_IMPLEMENT(SoftmaxOutputModel)
 BOOST_CLASS_EXPORT_IMPLEMENT(MlpSoftmaxOutputModel)
 BOOST_CLASS_EXPORT_IMPLEMENT(MorphologyOutputModel)
 BOOST_CLASS_EXPORT_IMPLEMENT(RnngOutputModel)
+BOOST_CLASS_EXPORT_IMPLEMENT(DependencyOutputModel)
 
 const unsigned lstm_layer_count = 2;
 
@@ -15,6 +16,10 @@ bool OutputModel::IsDone() const {
 
 Expression OutputModel::GetState() const {
   return GetState(GetStatePointer());
+}
+
+Expression OutputModel::AddInput(const shared_ptr<const Word> prev_word, const Expression& context) {
+  return AddInput(prev_word, context, GetStatePointer());
 }
 
 Expression OutputModel::PredictLogDistribution(const Expression& state) {
@@ -79,10 +84,6 @@ RNNPointer SoftmaxOutputModel::GetStatePointer() const {
   return output_builder.state();
 }
 
-Expression SoftmaxOutputModel::AddInput(const shared_ptr<const Word> prev_word, const Expression& context) {
-  return AddInput(prev_word, context, output_builder.state());
-}
-
 Expression SoftmaxOutputModel::Embed(const shared_ptr<const StandardWord> word) {
   return lookup(*pcg, embeddings, word->id);
 }
@@ -110,9 +111,46 @@ KBestList<shared_ptr<Word>> SoftmaxOutputModel::PredictKBest(RNNPointer p, const
   return kbest;
 }
 
+Expression max_expr(const vector<Expression>& exprs) {
+  assert (exprs.size() > 0);
+  Expression M = exprs[0];
+  for (unsigned i = 1; i < exprs.size(); ++i) {
+    M = max(M, exprs[i]);
+  }
+  return M;
+}
+
 Expression SoftmaxOutputModel::Loss(RNNPointer p, const Expression& state, const shared_ptr<const Word> ref) {
   const shared_ptr<const StandardWord> r = dynamic_pointer_cast<const StandardWord>(ref);
-  return fsb->neg_log_softmax(state, r->id);
+
+  if (false) {
+    unsigned vocab_size = 3118;
+    unsigned num_samples = 100;
+    Expression scores = dynamic_cast<StandardSoftmaxBuilder*>(fsb)->score(state);
+    Expression ref_score = pick(scores, r->id);
+    //cerr << "Ref score " << r->id << ": " << as_scalar(ref_score.value()) << endl;
+    vector<Expression> sample_scores;
+    for (unsigned i = 0; i < num_samples; ++i) {
+      unsigned sample_id = rand() % vocab_size;
+      Expression sample = pick(scores, sample_id);
+      sample_scores.push_back(sample);
+      //cerr << "Sample " << i << " score " << sample_id << ": " << as_scalar(sample.value()) << endl;
+    }
+    Expression max_sample = max_expr(sample_scores);
+    max_sample = max(max_sample, ref_score);
+    //cerr << "Max sample: " << as_scalar(max_sample.value()) << endl;
+    for (unsigned i = 0; i < num_samples; ++i) {
+      sample_scores[i] = exp(sample_scores[i] - max_sample);
+    }
+    float ratio = 1.0f * (vocab_size - 1) / num_samples;
+    Expression s = sum(sample_scores) * ratio + exp(ref_score - max_sample);
+    Expression denominator = max_sample + log(s);
+    Expression log_prob = ref_score - denominator;
+    return -log_prob;
+  }
+  else {
+    return fsb->neg_log_softmax(state, r->id);
+  }
 }
 
 pair<shared_ptr<Word>, float> SoftmaxOutputModel::Sample(RNNPointer p, const Expression& state) {
@@ -144,6 +182,7 @@ Expression MlpSoftmaxOutputModel::GetState(RNNPointer p) const {
   Expression state = tanh(affine_transform({b, W, base_state}));
   return state;
 }
+
 Expression MlpSoftmaxOutputModel::AddInput(const shared_ptr<const Word> prev_word_, const Expression& context, const RNNPointer& p) {
   Expression base_state = SoftmaxOutputModel::AddInput(prev_word_, context, p);
   Expression state = tanh(affine_transform({b, W, base_state}));
@@ -157,7 +196,7 @@ void MlpSoftmaxOutputModel::NewGraph(ComputationGraph& cg) {
 }
 
 Expression MlpSoftmaxOutputModel::AddInput(Expression prev_word_emb, const Expression& context) {
-  return AddInput(prev_word_emb, context, output_builder.state());
+  return AddInput(prev_word_emb, context, GetStatePointer());
 }
 
 Expression MlpSoftmaxOutputModel::AddInput(Expression prev_word_emb, const Expression& context, const RNNPointer& p) {
@@ -250,10 +289,6 @@ Expression MorphologyOutputModel::GetState(RNNPointer p) const {
 
 RNNPointer MorphologyOutputModel::GetStatePointer() const {
   return output_builder.state();
-}
-
-Expression MorphologyOutputModel::AddInput(const shared_ptr<const Word> prev_word, const Expression& context) {
-  return AddInput(prev_word, context, output_builder.state());
 }
 
 Expression MorphologyOutputModel::AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p) {
@@ -444,11 +479,6 @@ RNNPointer RnngOutputModel::GetStatePointer() const {
   return builder->state();
 }
 
-Expression RnngOutputModel::AddInput(const shared_ptr<const Word> prev_word, const Expression& context) {
-  //assert (false);
-  return AddInput(prev_word, context, builder->state());
-}
-
 Expression RnngOutputModel::AddInput(const shared_ptr<const Word> prev_word_, const Expression& context, const RNNPointer& p) {
   const shared_ptr<const StandardWord> prev_word = dynamic_pointer_cast<const StandardWord>(prev_word_);
   Action action = Convert(prev_word->id);
@@ -505,4 +535,136 @@ WordId RnngOutputModel::Convert(const Action& action) const {
 
 bool RnngOutputModel::IsDone(RNNPointer p) const {
   return builder->IsDone(p);
+}
+
+DependencyOutputModel::DependencyOutputModel() {}
+
+DependencyOutputModel::DependencyOutputModel(Model& model, Embedder* embedder, unsigned context_dim, unsigned state_dim, unsigned final_hidden_dim, Dict& vocab) {
+  assert (state_dim % 2 == 0);
+  const unsigned vocab_size = vocab.size();
+  half_state_dim = state_dim / 2;
+
+  this->embedder = embedder;
+  stack_lstm = LSTMBuilder(lstm_layer_count, half_state_dim + context_dim, half_state_dim, model);
+  comp_lstm = LSTMBuilder(lstm_layer_count, half_state_dim + context_dim, half_state_dim, model);
+  final_mlp = MLP(model, 2 * half_state_dim, final_hidden_dim, vocab_size);
+
+  emb_transform_p = model.add_parameters({half_state_dim, embedder->Dim()});
+  stack_lstm_init_p = model.add_parameters({lstm_layer_count * 2 * half_state_dim});
+  comp_lstm_init_p = model.add_parameters({lstm_layer_count * 2 * half_state_dim});
+
+  done_with_left = vocab.convert("</LEFT>");
+  done_with_right = vocab.convert("</RIGHT>");
+}
+
+void DependencyOutputModel::NewGraph(ComputationGraph& cg) {
+  embedder->NewGraph(cg);
+  stack_lstm.new_graph(cg);
+  comp_lstm.new_graph(cg);
+  final_mlp.NewGraph(cg);
+
+  emb_transform = parameter(cg, emb_transform_p);
+  stack_lstm_init = MakeLSTMInitialState(parameter(cg, stack_lstm_init_p), half_state_dim, lstm_layer_count);
+  comp_lstm_init = MakeLSTMInitialState(parameter(cg, comp_lstm_init_p), half_state_dim, lstm_layer_count);
+
+  stack_lstm.start_new_sequence(stack_lstm_init);
+  comp_lstm.start_new_sequence(comp_lstm_init);
+
+  //cerr << "prev_states[" << prev_states.size() << "]: " << stack_lstm.state() << "\t" << comp_lstm.state() << endl;
+  prev_states.clear();
+  prev_states.push_back(make_tuple(stack_lstm.state(), comp_lstm.state()));
+
+  parent_states.clear();
+  parent_states.push_back((RNNPointer)-1);
+}
+
+Expression DependencyOutputModel::GetState(RNNPointer p) const {
+  RNNPointer stack_pointer;
+  RNNPointer comp_pointer;
+  tie(stack_pointer, comp_pointer) = prev_states.back();
+  Expression stack_state = stack_lstm.get_h(stack_pointer).back();
+  Expression comp_state = comp_lstm.get_h(comp_pointer).back();
+  return concatenate({stack_state, comp_state});
+}
+
+RNNPointer DependencyOutputModel::GetStatePointer() const {
+  return (RNNPointer)((int)prev_states.size() - 1);
+}
+
+Expression DependencyOutputModel::AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p) {
+  assert (prev_states.size() == parent_states.size());
+  assert (p < prev_states.size());
+
+  unsigned wordid = dynamic_pointer_cast<const StandardWord>(prev_word)->id;
+  Expression embedding = embedder->Embed(prev_word);
+  Expression transformed_embedding = emb_transform * embedding;
+
+  RNNPointer stack_pointer;
+  RNNPointer comp_pointer;
+  tie(stack_pointer, comp_pointer) = prev_states[p];
+
+  Expression input_vec = concatenate({transformed_embedding, context});
+
+  if (wordid == done_with_right) {
+    RNNPointer old_stack_pointer = stack_pointer;
+    stack_pointer = stack_lstm.get_head(stack_pointer);
+
+    Expression node_repr = comp_lstm.add_input(comp_pointer, input_vec);
+    RNNPointer parent = parent_states[p];
+    RNNPointer grandparent = (parent != (RNNPointer)-1) ? parent_states[parent] : (RNNPointer)-2;
+
+    comp_lstm.add_input(get<1>(prev_states[grandparent]), concatenate({node_repr, context}));
+    comp_pointer = comp_lstm.state();
+  }
+  else if (wordid == done_with_left) {
+    comp_lstm.add_input(comp_pointer, input_vec);
+    comp_pointer = comp_lstm.state();
+  }
+  else {
+    stack_lstm.add_input(stack_pointer, input_vec);
+    comp_lstm.add_input((RNNPointer)-1, input_vec);
+
+    stack_pointer = stack_lstm.state();
+    comp_pointer = comp_lstm.state();
+  }
+
+  parent_states.push_back(p);
+  prev_states.push_back(make_tuple(stack_pointer, comp_pointer));
+
+  assert (prev_states.size() == parent_states.size());
+  return OutputModel::GetState();
+}
+
+Expression DependencyOutputModel::PredictLogDistribution(RNNPointer p, const Expression& state) {
+  assert (false);
+}
+
+KBestList<shared_ptr<Word>> DependencyOutputModel::PredictKBest(RNNPointer p, const Expression& state, unsigned K) {
+  Expression state2 = GetState(p);
+  assert (same_value(state, state2));
+  Expression log_probs_expr = final_mlp.Feed(state);
+  vector<float> log_probs = as_vector(log_probs_expr.value());
+
+  KBestList<shared_ptr<Word>> kbest;
+  for (unsigned i = 0; i < log_probs.size(); ++i) {
+    shared_ptr<Word> word = make_shared<StandardWord>(i);
+    kbest.add(log_probs[i], word);
+  }
+  return kbest;
+}
+
+pair<shared_ptr<Word>, float> DependencyOutputModel::Sample(RNNPointer p, const Expression& state) {
+  assert (false);
+}
+
+Expression DependencyOutputModel::Loss(RNNPointer p, const Expression& state, const shared_ptr<const Word> ref) {
+  Expression state2 = GetState(p);
+  assert (same_value(state, state2));
+
+  Expression log_probs = final_mlp.Feed(state);
+  return pickneglogsoftmax(log_probs, dynamic_pointer_cast<const StandardWord>(ref)->id);
+}
+
+bool DependencyOutputModel::IsDone(RNNPointer p) const {
+  return get<0>(prev_states[p]) == -1;
 }

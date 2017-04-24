@@ -6,6 +6,7 @@ BOOST_CLASS_EXPORT_IMPLEMENT(MorphologyInputReader)
 BOOST_CLASS_EXPORT_IMPLEMENT(StandardOutputReader)
 BOOST_CLASS_EXPORT_IMPLEMENT(MorphologyOutputReader)
 BOOST_CLASS_EXPORT_IMPLEMENT(RnngOutputReader)
+BOOST_CLASS_EXPORT_IMPLEMENT(DependencyOutputReader)
 
 LinearSentence* ReadStandardSentence(const string& line, Dict& dict, bool add_bos_eos) {
   vector<string> words = tokenize(strip(line), " ");
@@ -104,6 +105,98 @@ vector<LinearSentence*> ReadMorphologySentences(const string& filename, Dict& wo
     LinearSentence* sentence = ReadMorphologySentence(current_sentence, word_vocab, root_vocab, affix_vocab, char_vocab, add_bos_eos);
     sentences.push_back(sentence);
     current_sentence.clear();
+  }
+  return sentences;
+}
+
+LinearSentence* GetDependencyOracle(const vector<tuple<string, unsigned>>& arcs, Dict& vocab) {
+  string word;
+  unsigned head;
+  unordered_map<unsigned, vector<unsigned>> children;
+  for (unsigned i = 0; i < arcs.size(); ++i) {
+    tie(word, head) = arcs[i];
+    //cout << i << "\t" << word << "\t" << head << endl;
+    children[head].push_back(i);
+  }
+  //cout << endl;
+
+  /*for (unsigned i = 0; i < arcs.size(); ++i) {
+    cout << i << "\t";
+    for (unsigned j = 0; j < children[i].size(); ++j) {
+      cout << (j == 0 ? "" : " ") << children[i][j];
+    }
+    cout << endl;
+  }
+  cout << endl;*/
+
+  LinearSentence* out = new LinearSentence();
+  stack<unsigned> open_nodes;
+  stack<unsigned> child_indices;
+  open_nodes.push(-1);
+  child_indices.push(0);
+  while(open_nodes.size() > 0) {
+    unsigned parent = open_nodes.top();
+    unsigned child_index = child_indices.top();
+    unsigned prev_child = (child_index > 0) ? children[parent][child_index - 1] : -1;
+    child_indices.pop();
+    if (child_index >= children[parent].size()) {
+      open_nodes.pop();
+      if (parent != (unsigned)-1 && (children[parent].size() == 0 || children[parent].back() < parent)) {
+        //cout << "Done with left (" << parent << ")" << endl;
+        out->push_back(make_shared<StandardWord>(vocab.convert("</LEFT>")));
+      }
+      //cout << "Done with right (" << parent << ")" << endl;
+      out->push_back(make_shared<StandardWord>(vocab.convert("</RIGHT>")));
+    }
+    else {
+      unsigned child = children[parent][child_index];
+      string child_word = get<0>(arcs[child]);
+      child_indices.push(child_index + 1);
+      if (child < parent && parent != -1) {
+        //cout << "LEFT(" << child_word << ")" << endl;
+        out->push_back(make_shared<StandardWord>(vocab.convert(child_word)));
+      }
+      else {
+        if (parent != -1 && (prev_child == -1 || prev_child < parent)) {
+          //cout << "Done with left (" << parent << ")" << endl;
+          out->push_back(make_shared<StandardWord>(vocab.convert("</LEFT>")));
+        }
+        //cout << "RIGHT(" << child_word << ")" << endl;
+        out->push_back(make_shared<StandardWord>(vocab.convert(child_word)));
+      }
+
+      open_nodes.push(child);
+      child_indices.push(0);
+    }
+  }
+  return out;
+}
+
+vector<LinearSentence*> ReadDependencyTrees(const string& filename, Dict& vocab) {
+  ifstream f(filename);
+  if (!f.is_open()) {
+    cerr << "Unable to open " << filename << " for reading." << endl;
+    assert (f.is_open());
+  }
+
+  vector<LinearSentence*> sentences;
+  vector<tuple<string, unsigned>> arcs;
+  for (string line; getline(f, line);) {
+    line = strip(line);
+    if (line.length() == 0) {
+      sentences.push_back(GetDependencyOracle(arcs, vocab));
+      arcs.clear();
+    }
+    else {
+      vector<string> parts = tokenize(line, "\t");
+      assert (parts.size() == 8);
+      // ID FORM LEMMA UPOSTAG XPOSTAG FEATS HEAD DEPREL (DEPS) (MISC)
+      unsigned id = stoi(parts[0]);
+      string word = parts[1];
+      unsigned head = stoi(parts[6]);
+      assert (arcs.size() == id - 1);
+      arcs.push_back(make_tuple(word, head - 1));
+    }
   }
   return sentences;
 }
@@ -262,6 +355,38 @@ string MorphologyOutputReader::ToString(const shared_ptr<const Word> word) {
 string RnngOutputReader::ToString(const shared_ptr<const Word> word) {
   const shared_ptr<const StandardWord> w = dynamic_pointer_cast<const StandardWord>(word);
   return vocab.convert(w->id);
+}
+
+DependencyOutputReader::DependencyOutputReader() {}
+
+DependencyOutputReader::DependencyOutputReader(const string& vocab_file) {
+  vocab.convert("POP");
+  vocab.convert("EMIT_LEFT");
+  vocab.convert("EMIT_RIGHT");
+  vocab.convert("UNK");
+
+  if (vocab_file.length() > 0) {
+    ReadDict(vocab_file, vocab);
+    vocab.freeze();
+    vocab.set_unk("UNK");
+  }
+}
+
+vector<OutputSentence*> DependencyOutputReader::Read(const string& filename) {
+  vector<LinearSentence*> corpus = ReadDependencyTrees(filename, vocab);
+  return vector<OutputSentence*>(corpus.begin(), corpus.end());
+}
+
+string DependencyOutputReader::ToString(const shared_ptr<const Word> word) {
+  const shared_ptr<const StandardWord> w = dynamic_pointer_cast<const StandardWord>(word);
+  return vocab.convert(w->id);
+}
+
+void DependencyOutputReader::Freeze() {
+  if (!vocab.is_frozen()) {
+    vocab.freeze();
+    vocab.set_unk("UNK");
+  }
 }
 
 void ReadDict(const string& filename, Dict& dict) {

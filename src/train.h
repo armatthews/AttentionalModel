@@ -17,7 +17,7 @@ using namespace dynet::mp;
 using namespace std;
 namespace po = boost::program_options;
 
-enum InputType {kStandard = 0, kSyntaxTree = 1, kMorphology = 2, kRNNG = 3};
+enum InputType {kStandard = 0, kSyntaxTree = 1, kMorphology = 2, kRNNG = 3, kDependency = 4};
 istream& operator>>(istream& in, InputType& input_type);
 
 void AddTrainerOptions(po::options_description& desc);

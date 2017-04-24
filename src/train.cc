@@ -20,6 +20,9 @@ istream& operator>>(istream& in, InputType& input_type)
   else if (token == "rnng") {
     input_type = kRNNG;
   }
+  else if (token == "dependency") {
+    input_type = kDependency;
+  }
   else {
     //throw boost::program_options::validation_error("Invalid input type!");
     assert (false);
@@ -124,6 +127,8 @@ OutputReader* CreateOutputReader(const po::variables_map& vm) {
       break;
     case kRNNG:
       return new RnngOutputReader(vm["vocab"].as<string>());
+    case kDependency:
+      return new DependencyOutputReader(vm["vocab"].as<string>());
     default:
       assert (false && "Reader for unknown output type requested");
   }
@@ -272,6 +277,11 @@ OutputModel* CreateOutputModel(const po::variables_map& vm, Model& dynet_model, 
     unsigned action_emb_dim = embedding_dim;
     Dict& target_vocab = dynamic_cast<RnngOutputReader*>(output_reader)->vocab;
     output_model = new RnngOutputModel(dynet_model, term_emb_dim, nt_emb_dim, action_emb_dim, annotation_dim, hidden_dim, &target_vocab, clusters_filename);
+  }
+  else if (target_type == kDependency) {
+    Dict& target_vocab = dynamic_cast<DependencyOutputReader*>(output_reader)->vocab;
+    Embedder* embedder = new StandardEmbedder(dynet_model, target_vocab.size(), embedding_dim);
+    output_model = new DependencyOutputModel(dynet_model, embedder, annotation_dim, output_state_dim, final_hidden_size, target_vocab);
   }
   else {
     assert (false && "Unknown output type");

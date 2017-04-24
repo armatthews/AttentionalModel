@@ -127,9 +127,15 @@ void TrainingWrapper::Report(unsigned epoch, unsigned progress, SufficientStats&
   cerr << ComputeFractionalEpoch() << "\t" << "loss = " << stats << " (" << seconds_elapsed << "s)" << endl;
 }
 
-void TrainingWrapper::RunDevSet(unsigned num_cores) {
+bool TrainingWrapper::RunDevSet(unsigned num_cores) {
   SufficientStats dev_stats = RunSlice(dev_bitext, num_cores, false);
-  cerr << ComputeFractionalEpoch() << "\t" << "dev loss = " << dev_stats << " (New best?)" << endl;
+  bool new_best = (best_dev_stats < dev_stats);
+  cerr << ComputeFractionalEpoch() << "\t" << "dev loss = " << dev_stats;
+  cerr << (new_best ? " (New best!)" : "") << endl;
+  if (new_best) {
+    learner->SaveModel();
+  }
+  return new_best;
 }
 
 void TrainingWrapper::InitializeEpoch() {
@@ -142,6 +148,7 @@ void TrainingWrapper::FinalizeEpoch() {
 }
 
 SufficientStats TrainingWrapper::RunSlice(const vector<SentencePair>& slice, unsigned num_cores, bool learn) {
-  return run_mp_minibatch_trainer(num_cores, learner, learn ? trainer : nullptr, slice);
+  return run_sp_minibatch_trainer(learner, learn ? trainer : nullptr, slice);
+  //return run_mp_minibatch_trainer(num_cores, learner, learn ? trainer : nullptr, slice);
 }
 
