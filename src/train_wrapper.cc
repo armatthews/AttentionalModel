@@ -59,7 +59,7 @@ void Learner::SaveModel() {
 
 TrainingWrapper::TrainingWrapper(const Bitext& train_bitext, const Bitext& dev_bitext, Trainer* trainer, Learner* learner) :
     train_bitext(train_bitext), dev_bitext(dev_bitext), trainer(trainer), learner(learner),
-    epoch(0), data_processed(0), sents_since_dev(0), stop(false) {}
+    epoch(0), data_processed(0), sents_since_dev(0), first_dev_run(true), stop(false) {}
 
 void TrainingWrapper::Train(const po::variables_map& vm) {
   const unsigned num_cores = vm["cores"].as<unsigned>();
@@ -129,12 +129,13 @@ void TrainingWrapper::Report(unsigned epoch, unsigned progress, SufficientStats&
 
 bool TrainingWrapper::RunDevSet(unsigned num_cores) {
   SufficientStats dev_stats = RunSlice(dev_bitext, num_cores, false);
-  bool new_best = (best_dev_stats < dev_stats);
+  bool new_best = (first_dev_run || dev_stats < best_dev_stats);
   cerr << ComputeFractionalEpoch() << "\t" << "dev loss = " << dev_stats;
   cerr << (new_best ? " (New best!)" : "") << endl;
   if (new_best) {
     learner->SaveModel();
     best_dev_stats = dev_stats;
+    first_dev_run = false;
   }
   return new_best;
 }

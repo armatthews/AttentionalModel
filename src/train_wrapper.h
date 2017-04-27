@@ -65,6 +65,7 @@ private:
   unsigned epoch;
   unsigned data_processed;
   unsigned sents_since_dev;
+  bool first_dev_run;
   SufficientStats epoch_stats;
   SufficientStats best_dev_stats;
   volatile bool stop;
