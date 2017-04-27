@@ -134,6 +134,7 @@ bool TrainingWrapper::RunDevSet(unsigned num_cores) {
   cerr << (new_best ? " (New best!)" : "") << endl;
   if (new_best) {
     learner->SaveModel();
+    best_dev_stats = dev_stats;
   }
   return new_best;
 }
