@@ -147,6 +147,10 @@ KBestList<shared_ptr<OutputSentence>> Translator::Translate(const InputSentence*
         break;
       }
 
+      if (new_hyps.size() >= K && hyp_score < new_hyps.worst_score() - buffer) {
+        break;
+      }
+
       shared_ptr<OutputSentence> hyp_sentence = get<0>(get<1>(hyp));
       RNNPointer state_pointer = get<1>(get<1>(hyp));
       assert (hyp_sentence->size() == length);
