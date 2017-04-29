@@ -36,15 +36,20 @@ public:
 
 class StandardInputReader : public InputReader {
 public:
+  StandardInputReader();
+  explicit StandardInputReader(bool add_bos_eos);
   vector<InputSentence*> Read(const string& filename);
   void Freeze();
   Dict vocab;
 private:
+  bool add_bos_eos;
+
   friend class boost::serialization::access;
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {
     ar & boost::serialization::base_object<InputReader>(*this);
     ar & vocab;
+    ar & add_bos_eos;
   }
 };
 BOOST_CLASS_EXPORT_KEY(StandardInputReader)
@@ -90,17 +95,20 @@ BOOST_CLASS_EXPORT_KEY(MorphologyInputReader)
 class StandardOutputReader : public OutputReader {
 public:
   StandardOutputReader();
-  explicit StandardOutputReader(const string& vocab_file);
+  explicit StandardOutputReader(const string& vocab_file, bool add_bos_eos);
   vector<OutputSentence*> Read(const string& filename);
   string ToString(const shared_ptr<const Word> word);
   void Freeze();
   Dict vocab;
 private:
+  bool add_bos_eos;
+
   friend class boost::serialization::access;
   template<class Archive>
   void serialize(Archive& ar, const unsigned int) {
     ar & boost::serialization::base_object<OutputReader>(*this);
     ar & vocab;
+    ar & add_bos_eos;
   }
 };
 BOOST_CLASS_EXPORT_KEY(StandardOutputReader)

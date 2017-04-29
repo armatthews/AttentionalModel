@@ -201,8 +201,12 @@ vector<LinearSentence*> ReadDependencyTrees(const string& filename, Dict& vocab)
   return sentences;
 }
 
+StandardInputReader::StandardInputReader() {}
+
+StandardInputReader::StandardInputReader(bool add_bos_eos) : add_bos_eos(add_bos_eos) {}
+
 vector<InputSentence*> StandardInputReader::Read(const string& filename) {
-  vector<LinearSentence*> corpus = ReadStandardSentences(filename, vocab, true);
+  vector<LinearSentence*> corpus = ReadStandardSentences(filename, vocab, add_bos_eos);
   return vector<InputSentence*>(corpus.begin(), corpus.end());
 }
 
@@ -260,7 +264,7 @@ void MorphologyInputReader::Freeze() {
 }
 
 StandardOutputReader::StandardOutputReader() {}
-StandardOutputReader::StandardOutputReader(const string& vocab_file) {
+StandardOutputReader::StandardOutputReader(const string& vocab_file, bool add_bos_eos) : add_bos_eos(add_bos_eos) {
   vocab.convert("UNK");
   vocab.convert("<s>");
   vocab.convert("</s>");
@@ -272,7 +276,7 @@ StandardOutputReader::StandardOutputReader(const string& vocab_file) {
 }
 
 vector<OutputSentence*> StandardOutputReader::Read(const string& filename) {
-  vector<LinearSentence*> corpus = ReadStandardSentences(filename, vocab, true);
+  vector<LinearSentence*> corpus = ReadStandardSentences(filename, vocab, add_bos_eos);
   return vector<OutputSentence*>(corpus.begin(), corpus.end());
 }
 
