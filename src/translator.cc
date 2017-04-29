@@ -1,8 +1,5 @@
 #include "translator.h"
 
-#include "io.h" // XXX
-StandardOutputReader* g_output_reader = nullptr; // XXX
-
 Translator::Translator() {}
 
 Translator::Translator(EncoderModel* encoder, AttentionModel* attention, OutputModel* output) {
