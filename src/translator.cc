@@ -1,5 +1,8 @@
 #include "translator.h"
 
+#include "io.h" // XXX
+StandardOutputReader* g_output_reader = nullptr; // XXX
+
 Translator::Translator() {}
 
 Translator::Translator(EncoderModel* encoder, AttentionModel* attention, OutputModel* output) {
@@ -34,8 +37,10 @@ vector<Expression> Translator::PerWordLosses(const InputSentence* const source, 
     word_losses[i] = output_model->Loss(state, word);
 
     Expression context = attention_model->GetContext(encodings, state);
+    assert (!output_model->IsDone());
     state = output_model->AddInput(word, context);
   }
+  //assert (output_model->IsDone());
   return word_losses;
 }
 
@@ -179,6 +184,70 @@ KBestList<shared_ptr<OutputSentence>> Translator::Translate(const InputSentence*
   return complete_hyps;
 }
 
+Expression Translator::GetContexts(const InputSentence* const source, const vector<Expression>& new_embs) {
+  const LinearSentence* source_sent = dynamic_cast<const LinearSentence*>(source);
+  BidirectionalEncoder* encoder = dynamic_cast<BidirectionalEncoder*>(encoder_model);
+  vector<Expression> embeddings = encoder->Embed(source);
+  assert (embeddings.size() == new_embs.size());
+
+  for (unsigned i = 0; i < embeddings.size(); ++i) {
+    embeddings[i] = nobackprop(embeddings[i]);
+  }
+
+  vector<Expression> r;
+  for (unsigned i = 0; i < embeddings.size(); ++i) {
+    vector<Expression> temp_embs = embeddings;
+    temp_embs[i] = new_embs[i];
+    vector<Expression> encodings = encoder->Encode(temp_embs);
+    r.push_back(encodings[i]);
+  }
+
+  Expression state = nobackprop(output_model->GetState());
+
+  Expression attention_scores = attention_model->GetScoreVector(r, state);
+
+  Expression max_attention_score = pick(attention_scores, 0U);
+  for (unsigned i = 1; i < embeddings.size(); ++i) {
+    max_attention_score = max(max_attention_score, pick(attention_scores, i));
+  }
+
+  Expression loss = -max_attention_score;
+
+  return loss;
+}
+
+Expression Translator::BackTranslate(const InputSentence* const source, const vector<Expression>& new_embs) {
+  const LinearSentence* source_sent = dynamic_cast<const LinearSentence*>(source);
+  BidirectionalEncoder* encoder = dynamic_cast<BidirectionalEncoder*>(encoder_model);
+  vector<Expression> embeddings = encoder->Embed(source);
+  assert (embeddings.size() == new_embs.size());
+
+  for (unsigned i = 0; i < embeddings.size(); ++i) {
+    embeddings[i] = nobackprop(embeddings[i]);
+  }
+
+  vector<Expression> r;
+  for (unsigned i = 0; i < embeddings.size(); ++i) {
+    vector<Expression> temp_embs = embeddings;
+    temp_embs[i] = new_embs[i];
+    vector<Expression> encodings = encoder->Encode(temp_embs);
+    r.push_back(encodings[i]);
+  }
+
+  Expression state = nobackprop(output_model->GetState());
+
+  Expression attention_scores = attention_model->GetScoreVector(r, state);
+
+  Expression max_attention_score = pick(attention_scores, 0U);
+  for (unsigned i = 1; i < embeddings.size(); ++i) {
+    max_attention_score = max(max_attention_score, pick(attention_scores, i));
+  }
+
+  Expression loss = -max_attention_score;
+
+  return loss;
+}
+
 #include "dynet/exec.h"
 vector<vector<float>> Translator::GetAttentionGradients(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg) {
   vector<Expression> encodings = encoder_model->Encode(source);
@@ -203,6 +272,7 @@ vector<vector<float>> Translator::GetAttentionGradients(const InputSentence* con
     SimpleExecutionEngine* ee = dynamic_cast<SimpleExecutionEngine*>(cg.ee);
     assert (scores.i < ee->num_nodes_evaluated);
     Tensor& score_gradient = ee->ndEdfs[scores.i];
+    //Tensor& score_gradient = ee->nfxs[scores.i];
     vector<float> score_grad = as_vector(score_gradient);
     grads.push_back(score_grad);
   }
@@ -228,7 +298,7 @@ Expression Translator::BuildPredictionGraph(const InputSentence* const source, c
 
     Expression context = attention_model->GetContext(encodings, state);
     Expression avg_embedding = target_word_vec_matrix * target_probs[i];
-    state = softmax_output_model->AddInput(avg_embedding, context);
+    state = softmax_output_model->AddInput(avg_embedding, context, softmax_output_model->GetStatePointer());
   }
 
   return sum(word_losses);

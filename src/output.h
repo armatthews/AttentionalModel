@@ -257,10 +257,10 @@ public:
   bool IsDone(RNNPointer p) const;
 
 private:
-  typedef tuple<RNNPointer, RNNPointer> State;
+  typedef tuple<RNNPointer, RNNPointer, unsigned, bool> State; // Stack pointer, comp pointer, stack depth, done with left
 
   Embedder* embedder;
-  LSTMBuilder stack_lstm; 
+  LSTMBuilder stack_lstm;
   LSTMBuilder comp_lstm;
   MLP final_mlp;
 
@@ -277,9 +277,8 @@ private:
   unsigned done_with_right;
 
   vector<State> prev_states;
-  vector<RNNPointer> parent_states;
-
-  Dict* vocab; // TODO: Remove me
+  vector<RNNPointer> stack; // From each state, if you were to see </RIGHT> where would you go back to?
+  vector<RNNPointer> head;
 
   friend class boost::serialization::access;
   template<class Archive>

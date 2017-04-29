@@ -114,7 +114,7 @@ double TrainingWrapper::GetSeconds(TrainingWrapper::time_point& start, TrainingW
 vector<unsigned> TrainingWrapper::GenerateOrder(unsigned size) {
   vector<unsigned> order(size);
   iota(order.begin(), order.end(), 0);
-  shuffle(order.begin(), order.end(), *rndeng); 
+  shuffle(order.begin(), order.end(), *rndeng);
   return order;
 }
 

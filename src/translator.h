@@ -19,10 +19,13 @@ public:
   vector<Expression> Align(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg);
   KBestList<shared_ptr<OutputSentence>> Translate(const InputSentence* const source, unsigned K, unsigned beam_size, unsigned max_length, float length_bonus=0.0f);
 
+  // XXX: This should be temporary and is just for some qualitative digging stuff I'm doing
+  Expression GetContexts(const InputSentence* const source, const vector<Expression>& new_embs);
+  Expression BackTranslate(const InputSentence* const source, const vector<Expression>& new_embs);
   vector<vector<float>> GetAttentionGradients(const InputSentence* const source, const OutputSentence* const target, ComputationGraph& cg);
   Expression BuildPredictionGraph(const InputSentence* const source, const vector<Expression>& target_probs, ComputationGraph& cg, const OutputSentence* const target);
 
-private:
+//private:
   EncoderModel* encoder_model;
   AttentionModel* attention_model;
   OutputModel* output_model;

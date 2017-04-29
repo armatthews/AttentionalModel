@@ -570,18 +570,22 @@ void DependencyOutputModel::NewGraph(ComputationGraph& cg) {
   stack_lstm.start_new_sequence(stack_lstm_init);
   comp_lstm.start_new_sequence(comp_lstm_init);
 
-  //cerr << "prev_states[" << prev_states.size() << "]: " << stack_lstm.state() << "\t" << comp_lstm.state() << endl;
   prev_states.clear();
-  prev_states.push_back(make_tuple(stack_lstm.state(), comp_lstm.state()));
+  prev_states.push_back(make_tuple(stack_lstm.state(), comp_lstm.state(), 0, true));
 
-  parent_states.clear();
-  parent_states.push_back((RNNPointer)-1);
+  head.clear();
+  head.push_back((RNNPointer)-1);
+
+  stack.clear();
+  stack.push_back((RNNPointer)-1);
 }
 
 Expression DependencyOutputModel::GetState(RNNPointer p) const {
   RNNPointer stack_pointer;
   RNNPointer comp_pointer;
-  tie(stack_pointer, comp_pointer) = prev_states.back();
+  unsigned stack_depth;
+  bool left_done;
+  tie(stack_pointer, comp_pointer, stack_depth, left_done) = prev_states[p];
   Expression stack_state = stack_lstm.get_h(stack_pointer).back();
   Expression comp_state = comp_lstm.get_h(comp_pointer).back();
   return concatenate({stack_state, comp_state});
@@ -592,7 +596,8 @@ RNNPointer DependencyOutputModel::GetStatePointer() const {
 }
 
 Expression DependencyOutputModel::AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p) {
-  assert (prev_states.size() == parent_states.size());
+  assert (prev_states.size() == stack.size());
+  assert (prev_states.size() == head.size());
   assert (p < prev_states.size());
 
   unsigned wordid = dynamic_pointer_cast<const StandardWord>(prev_word)->id;
@@ -601,24 +606,49 @@ Expression DependencyOutputModel::AddInput(const shared_ptr<const Word> prev_wor
 
   RNNPointer stack_pointer;
   RNNPointer comp_pointer;
-  tie(stack_pointer, comp_pointer) = prev_states[p];
+  unsigned stack_depth;
+  bool left_done;
+  tie(stack_pointer, comp_pointer, stack_depth, left_done) = prev_states[p];
+  RNNPointer parent = (RNNPointer)-1337;
 
   Expression input_vec = concatenate({transformed_embedding, context});
 
   if (wordid == done_with_right) {
-    RNNPointer old_stack_pointer = stack_pointer;
-    stack_pointer = stack_lstm.get_head(stack_pointer);
-
+    assert (left_done);
     Expression node_repr = comp_lstm.add_input(comp_pointer, input_vec);
-    RNNPointer parent = parent_states[p];
-    RNNPointer grandparent = (parent != (RNNPointer)-1) ? parent_states[parent] : (RNNPointer)-2;
 
-    comp_lstm.add_input(get<1>(prev_states[grandparent]), concatenate({node_repr, context}));
-    comp_pointer = comp_lstm.state();
+    RNNPointer pop_to_i = stack[p];
+    if (pop_to_i == -1) {
+      stack_pointer = (RNNPointer)-1;
+      comp_lstm.add_input((RNNPointer)-1, concatenate({node_repr, context}));
+      comp_pointer = comp_lstm.state();
+      stack_depth --;
+      left_done = true;
+      parent = -1;
+    }
+    else {
+      State& pop_to = prev_states[pop_to_i];
+
+      stack_pointer = stack_lstm.get_head(stack_pointer);
+      assert (stack_pointer == get<0>(pop_to));
+
+      comp_lstm.add_input(get<1>(pop_to), concatenate({node_repr, context}));
+      comp_pointer = comp_lstm.state();
+
+      stack_depth--;
+      assert (stack_depth == get<2>(pop_to));
+
+      left_done = get<3>(pop_to);
+
+      parent = stack[pop_to_i];
+    }
   }
   else if (wordid == done_with_left) {
+    assert (!left_done);
     comp_lstm.add_input(comp_pointer, input_vec);
     comp_pointer = comp_lstm.state();
+    parent = stack[p];
+    left_done = true;
   }
   else {
     stack_lstm.add_input(stack_pointer, input_vec);
@@ -626,30 +656,48 @@ Expression DependencyOutputModel::AddInput(const shared_ptr<const Word> prev_wor
 
     stack_pointer = stack_lstm.state();
     comp_pointer = comp_lstm.state();
+    stack_depth++;
+    left_done = false;
+    parent = p;
   }
 
-  parent_states.push_back(p);
-  prev_states.push_back(make_tuple(stack_pointer, comp_pointer));
+  /*cerr << prev_states.size() << "\t" << "head: " << p << ", " << "stack: " << parent;
+  cerr << ", " << "sp: " << stack_pointer << ", " << "cp: " << comp_pointer;
+  cerr << ", " << "sd: " << stack_depth << ", " << "ld: " << left_done << ", " << "word: " << word << endl;*/
+  stack.push_back(parent);
+  head.push_back(p);
+  prev_states.push_back(make_tuple(stack_pointer, comp_pointer, stack_depth, left_done));
 
-  assert (prev_states.size() == parent_states.size());
+  assert (prev_states.size() == stack.size());
+  assert (prev_states.size() == head.size());
   return OutputModel::GetState();
 }
 
 Expression DependencyOutputModel::PredictLogDistribution(RNNPointer p, const Expression& state) {
-  assert (false);
+  Expression state2 = GetState(p);
+  assert (same_value(state, state2));
+  Expression scores = final_mlp.Feed(state);
+  Expression log_probs = log_softmax(scores);
+  return log_probs;
 }
 
 KBestList<shared_ptr<Word>> DependencyOutputModel::PredictKBest(RNNPointer p, const Expression& state, unsigned K) {
-  Expression state2 = GetState(p);
-  assert (same_value(state, state2));
-  Expression log_probs_expr = final_mlp.Feed(state);
-  vector<float> log_probs = as_vector(log_probs_expr.value());
+  vector<float> log_probs = as_vector(PredictLogDistribution(p, state).value());
+  unsigned stack_depth = get<2>(prev_states[p]);
+  bool left_done = get<3>(prev_states[p]);
 
-  KBestList<shared_ptr<Word>> kbest;
+  KBestList<shared_ptr<Word>> kbest(K);
   for (unsigned i = 0; i < log_probs.size(); ++i) {
+    if (i == done_with_left && (left_done || stack_depth >= 100)) {
+      continue;
+    }
+    else if (i == done_with_right && (IsDone(p) || !left_done)) {
+      continue;
+    }
     shared_ptr<Word> word = make_shared<StandardWord>(i);
     kbest.add(log_probs[i], word);
   }
+
   return kbest;
 }
 
@@ -666,5 +714,5 @@ Expression DependencyOutputModel::Loss(RNNPointer p, const Expression& state, co
 }
 
 bool DependencyOutputModel::IsDone(RNNPointer p) const {
-  return get<0>(prev_states[p]) == -1;
+  return (get<2>(prev_states[p]) == (unsigned)-1);
 }

@@ -102,7 +102,7 @@ InputReader* CreateInputReader(const po::variables_map& vm) {
   InputType input_type = vm["source_type"].as<InputType>();
   switch (input_type) {
     case kStandard:
-      return new StandardInputReader();
+      return new StandardInputReader(true);
       break;
     case kSyntaxTree:
       return new SyntaxInputReader();
@@ -120,7 +120,7 @@ OutputReader* CreateOutputReader(const po::variables_map& vm) {
   InputType input_type = vm["target_type"].as<InputType>();
   switch (input_type) {
     case kStandard:
-      return new StandardOutputReader(vm["vocab"].as<string>());
+      return new StandardOutputReader(vm["vocab"].as<string>(), true);
       break;
     case kMorphology:
       return new MorphologyOutputReader(vm["vocab"].as<string>(), vm["root_vocab"].as<string>());
@@ -128,7 +128,8 @@ OutputReader* CreateOutputReader(const po::variables_map& vm) {
     case kRNNG:
       return new RnngOutputReader(vm["vocab"].as<string>());
     case kDependency:
-      return new DependencyOutputReader(vm["vocab"].as<string>());
+      return new StandardOutputReader(vm["vocab"].as<string>(), false);
+      //return new DependencyOutputReader(vm["vocab"].as<string>());
     default:
       assert (false && "Reader for unknown output type requested");
   }
@@ -279,7 +280,8 @@ OutputModel* CreateOutputModel(const po::variables_map& vm, Model& dynet_model, 
     output_model = new RnngOutputModel(dynet_model, term_emb_dim, nt_emb_dim, action_emb_dim, annotation_dim, hidden_dim, &target_vocab, clusters_filename);
   }
   else if (target_type == kDependency) {
-    Dict& target_vocab = dynamic_cast<DependencyOutputReader*>(output_reader)->vocab;
+    Dict& target_vocab = dynamic_cast<StandardOutputReader*>(output_reader)->vocab;
+    //Dict& target_vocab = dynamic_cast<DependencyOutputReader*>(output_reader)->vocab;
     Embedder* embedder = new StandardEmbedder(dynet_model, target_vocab.size(), embedding_dim);
     output_model = new DependencyOutputModel(dynet_model, embedder, annotation_dim, output_state_dim, final_hidden_size, target_vocab);
   }
