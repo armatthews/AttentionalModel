@@ -118,11 +118,13 @@ void MarkovPrior::NewSentence(const InputSentence* sent) {
 }
 
 Expression MarkovPrior::Compute(const vector<Expression>& inputs, unsigned target_index) {
-  Expression prior = conv1d_wide(transpose(prev_attention_vector), filter);
+  assert (false);
+  // TODO: Who removed conv1d_wide from dynet and why??
+  /*Expression prior = conv1d_wide(transpose(prev_attention_vector), filter);
   prior = transpose(prior);
   prior = pickrange(prior, 0, inputs.size());
   prior = softmax(prior);
-  return pow(prior, weight);
+  return pow(prior, weight);*/
 }
 
 void MarkovPrior::Notify(Expression attention_vector) {
