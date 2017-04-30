@@ -78,7 +78,7 @@ Trainer* CreateTrainer(Model& dynet_model, const po::variables_map& vm) {
     double learning_rate = (vm.count("learning_rate")) ? vm["learning_rate"].as<double>() : 0.1;
     double eps = (vm.count("epsilon")) ? vm["epsilon"].as<double>() : 1e-20;
     double rho = (vm.count("rho")) ? vm["rho"].as<double>() : 0.95;
-    trainer = new RmsPropTrainer(dynet_model, learning_rate, eps, rho);
+    trainer = new RMSPropTrainer(dynet_model, learning_rate, eps, rho);
   }
   else if (vm.count("adam")) {
     double alpha = (vm.count("alpha")) ? vm["alpha"].as<double>() : 0.001;
