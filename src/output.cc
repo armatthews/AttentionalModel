@@ -35,6 +35,7 @@ pair<shared_ptr<Word>, float> OutputModel::Sample(const Expression& state) {
 }
 
 Expression OutputModel::Loss(const Expression& state, const shared_ptr<const Word> ref) {
+  assert (same_value(GetState(), state));
   return Loss(GetStatePointer(), state, ref);
 }
 
@@ -122,6 +123,7 @@ Expression max_expr(const vector<Expression>& exprs) {
 
 Expression SoftmaxOutputModel::Loss(RNNPointer p, const Expression& state, const shared_ptr<const Word> ref) {
   const shared_ptr<const StandardWord> r = dynamic_pointer_cast<const StandardWord>(ref);
+  assert (same_value(GetState(p), state));
 
   if (false) {
     unsigned vocab_size = 3118;
@@ -366,6 +368,7 @@ Expression MorphologyOutputModel::CharLoss(const Expression& state, const vector
 
 Expression MorphologyOutputModel::Loss(RNNPointer p, const Expression& state, const shared_ptr<const Word> ref) {
   const shared_ptr<const MorphoWord> r = dynamic_pointer_cast<const MorphoWord>(ref);
+  assert (same_value(GetState(p), state));
   Expression model_probs = log_softmax(model_chooser.Feed(state));
   Expression word_loss = WordLoss(state, r->word);
   Expression morph_loss = MorphLoss(state, r->analyses);
@@ -514,6 +517,7 @@ pair<shared_ptr<Word>, float> RnngOutputModel::Sample(RNNPointer p, const Expres
 
 Expression RnngOutputModel::Loss(RNNPointer p, const Expression& state_vector, const shared_ptr<const Word> ref) {
   const shared_ptr<const StandardWord> r = dynamic_pointer_cast<const StandardWord>(ref);
+  assert (same_value(GetState(p), state_vector));
   Action ref_action = Convert(r->id);
   if (ref_action.type == Action::kNone) {
     return zeroes(*pcg, {1});
@@ -706,8 +710,7 @@ pair<shared_ptr<Word>, float> DependencyOutputModel::Sample(RNNPointer p, const 
 }
 
 Expression DependencyOutputModel::Loss(RNNPointer p, const Expression& state, const shared_ptr<const Word> ref) {
-  Expression state2 = GetState(p);
-  assert (same_value(state, state2));
+  assert (same_value(GetState(p), state));
 
   Expression log_probs = final_mlp.Feed(state);
   return pickneglogsoftmax(log_probs, dynamic_pointer_cast<const StandardWord>(ref)->id);
