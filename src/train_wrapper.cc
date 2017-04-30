@@ -150,7 +150,11 @@ void TrainingWrapper::FinalizeEpoch() {
 }
 
 SufficientStats TrainingWrapper::RunSlice(const vector<SentencePair>& slice, unsigned num_cores, bool learn) {
-  return run_sp_minibatch_trainer(learner, learn ? trainer : nullptr, slice);
-  //return run_mp_minibatch_trainer(num_cores, learner, learn ? trainer : nullptr, slice);
+  if (num_cores == 1) {
+    return run_sp_minibatch_trainer(learner, learn ? trainer : nullptr, slice);
+  }
+  else {
+    return run_mp_minibatch_trainer(num_cores, learner, learn ? trainer : nullptr, slice);
+  }
 }
 
