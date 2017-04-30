@@ -74,14 +74,15 @@ Expression MorphologyEmbedder::EmbedWord(WordId word) {
 }
 
 Expression MorphologyEmbedder::EmbedAnalysis(const Analysis& analysis) {
-    Expression root_emb = lookup(*pcg, root_embeddings, analysis.root);
-    vector<Expression> init = MakeLSTMInitialState(root_emb, affix_lstm_dim, morph_lstm.layers);
-    morph_lstm.start_new_sequence(init);
-    for (WordId affix : analysis.affixes) {
-      Expression affix_emb = lookup(*pcg, affix_embeddings, affix);
-      morph_lstm.add_input(affix_emb);
-    }
-    Expression analysis_emb = morph_lstm.back();
+  Expression root_emb = lookup(*pcg, root_embeddings, analysis.root);
+  vector<Expression> init = MakeLSTMInitialState(root_emb, affix_lstm_dim, morph_lstm.layers);
+  morph_lstm.start_new_sequence(init);
+  for (WordId affix : analysis.affixes) {
+    Expression affix_emb = lookup(*pcg, affix_embeddings, affix);
+    morph_lstm.add_input(affix_emb);
+  }
+  Expression analysis_emb = morph_lstm.back();
+  return analysis_emb;
 }
 
 Expression MorphologyEmbedder::PoolAnalysisEmbeddings(const vector<Expression> analysis_embs) {
