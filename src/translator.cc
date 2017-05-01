@@ -26,12 +26,14 @@ vector<Expression> Translator::PerWordLosses(const InputSentence* const source, 
 
   vector<Expression> encodings = encoder_model->Encode(source);
 
+  // TODO: This feels very weird. We're asking the model to predict the first target word
+  // without ever having seen any of the source, aren't we??
   Expression state = output_model->GetState();
   attention_model->NewSentence(source);
   for (unsigned i = 0; i < target->size(); ++i) {
     const shared_ptr<Word> word = target->at(i);
     assert (same_value(state, output_model->GetState()));
-    word_losses[i] = output_model->Loss(state, word);
+    word_losses[i] = output_model->Loss(word);
 
     Expression context = attention_model->GetContext(encodings, state);
     assert (!output_model->IsDone());
@@ -59,7 +61,7 @@ void Translator::Sample(const vector<Expression>& encodings, shared_ptr<OutputSe
   unordered_map<shared_ptr<Word>, unsigned> continuations;
   unordered_map<shared_ptr<Word>, float> scores;
   for (unsigned i = 0; i < sample_count; ++i) {
-    pair<shared_ptr<Word>, float> sample = output_model->Sample(state_pointer, output_state);
+    pair<shared_ptr<Word>, float> sample = output_model->Sample(state_pointer);
     shared_ptr<Word> w = get<0>(sample);
     float score = get<1>(sample);
     if (continuations.find(w) != continuations.end()) {
@@ -156,7 +158,7 @@ KBestList<shared_ptr<OutputSentence>> Translator::Translate(const InputSentence*
       assert (hyp_sentence->size() == length);
       Expression output_state = output_model->GetState(state_pointer);
       Expression context = attention_model->GetContext(encodings, output_state);
-      KBestList<shared_ptr<Word>> best_words = output_model->PredictKBest(state_pointer, output_state, beam_size);
+      KBestList<shared_ptr<Word>> best_words = output_model->PredictKBest(state_pointer, beam_size);
 
       for (auto& w : best_words.hypothesis_list()) {
         double word_score = get<0>(w);
@@ -266,7 +268,7 @@ vector<vector<float>> Translator::GetAttentionGradients(const InputSentence* con
     Expression context = source_matrix * alignment;
 
     state = output_model->AddInput(word, context);
-    Expression loss = output_model->Loss(state, word);
+    Expression loss = output_model->Loss(word);
     cg.incremental_forward(loss);
     cg.backward(loss);
 
@@ -292,7 +294,7 @@ Expression Translator::BuildPredictionGraph(const InputSentence* const source, c
   vector<Expression> word_losses(target_probs.size());
   for (unsigned i = 0; i < target_probs.size(); ++i) {
     assert (same_value(state, output_model->GetState()));
-    Expression log_probs = output_model->PredictLogDistribution(state);
+    Expression log_probs = output_model->PredictLogDistribution();
     // TODO: should we compute this expectation in log space or prob space?
     Expression expectation = transpose(target_probs[i]) * log_probs;
     word_losses[i] = -expectation;

@@ -35,16 +35,14 @@ public:
   virtual Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context);
   virtual Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p) = 0;
 
-  // TODO: I believe having these functions take both a state and an RNNPointer is redundant.
-  // The pointer is necessary, but perhaps we can avoid passing in the state too.
-  virtual Expression PredictLogDistribution(const Expression& state);
-  virtual Expression PredictLogDistribution(RNNPointer p, const Expression& state) = 0;
-  virtual KBestList<shared_ptr<Word>> PredictKBest(const Expression& state, unsigned K);
-  virtual KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, const Expression& state, unsigned K) = 0;
-  virtual pair<shared_ptr<Word>, float> Sample(const Expression& state);
-  virtual pair<shared_ptr<Word>, float> Sample(RNNPointer p, const Expression& state) = 0;
-  virtual Expression Loss(const Expression& state, const shared_ptr<const Word> ref);
-  virtual Expression Loss(RNNPointer p, const Expression& state, const shared_ptr<const Word> ref) = 0;
+  virtual Expression PredictLogDistribution();
+  virtual Expression PredictLogDistribution(RNNPointer p) = 0;
+  virtual KBestList<shared_ptr<Word>> PredictKBest(unsigned K);
+  virtual KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, unsigned K) = 0;
+  virtual pair<shared_ptr<Word>, float> Sample();
+  virtual pair<shared_ptr<Word>, float> Sample(RNNPointer p) = 0;
+  virtual Expression Loss(const shared_ptr<const Word> ref);
+  virtual Expression Loss(RNNPointer p, const shared_ptr<const Word> ref) = 0;
 
   virtual bool IsDone() const;
   virtual bool IsDone(RNNPointer p) const = 0;
@@ -60,21 +58,24 @@ public:
   SoftmaxOutputModel();
   SoftmaxOutputModel(Model& model, unsigned embedding_dim, unsigned context_dim, unsigned state_dim, Dict* vocab, const string& clusters_file);
 
-  void NewGraph(ComputationGraph& cg);
-  void SetDropout(float rate);
-  virtual Expression GetState(RNNPointer p) const;
-  RNNPointer GetStatePointer() const;
+  void NewGraph(ComputationGraph& cg) override;
+  void SetDropout(float rate) override;
+  virtual Expression GetState(RNNPointer p) const override;
+  RNNPointer GetStatePointer() const override;
+  Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p) override;
+
+  virtual Expression PredictLogDistribution(RNNPointer p) override;
+  virtual KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, unsigned K) override;
+  virtual pair<shared_ptr<Word>, float> Sample(RNNPointer p) override;
+  virtual Expression Loss(RNNPointer p, const shared_ptr<const Word> ref) override;
+
+  bool IsDone(RNNPointer p) const override;
+
+  // TODO: Take an (standard?) embedder
   Expression Embed(const shared_ptr<const StandardWord> word);
-  Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p);
 
-  virtual Expression PredictLogDistribution(RNNPointer p, const Expression& state);
-  virtual KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, const Expression& state, unsigned K);
-  virtual pair<shared_ptr<Word>, float> Sample(RNNPointer p, const Expression& state);
-  virtual Expression Loss(RNNPointer p, const Expression& state, const shared_ptr<const Word> ref);
-
-  bool IsDone(RNNPointer p) const;
-  WordId kEOS;
 //protected:
+  WordId kEOS;
   unsigned state_dim;
   LSTMBuilder output_builder;
   Parameter p_output_builder_initial_state;
@@ -84,6 +85,7 @@ public:
   vector<bool> done;
   Expression output_builder_initial_state;
   ComputationGraph* pcg;
+
 private:
   friend class boost::serialization::access;
   template<class Archive>
@@ -104,10 +106,12 @@ public:
   MlpSoftmaxOutputModel();
   MlpSoftmaxOutputModel(Model& model, unsigned embedding_dim, unsigned context_dim, unsigned state_dim, unsigned hidden_dim, Dict* vocab, const string& clusters_file);
 
-  Expression GetState(RNNPointer p) const;
-  Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p);
+  Expression GetState(RNNPointer p) const override;
+  Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p) override;
 
-  void NewGraph(ComputationGraph& cg);
+  void NewGraph(ComputationGraph& cg) override;
+
+  // TODO: What are these and why are the necessary? I think maybe for the continuous decoder?
   virtual Expression AddInput(Expression prev_word_emb, const Expression& context);
   virtual Expression AddInput(Expression prev_word_emb, const Expression& context, const RNNPointer& p);
 private:
@@ -128,22 +132,24 @@ class MorphologyOutputModel : public OutputModel {
 public:
   MorphologyOutputModel();
   MorphologyOutputModel(Model& model, Dict& word_vocab, Dict& root_vocab, unsigned affix_vocab_size, unsigned char_vocab_size, unsigned word_emb_dim, unsigned root_emb_dim, unsigned affix_emb_dim, unsigned char_emb_dim, unsigned model_chooser_hidden_dim, unsigned affix_init_hidden_dim, unsigned char_init_hidden_dim, unsigned state_dim, unsigned affix_lstm_dim, unsigned char_lstm_dim, unsigned context_dim, const string& word_clusters, const string& root_clusters);
-  void NewGraph(ComputationGraph& cg);
-  void SetDropout(float rate);
-  Expression GetState(RNNPointer p) const;
-  RNNPointer GetStatePointer() const;
-  Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p);
-  Expression PredictLogDistribution(RNNPointer p, const Expression& state);
-  KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, const Expression& state, unsigned K);
-  pair<shared_ptr<Word>, float> Sample(RNNPointer p, const Expression& state);
+
+  void NewGraph(ComputationGraph& cg) override;
+  void SetDropout(float rate) override;
+  Expression GetState(RNNPointer p) const override;
+  RNNPointer GetStatePointer() const override;
+  Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p) override;
+
+  Expression PredictLogDistribution(RNNPointer p) override;
+  KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, unsigned K) override;
+  pair<shared_ptr<Word>, float> Sample(RNNPointer p) override;
+  Expression Loss(RNNPointer p, const shared_ptr<const Word> ref) override;
+
+  bool IsDone(RNNPointer p) const override;
 
   Expression WordLoss(const Expression& state, const WordId ref);
   Expression AnalysisLoss(const Expression& state, const Analysis& ref);
   Expression MorphLoss(const Expression& state, const vector<Analysis>& ref);
   Expression CharLoss(const Expression& state, const vector<WordId>& ref);
-  Expression Loss(RNNPointer p, const Expression& state, const shared_ptr<const Word> ref);
-
-  bool IsDone(RNNPointer p) const;
 
 private:
   unsigned state_dim;
@@ -201,17 +207,19 @@ public:
   RnngOutputModel();
   RnngOutputModel(Model& model, unsigned term_emb_dim, unsigned nt_emb_dim, unsigned action_emb_dim, unsigned source_dim, unsigned hidden_dim, Dict* vocab, const string& clusters_file);
   void InitializeDictionaries(const Dict& raw_vocab);
-  void NewGraph(ComputationGraph& cg);
-  void SetDropout(float rate);
-  Expression GetState() const;
-  Expression GetState(RNNPointer p) const;
-  RNNPointer GetStatePointer() const;
-  Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p);
-  Expression PredictLogDistribution(RNNPointer p, const Expression& source_context);
-  KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, const Expression& state, unsigned K);
-  pair<shared_ptr<Word>, float> Sample(RNNPointer p, const Expression& source_context);
-  Expression Loss(RNNPointer p, const Expression& source_context, const shared_ptr<const Word> ref);
-  bool IsDone(RNNPointer p) const;
+
+  void NewGraph(ComputationGraph& cg) override;
+  void SetDropout(float rate) override;
+  Expression GetState(RNNPointer p) const override;
+  RNNPointer GetStatePointer() const override;
+  Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p) override;
+
+  Expression PredictLogDistribution(RNNPointer p) override;
+  KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, unsigned K) override;
+  pair<shared_ptr<Word>, float> Sample(RNNPointer p) override;
+  Expression Loss(RNNPointer p, const shared_ptr<const Word> ref) override;
+
+  bool IsDone(RNNPointer p) const override;
 
 private:
   Action Convert(const WordId w) const;
@@ -245,16 +253,18 @@ class DependencyOutputModel : public OutputModel {
 public:
   DependencyOutputModel();
   DependencyOutputModel(Model& model, Embedder* embedder, unsigned context_dim, unsigned state_dim, unsigned final_hidden_dim, Dict& vocab);
+
   void NewGraph(ComputationGraph& cg) override;
+  void SetDropout(float rate) override;
   Expression GetState(RNNPointer p) const override;
   RNNPointer GetStatePointer() const override;
   Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p) override;
 
-  Expression PredictLogDistribution(RNNPointer p, const Expression& state);
-  KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, const Expression& state, unsigned K);
-  pair<shared_ptr<Word>, float> Sample(RNNPointer p, const Expression& state);
-  Expression Loss(RNNPointer p, const Expression& state, const shared_ptr<const Word> ref);
-  bool IsDone(RNNPointer p) const;
+  Expression PredictLogDistribution(RNNPointer p) override;
+  KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, unsigned K) override;
+  pair<shared_ptr<Word>, float> Sample(RNNPointer p) override;
+  Expression Loss(RNNPointer p, const shared_ptr<const Word> ref) override;
+  bool IsDone(RNNPointer p) const override;
 
 private:
   typedef tuple<RNNPointer, RNNPointer, unsigned, bool> State; // Stack pointer, comp pointer, stack depth, done with left
