@@ -35,14 +35,14 @@ public:
   virtual Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context);
   virtual Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p) = 0;
 
-  virtual Expression PredictLogDistribution();
-  virtual Expression PredictLogDistribution(RNNPointer p) = 0;
-  virtual KBestList<shared_ptr<Word>> PredictKBest(unsigned K);
-  virtual KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, unsigned K) = 0;
-  virtual pair<shared_ptr<Word>, float> Sample();
-  virtual pair<shared_ptr<Word>, float> Sample(RNNPointer p) = 0;
-  virtual Expression Loss(const shared_ptr<const Word> ref);
-  virtual Expression Loss(RNNPointer p, const shared_ptr<const Word> ref) = 0;
+  virtual Expression PredictLogDistribution(Expression context);
+  virtual Expression PredictLogDistribution(RNNPointer p, Expression context) = 0;
+  virtual KBestList<shared_ptr<Word>> PredictKBest(Expression context, unsigned K);
+  virtual KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, Expression context, unsigned K) = 0;
+  virtual pair<shared_ptr<Word>, float> Sample(Expression context);
+  virtual pair<shared_ptr<Word>, float> Sample(RNNPointer p, Expression context) = 0;
+  virtual Expression Loss(Expression context, const shared_ptr<const Word> ref);
+  virtual Expression Loss(RNNPointer p, Expression context, const shared_ptr<const Word> ref) = 0;
 
   virtual bool IsDone() const;
   virtual bool IsDone(RNNPointer p) const = 0;
@@ -64,10 +64,10 @@ public:
   RNNPointer GetStatePointer() const override;
   Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p) override;
 
-  virtual Expression PredictLogDistribution(RNNPointer p) override;
-  virtual KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, unsigned K) override;
-  virtual pair<shared_ptr<Word>, float> Sample(RNNPointer p) override;
-  virtual Expression Loss(RNNPointer p, const shared_ptr<const Word> ref) override;
+  virtual Expression PredictLogDistribution(RNNPointer p, Expression context) override;
+  virtual KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, Expression context, unsigned K) override;
+  virtual pair<shared_ptr<Word>, float> Sample(RNNPointer p, Expression context) override;
+  virtual Expression Loss(RNNPointer p, Expression context, const shared_ptr<const Word> ref) override;
 
   bool IsDone(RNNPointer p) const override;
 
@@ -139,10 +139,10 @@ public:
   RNNPointer GetStatePointer() const override;
   Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p) override;
 
-  Expression PredictLogDistribution(RNNPointer p) override;
-  KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, unsigned K) override;
-  pair<shared_ptr<Word>, float> Sample(RNNPointer p) override;
-  Expression Loss(RNNPointer p, const shared_ptr<const Word> ref) override;
+  Expression PredictLogDistribution(RNNPointer p, Expression context) override;
+  KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, Expression context, unsigned K) override;
+  pair<shared_ptr<Word>, float> Sample(RNNPointer p, Expression context) override;
+  Expression Loss(RNNPointer p, Expression context, const shared_ptr<const Word> ref) override;
 
   bool IsDone(RNNPointer p) const override;
 
@@ -214,10 +214,10 @@ public:
   RNNPointer GetStatePointer() const override;
   Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p) override;
 
-  Expression PredictLogDistribution(RNNPointer p) override;
-  KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, unsigned K) override;
-  pair<shared_ptr<Word>, float> Sample(RNNPointer p) override;
-  Expression Loss(RNNPointer p, const shared_ptr<const Word> ref) override;
+  Expression PredictLogDistribution(RNNPointer p, Expression context) override;
+  KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, Expression context, unsigned K) override;
+  pair<shared_ptr<Word>, float> Sample(RNNPointer p, Expression context) override;
+  Expression Loss(RNNPointer p, Expression context, const shared_ptr<const Word> ref) override;
 
   bool IsDone(RNNPointer p) const override;
 
@@ -260,10 +260,10 @@ public:
   RNNPointer GetStatePointer() const override;
   Expression AddInput(const shared_ptr<const Word> prev_word, const Expression& context, const RNNPointer& p) override;
 
-  Expression PredictLogDistribution(RNNPointer p) override;
-  KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, unsigned K) override;
-  pair<shared_ptr<Word>, float> Sample(RNNPointer p) override;
-  Expression Loss(RNNPointer p, const shared_ptr<const Word> ref) override;
+  Expression PredictLogDistribution(RNNPointer p, Expression context) override;
+  KBestList<shared_ptr<Word>> PredictKBest(RNNPointer p, Expression context, unsigned K) override;
+  pair<shared_ptr<Word>, float> Sample(RNNPointer p, Expression context) override;
+  Expression Loss(RNNPointer p, Expression context, const shared_ptr<const Word> ref) override;
   bool IsDone(RNNPointer p) const override;
 
 private:
