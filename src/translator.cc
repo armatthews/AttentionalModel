@@ -274,9 +274,7 @@ vector<vector<float>> Translator::GetAttentionGradients(const InputSentence* con
     cg.backward(loss);
 
     SimpleExecutionEngine* ee = dynamic_cast<SimpleExecutionEngine*>(cg.ee);
-    assert (scores.i < ee->num_nodes_evaluated);
-    Tensor& score_gradient = ee->ndEdfs[scores.i];
-    //Tensor& score_gradient = ee->nfxs[scores.i];
+    const Tensor& score_gradient = ee->get_gradient(scores.i);
     vector<float> score_grad = as_vector(score_gradient);
     grads.push_back(score_grad);
   }
