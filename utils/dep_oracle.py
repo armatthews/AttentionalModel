@@ -47,7 +47,7 @@ def parse_arcs(lines):
   arcs = []
   for line in lines:
     parts = line.split('\t')
-    assert len(parts) == 8
+    assert len(parts) >= 7, 'Invalid line: %s' % line.strip()
     index = int(parts[0])
     word = parts[1]
     head = int(parts[6])

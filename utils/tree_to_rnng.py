@@ -1,3 +1,4 @@
+from __future__ import print_function
 import re
 import sys
 import argparse
@@ -64,4 +65,4 @@ args = parser.parse_args()
 for line in sys.stdin:
   line = line.strip()
   actions = get_actions(line)
-  print ' '.join(actions)
+  print(' '.join(actions))
